@@ -64,6 +64,8 @@ def create_shape_icon(shape, size=24, color="#4f6ef7"):
         painter.drawLine(margin+2, margin+2, size-margin-2, margin+2)
     elif shape == 'play':
         # Play triangle
+        cx = size // 2
+        cy = size // 2
         points = [
             (margin+3, margin+2),
             (margin+3, size-margin-2),
@@ -89,10 +91,14 @@ def create_shape_icon(shape, size=24, color="#4f6ef7"):
         painter.drawLine(size-margin-3, margin+3, margin+3, size-margin-3)
     elif shape == 'check':
         # Checkmark
+        cx = size // 2
+        cy = size // 2
         painter.drawLine(margin+3, cy, cx-2, size-margin-3)
         painter.drawLine(cx-2, size-margin-3, size-margin-3, margin+3)
     elif shape == 'warn':
         # Warning triangle
+        cx = size // 2
+        cy = size // 2
         points = [
             (cx, margin+2),
             (margin+2, size-margin-2),
@@ -107,10 +113,14 @@ def create_shape_icon(shape, size=24, color="#4f6ef7"):
         painter.drawText(QRect(margin, cy-2, size-2*margin, 8), Qt.AlignmentFlag.AlignCenter, "!")
     elif shape == 'info':
         # Info circle
+        cx = size // 2
+        cy = size // 2
         painter.drawEllipse(margin+2, margin+2, size-2*margin-4, size-2*margin-4)
         painter.setPen(QColor("#000"))
         painter.drawText(QRect(cx-2, margin+4, 4, size-2*margin-8), Qt.AlignmentFlag.AlignCenter, "i")
     elif shape == 'plus':
+        cx = size // 2
+        cy = size // 2
         painter.drawLine(cx, margin+3, cx, size-margin-3)
         painter.drawLine(margin+3, cy, size-margin-3, cy)
     elif shape == 'trash':
@@ -211,3 +221,11 @@ class Icons:
     def COPY(): return create_shape_icon('copy', color=Icons.PRIMARY)
     @staticmethod
     def HELP(): return create_shape_icon('info', color=Icons.PRIMARY)
+    @staticmethod
+    def DOWN(): return create_shape_icon('arrow_down', color=Icons.PRIMARY)
+    @staticmethod
+    def UP(): return create_shape_icon('arrow_up', color=Icons.PRIMARY)
+    @staticmethod
+    def LEFT(): return create_shape_icon('arrow_left', color=Icons.PRIMARY)
+    @staticmethod
+    def RIGHT(): return create_shape_icon('arrow_right', color=Icons.PRIMARY)
