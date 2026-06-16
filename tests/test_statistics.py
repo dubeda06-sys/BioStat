@@ -2,7 +2,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from src.core.statistics import descriptive_stats, t_test_paired, t_test_independent
+from src.core.statistics import descriptive_stats, ttest_paired, ttest_ind
 
 
 class TestDescriptiveStats:
@@ -23,13 +23,19 @@ class TestTTest:
     def test_paired_ttest(self):
         data1 = pd.Series([1.2, 2.5, 3.1, 4.8, 5.3, 6.7, 7.2])
         data2 = pd.Series([2.1, 3.6, 2.9, 5.5, 4.8, 7.3, 8.1])
-        t_stat, p_value = t_test_paired(data1, data2)
-        assert isinstance(t_stat, float)
-        assert isinstance(p_value, float)
+        result = ttest_paired(data1, data2)
+        assert isinstance(result, dict)
+        assert 't' in result
+        assert 'p' in result
+        assert isinstance(result['t'], float)
+        assert isinstance(result['p'], float)
 
     def test_independent_ttest(self):
         data1 = pd.Series([1, 2, 3, 4, 5])
         data2 = pd.Series([6, 7, 8, 9, 10])
-        t_stat, p_value = t_test_independent(data1, data2)
-        assert isinstance(t_stat, float)
-        assert isinstance(p_value, float)
+        result = ttest_ind(data1, data2)
+        assert isinstance(result, dict)
+        assert 't' in result
+        assert 'p' in result
+        assert isinstance(result['t'], float)
+        assert isinstance(result['p'], float)

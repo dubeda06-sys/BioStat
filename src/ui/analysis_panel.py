@@ -31,17 +31,27 @@ from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
     mcnemar_test, kruskal_wallis, friedman_test,
     f_test_variances, ttest_1sample, trimmed_mean, skewness_test, kurtosis_test,
-    partial_correlation
+    partial_correlation, descriptive_stats, geometric_mean, harmonic_mean,
+    anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho, normality_test
 )
 from src.core.agreement import (
-    cohens_kappa, intraclass_correlation, cronbach_alpha
+    cohens_kappa, intraclass_correlation, cronbach_alpha,
+    weighted_kappa, deming_regression, cv_from_duplicates
 )
 from src.core.regression import linear_regression, multiple_regression, logistic_regression
 from src.core.diagnostic_tests import (
-    odds_ratio, relative_risk, diagnostic_test
+    odds_ratio, relative_risk, diagnostic_test,
+    likelihood_ratios, compare_two_means, compare_two_proportions, compare_two_auc
 )
 from src.core.outliers import grubbs_test, tukey_outliers, generalized_esd
-from src.core.reference import reference_interval
+from src.core.reference import reference_interval, percentile_table, age_related_reference
+from src.core.two_way_anova import two_way_anova
+from src.core.ancova import ancova
+from src.core.repeated_measures import repeated_measures_anova
+from src.core.cox_regression import cox_regression
+from src.core.probit import probit_regression
+from src.core.cmh import cmh_test
+from src.core.serial_measurements import serial_measurements_summary
 
 plt.rcParams.update({
     'figure.facecolor': 'white', 'axes.facecolor': '#fafbfd',
@@ -96,6 +106,32 @@ ANALYSIS_HELP = {
     "Asimetria y curtosis": "Forma de la distribucion.",
     "Media recortada": "Media robusta eliminando extremos.",
     "Correlacion parcial": "Correlacion controlando una variable.",
+    "Media geometrica": "Media geométrica de datos positivos.",
+    "Media armonica": "Media armónica de datos positivos.",
+    "t-test 1 muestra": "t-test para una muestra vs valor conocido.",
+    "ANOVA una via (core)": "ANOVA una vía usando módulo core.",
+    "Sign test": "Test de signos para datos pareados.",
+    "Cochran Q": "Test Q de Cochran para proporciones.",
+    "Kappa ponderado": "Kappa ponderado (lineal o cuadrático).",
+    "Deming regression": "Regresión Deming para métodos comparados.",
+    "CV duplicatas": "CV a partir de mediciones duplicadas.",
+    "Likelihood Ratios": "Razones de verimilitud positiva y negativa.",
+    "Comparar 2 medias": "Comparar 2 medias desde datos resumen.",
+    "Comparar 2 proporciones": "Comparar 2 proporciones desde datos resumen.",
+    "Comparar 2 AUC": "Comparar 2 curvas ROC independientes.",
+    "Tabla de percentiles": "Tabla completa de percentiles con IC.",
+    "Edad-relacionada": "Intervalos de referencia por edad.",
+    "Outliers (ESD)": "Test ESD generalizado para múltiples outliers.",
+    "Bootstrap (mediana)": "IC bootstrap para la mediana.",
+    "Bootstrap (regresion)": "IC bootstrap para regresión lineal.",
+    "Tamaño muestral (correlacion)": "Tamaño muestral para detectar correlación.",
+    "ANOVA dos vias": "ANOVA factorial (2 factores).",
+    "ANCOVA": "ANOVA con covariable continua.",
+    "Medidas repetidas": "ANOVA para medidas repetidas con corrección Greenhouse-Geisser.",
+    "Cox regression": "Regresión de riesgos proporcionales de Cox.",
+    "Probit regression": "Regresión probit para datos binarios.",
+    "CMH test": "Cochran-Mantel-Haenszel para tablas estratificadas.",
+    "Mediciones seriales": "Resumen de mediciones repetidas por sujeto.",
 }
 
 
@@ -290,6 +326,32 @@ class AnalysisPanel(QWidget):
             "Asimetria y curtosis": lambda: self._skew_kurt(c1),
             "Media recortada": lambda: self._trimmed(c1),
             "Correlacion parcial": lambda: self._partial_corr(c1, c2, c3),
+            "Media geometrica": lambda: self._run_core("geometric_mean", c1),
+            "Media armonica": lambda: self._run_core("harmonic_mean", c1),
+            "t-test 1 muestra": lambda: self._run_core("ttest_1sample", c1),
+            "ANOVA una via (core)": lambda: self._run_core("anova_oneway"),
+            "Sign test": lambda: self._run_core("sign_test", c1, c2),
+            "Cochran Q": lambda: self._run_core("cochran_q"),
+            "Kappa ponderado": lambda: self._run_core("weighted_kappa"),
+            "Deming regression": lambda: self._run_core("deming", c1, c2),
+            "CV duplicatas": lambda: self._run_core("cv_duplicates", c1, c2),
+            "Likelihood Ratios": lambda: self._run_core("likelihood_ratios"),
+            "Comparar 2 medias": lambda: self._run_core("compare_means"),
+            "Comparar 2 proporciones": lambda: self._run_core("compare_props"),
+            "Comparar 2 AUC": lambda: self._run_core("compare_auc"),
+            "Tabla de percentiles": lambda: self._run_core("percentile_table", c1),
+            "Edad-relacionada": lambda: self._run_core("age_related"),
+            "Outliers (ESD)": lambda: self._run_core("generalized_esd", c1),
+            "Bootstrap (mediana)": lambda: self._run_core("bootstrap_median", c1),
+            "Bootstrap (regresion)": lambda: self._run_core("bootstrap_regression", c1, c2),
+            "Tamaño muestral (correlacion)": lambda: self._run_core("sample_size_corr", c1, c2),
+            "ANOVA dos vias": lambda: self._run_two_way_anova(),
+            "ANCOVA": lambda: self._run_ancova(c1, c2, c3),
+            "Medidas repetidas": lambda: self._run_repeated_measures(),
+            "Cox regression": lambda: self._run_cox(c1, c2),
+            "Probit regression": lambda: self._run_probit(c1, c2),
+            "CMH test": lambda: self._run_cmh(),
+            "Mediciones seriales": lambda: self._run_serial(),
         }
         fn = dispatch.get(at)
         if fn:
@@ -334,27 +396,23 @@ class AnalysisPanel(QWidget):
         d = self.data[col].dropna()
         if not np.issubdtype(d.dtype, np.number):
             return f"<b>Error:</b> '{col}' no es numerica."
-        n = len(d)
-        mean = d.mean()
-        sd = d.std()
-        se = d.sem()
-        ic = 1.96 * se
-        cv = (sd / mean) * 100 if mean != 0 else 0
-
+        
+        result = descriptive_stats(d)
         self._set_formula(
             "Formula: Estadisticas Descriptivas",
-            "Media: x̄ = Σxi / n\nDE: s = √(Σ(xi - x̄)² / (n-1))\nSE: SE = s / √n\nIC95%: x̄ ± 1.96 × SE\nCV%: (s / x̄) × 100",
-            f"n = {n}\nMedia = {mean:.4f}\nDE = {sd:.4f}\nSE = {se:.4f}\nIC95% = [{mean-ic:.4f}, {mean+ic:.4f}]\nCV% = {cv:.2f}%"
+            "Media: x̄ = Σxi / n\nDE: s = √(Σ(xi - x̄)² / (n-1))\nSE: SE = s / √n\nIC95%: x̄ ± 1.96 × SE\nCV%: (s / x̄) × 100"
         )
-
+        
         h = self._h(f"{Icons.STATS} Descriptivas — {col}")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("n", n), ("Media", f"{mean:.4f}"), ("Mediana", f"{d.median():.4f}"),
-                      ("DE", f"{sd:.4f}"), ("Varianza", f"{d.var():.4f}"),
-                      ("Error estandar", f"{se:.4f}"),
-                      ("Minimo", f"{d.min():.4f}"), ("Maximo", f"{d.max():.4f}"),
-                      ("IC 95%", f"[{mean-ic:.4f}, {mean+ic:.4f}]"),
-                      ("CV%", f"{cv:.2f}%")]:
+        for l, v in [("n", result['n']), ("Media", f"{result['mean']:.4f}"), ("Mediana", f"{result['median']:.4f}"),
+                      ("DE", f"{result['std']:.4f}"), ("Varianza", f"{result['var']:.4f}"),
+                      ("Error estandar", f"{result['sem']:.4f}"),
+                      ("Minimo", f"{result['min']:.4f}"), ("Maximo", f"{result['max']:.4f}"),
+                      ("IC 95%", f"[{result['ci95'][0]:.4f}, {result['ci95'][1]:.4f}]"),
+                      ("CV%", f"{result['cv']:.2f}%"),
+                      ("Q25", f"{result['q25']:.4f}"), ("Q75", f"{result['q75']:.4f}"),
+                      ("IQR", f"{result['iqr']:.4f}")]:
             h += self._r(l, v)
         return h + "</table>"
 
@@ -366,25 +424,23 @@ class AnalysisPanel(QWidget):
         n = min(len(d1), len(d2))
         if n < 2:
             return "<b>Error:</b> Minimo 2 pares."
-        diff = d1[:n] - d2[:n]
-        mean_d = diff.mean()
-        sd_d = diff.std()
-        se_d = sd_d / np.sqrt(n)
-        t, p = stats.ttest_rel(d1[:n], d2[:n])
-
+        
+        result = ttest_paired(d1[:n], d2[:n])
+        if result is None:
+            return "<b>Error:</b> No se pudo calcular."
+        
         self._set_formula(
             "Formula: t-test Pareado",
-            "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipotesis nula)",
-            f"d̄ = {mean_d:.4f}\nsd = {sd_d:.4f}\nn = {n}\nSE = {sd_d:.4f} / √{n} = {se_d:.4f}\nt = {mean_d:.4f} / {se_d:.4f} = {t:.4f}\np = {p:.6f}"
+            "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipotesis nula)"
         )
-
+        
         h = self._h(f"{Icons.RUN} t-test Pareado")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Var 1", c1), ("Var 2", c2), ("Pares (n)", n),
-                      ("Media diff", f"{mean_d:.4f}"), ("DE diff", f"{sd_d:.4f}"),
-                      ("t", f"{t:.4f}"), ("p", f"{p:.6f}"), ("Alpha", a)]:
+        for l, v in [("Var 1", c1), ("Var 2", c2), ("Pares (n)", result['n']),
+                      ("Media diff", f"{result['mean_diff']:.4f}"), ("DE diff", f"{result['sd_diff']:.4f}"),
+                      ("t", f"{result['t']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(p < a)
+        return h + "</table>" + self._ok(result['p'] < a)
 
     # --- t-test independiente ---
     def _t_ind(self, c1, c2, a):
@@ -393,24 +449,24 @@ class AnalysisPanel(QWidget):
         d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
         if len(d1) < 2 or len(d2) < 2:
             return "<b>Error:</b> Minimo 2 obs por grupo."
-        n1, n2 = len(d1), len(d2)
-        m1, m2 = d1.mean(), d2.mean()
-        s1, s2 = d1.std(), d2.std()
-        t, p = stats.ttest_ind(d1, d2)
-
+        
+        result = ttest_ind(d1, d2)
+        if result is None:
+            return "<b>Error:</b> No se pudo calcular."
+        
         self._set_formula(
             "Formula: t-test Independiente (Welch)",
-            "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamano",
-            f"x̄₁ = {m1:.4f}, s₁ = {s1:.4f}, n₁ = {n1}\nx̄₂ = {m2:.4f}, s₂ = {s2:.4f}, n₂ = {n2}\nDiferencia = {m1-m2:.4f}\nt = {t:.4f}\np = {p:.6f}"
+            "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamano"
         )
-
+        
         h = self._h(f"{Icons.RUN} t-test Independiente")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Grupo 1", f"{c1} (n={n1}, x={m1:.2f})"),
-                      ("Grupo 2", f"{c2} (n={n2}, x={m2:.2f})"),
-                      ("t", f"{t:.4f}"), ("p", f"{p:.6f}"), ("Alpha", a)]:
+        for l, v in [("Grupo 1", c1), ("Grupo 2", c2),
+                      ("n1", result['n1']), ("n2", result['n2']),
+                      ("Media 1", f"{result['mean1']:.4f}"), ("Media 2", f"{result['mean2']:.4f}"),
+                      ("t", f"{result['t']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(p < a)
+        return h + "</table>" + self._ok(result['p'] < a)
 
     # --- ANOVA ---
     def _anova(self, a):
@@ -419,12 +475,15 @@ class AnalysisPanel(QWidget):
         names = [c for c in nums if len(self.data[c].dropna()) > 0]
         if len(groups) < 2:
             return "<b>Error:</b> >= 2 grupos numericos requeridos."
-        f, p = stats.f_oneway(*groups)
+        
+        result = anova_oneway(groups)
+        self._set_formula("Formula: ANOVA Una Vía", "F = MS_between / MS_within")
+        
         h = self._h(f"{Icons.RUN} ANOVA una via")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Grupos", ", ".join(names)), ("F", f"{f:.4f}"), ("p", f"{p:.6f}"), ("Alpha", a)]:
+        for l, v in [("Grupos", ", ".join(names)), ("F", f"{result['F']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(p < a)
+        return h + "</table>" + self._ok(result['p'] < a)
 
     # --- Pearson ---
     def _corr_p(self, c1, c2):
@@ -434,23 +493,26 @@ class AnalysisPanel(QWidget):
         n = min(len(d1), len(d2))
         if n < 3:
             return "<b>Error:</b> Minimo 3 pares."
-        r, p = stats.pearsonr(d1[:n], d2[:n])
-        ar = abs(r)
+        
+        result = pearson_r(d1[:n], d2[:n])
+        if result is None:
+            return "<b>Error:</b> No se pudo calcular."
+        
+        ar = abs(result['r'])
         s = "Muy fuerte" if ar >= .9 else "Fuerte" if ar >= .7 else "Moderada" if ar >= .5 else "Debil"
-
+        
         self._set_formula(
             "Formula: Correlacion de Pearson",
-            "r = Sum(xi - xbar)(yi - ybar) / Sqrt[Sum(xi - xbar)^2 x Sum(yi - ybar)^2]\nR2 = r^2\nt = r x Sqrt(n-2) / Sqrt(1-r^2)",
-            f"n = {n}\nr = {r:.6f}\nR2 = {r**2:.6f}\nt = {r:.4f} x Sqrt({n-2}) / Sqrt(1-{r**2:.4f})\np = {p:.6f}"
+            "r = Sum(xi - xbar)(yi - ybar) / Sqrt[Sum(xi - xbar)^2 x Sum(yi - ybar)^2]"
         )
-
+        
         h = self._h(f"{Icons.CHART} Pearson")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Var 1", c1), ("Var 2", c2), ("n", n),
-                      ("r", f"{r:.4f}"), ("R2", f"{r**2:.4f}"),
-                      ("p", f"{p:.6f}"), ("Fuerza", s)]:
+        for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']),
+                      ("r", f"{result['r']:.4f}"), ("R2", f"{result['r2']:.4f}"),
+                      ("p", f"{result['p']:.6f}"), ("Fuerza", s)]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(p < 0.05)
+        return h + "</table>" + self._ok(result['p'] < 0.05)
 
     # --- Spearman ---
     def _corr_s(self, c1, c2):
@@ -460,12 +522,18 @@ class AnalysisPanel(QWidget):
         n = min(len(d1), len(d2))
         if n < 3:
             return "<b>Error:</b> Minimo 3 pares."
-        r, p = stats.spearmanr(d1[:n], d2[:n])
+        
+        result = spearman_rho(d1[:n], d2[:n])
+        if result is None:
+            return "<b>Error:</b> No se pudo calcular."
+        
+        self._set_formula("Formula: Spearman", "rho = 1 - (6 × Σd²) / (n × (n² - 1))")
+        
         h = self._h(f"{Icons.CHART} Spearman")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Var 1", c1), ("Var 2", c2), ("n", n), ("rho", f"{r:.4f}"), ("p", f"{p:.6f}")]:
+        for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']), ("rho", f"{result['rho']:.4f}"), ("p", f"{result['p']:.6f}")]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(p < 0.05)
+        return h + "</table>" + self._ok(result['p'] < 0.05)
 
     # --- Shapiro-Wilk ---
     def _shapiro(self, col):
@@ -476,13 +544,19 @@ class AnalysisPanel(QWidget):
             return "<b>Error:</b> Minimo 3 datos."
         if len(d) > 5000:
             d = d.sample(5000, random_state=42)
-        w, p = stats.shapiro(d)
+        
+        result = normality_test(d)
+        if result is None:
+            return "<b>Error:</b> No se pudo calcular."
+        
+        self._set_formula("Formula: Shapiro-Wilk", "W = (Σa_i x_i)² / Σ(x_i - x̄)²")
+        
         h = self._h(f"{Icons.CHECK} Shapiro-Wilk — {col}")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("n", len(d)), ("W", f"{w:.4f}"), ("p", f"{p:.6f}")]:
+        for l, v in [("n", result['n']), ("W", f"{result['statistic']:.4f}"), ("p", f"{result['p']:.6f}")]:
             h += self._r(l, v)
         h += "</table>"
-        if p < 0.05:
+        if result['p'] < 0.05:
             h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'>{Icons.WARN} NO es normal (p<0.05)</b><br>Usa pruebas no parametricas.</div>"
         else:
             h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK} Es normal (p>=0.05)</b><br>Puedes usar pruebas parametricas.</div>"
@@ -1589,3 +1663,464 @@ class AnalysisPanel(QWidget):
         for l, v in [("r parcial", f"{r['r_partial']:.4f}"), ("p", f"{r['p']:.6f}"), ("df", r['df'])]:
             h += self._r(l, v)
         return h + "</table>" + self._ok(r['p'] < 0.05, "CORRELACION", "SIN CORRELACION")
+
+    # --- Core Module Runners ---
+    def _run_core(self, func_name, c1=None, c2=None):
+        """Run a core module function and display results."""
+        try:
+            if func_name == "geometric_mean":
+                if c1 is None or c1 not in self.data.columns:
+                    return "<b>Error:</b> Selecciona una columna."
+                d = self.data[c1].dropna()
+                if d.min() <= 0:
+                    return "<b>Error:</b> La media geométrica requiere datos positivos."
+                result = geometric_mean(d)
+                self._set_formula("Formula: Media Geométrica", "GM = (x1 × x2 × ... × xn)^(1/n)")
+                h = self._h(f"{Icons.CHART} Media Geométrica — {c1}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Resultado", f"{result:.4f}")
+                h += self._r("n", len(d))
+                return h + "</table>"
+
+            elif func_name == "harmonic_mean":
+                if c1 is None or c1 not in self.data.columns:
+                    return "<b>Error:</b> Selecciona una columna."
+                d = self.data[c1].dropna()
+                if d.min() <= 0:
+                    return "<b>Error:</b> La media armónica requiere datos positivos."
+                result = harmonic_mean(d)
+                self._set_formula("Formula: Media Armónica", "HM = n / (1/x1 + 1/x2 + ... + 1/xn)")
+                h = self._h(f"{Icons.CHART} Media Armónica — {c1}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Resultado", f"{result:.4f}")
+                h += self._r("n", len(d))
+                return h + "</table>"
+
+            elif func_name == "ttest_1sample":
+                if c1 is None or c1 not in self.data.columns:
+                    return "<b>Error:</b> Selecciona una columna."
+                d = self.data[c1].dropna()
+                result = ttest_1sample(d, mu=0)
+                self._set_formula("Formula: t-test 1 Muestra", "t = (x̄ - μ₀) / (s / √n)")
+                h = self._h(f"{Icons.CHART} t-test 1 Muestra — {c1}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("t", f"{result['t']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                h += self._r("gl", result['df'])
+                h += self._r("Media", f"{result['mean']:.4f}")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENTE DE 0", "IGUAL A 0")
+
+            elif func_name == "anova_oneway":
+                if self.data.shape[1] < 2:
+                    return "<b>Error:</b> Se necesitan al menos 2 columnas."
+                groups = [self.data.iloc[:, i].dropna().values for i in range(self.data.shape[1])]
+                result = anova_oneway(groups)
+                self._set_formula("Formula: ANOVA Una Vía", "F = MS_between / MS_within")
+                h = self._h(f"{Icons.CHART} ANOVA Una Vía (Core)")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("F", f"{result['F']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                h += self._r("gl entre", result['df_between'])
+                h += self._r("gl dentro", result['df_within'])
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIAS SIGNIFICATIVAS", "SIN DIFERENCIAS")
+
+            elif func_name == "sign_test":
+                if c1 is None or c2 is None:
+                    return "<b>Error:</b> Selecciona 2 columnas."
+                if c1 not in self.data.columns or c2 not in self.data.columns:
+                    return "<b>Error:</b> Columnas no encontradas."
+                d1 = self.data[c1].dropna()
+                d2 = self.data[c2].dropna()
+                result = sign_test(d1, d2)
+                self._set_formula("Formula: Sign Test", "p = Σ C(n,k) × 0.5^n para k ≤ observados")
+                h = self._h(f"{Icons.CHART} Sign Test — {c1} vs {c2}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Estadístico", f"{result['statistic']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIA SIGNIFICATIVA", "SIN DIFERENCIA")
+
+            elif func_name == "cochran_q":
+                if self.data.shape[1] < 2:
+                    return "<b>Error:</b> Se necesitan al menos 2 columnas."
+                result = cochran_q(self.data.values)
+                self._set_formula("Formula: Cochran Q", "Q = (k-1) × [k×ΣC² - T²] / [k×T - ΣR²]")
+                h = self._h(f"{Icons.CHART} Cochran Q")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Q", f"{result['Q']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                h += self._r("gl", result['df'])
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIAS SIGNIFICATIVAS", "SIN DIFERENCIAS")
+
+            elif func_name == "weighted_kappa":
+                if self.data.shape[1] < 2:
+                    return "<b>Error:</b> Se necesitan 2 columnas categóricas."
+                d1 = self.data.iloc[:, 0].dropna()
+                d2 = self.data.iloc[:, 1].dropna()
+                min_len = min(len(d1), len(d2))
+                d1, d2 = d1[:min_len], d2[:min_len]
+                cats = sorted(set(d1) | set(d2))
+                n = len(cats)
+                matrix = np.zeros((n, n))
+                for a, b in zip(d1, d2):
+                    i, j = cats.index(a), cats.index(b)
+                    matrix[i][j] += 1
+                result = weighted_kappa(matrix)
+                self._set_formula("Formula: Kappa Ponderado", "κ_w = 1 - (Σ w_ij × O_ij) / (Σ w_ij × E_ij)")
+                h = self._h(f"{Icons.CHART} Kappa Ponderado")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Kappa", f"{result['kappa']:.4f}")
+                h += self._r("SE", f"{result['se']:.4f}")
+                h += self._r("95% CI", f"[{result['ci_low']:.4f}, {result['ci_high']:.4f}]")
+                return h + "</table>"
+
+            elif func_name == "deming":
+                if c1 is None or c2 is None:
+                    return "<b>Error:</b> Selecciona 2 columnas."
+                if c1 not in self.data.columns or c2 not in self.data.columns:
+                    return "<b>Error:</b> Columnas no encontradas."
+                x = self.data[c1].dropna().values
+                y = self.data[c2].dropna().values
+                min_len = min(len(x), len(y))
+                x, y = x[:min_len], y[:min_len]
+                result = deming_regression(x, y)
+                self._set_formula("Formula: Deming Regression", "y = β₀ + β₁x (ajustada para error en ambas variables)")
+                h = self._h(f"{Icons.CHART} Deming Regression — {c1} vs {c2}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Pendiente", f"{result['slope']:.4f}")
+                h += self._r("Intercepto", f"{result['intercept']:.4f}")
+                h += self._r("95% CI pendiente", f"[{result['slope_ci_low']:.4f}, {result['slope_ci_high']:.4f}]")
+                return h + "</table>"
+
+            elif func_name == "cv_duplicates":
+                if c1 is None or c2 is None:
+                    return "<b>Error:</b> Selecciona 2 columnas."
+                if c1 not in self.data.columns or c2 not in self.data.columns:
+                    return "<b>Error:</b> Columnas no encontradas."
+                d1 = self.data[c1].dropna().values
+                d2 = self.data[c2].dropna().values
+                min_len = min(len(d1), len(d2))
+                d1, d2 = d1[:min_len], d2[:min_len]
+                result = cv_from_duplicates(d1, d2)
+                self._set_formula("Formula: CV desde Duplicatas", "CV = (DE / Media) × 100%")
+                h = self._h(f"{Icons.CHART} CV desde Duplicatas")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("CV", f"{result['cv']:.2f}%")
+                h += self._r("CV intra", f"{result['cv_intra']:.2f}%")
+                h += self._r("CV inter", f"{result['cv_inter']:.2f}%")
+                return h + "</table>"
+
+            elif func_name == "likelihood_ratios":
+                if self.data.shape[0] < 2 or self.data.shape[1] < 2:
+                    return "<b>Error:</b> Se necesita matriz 2x2 con TP, FP, FN, TN."
+                a = int(self.data.iloc[0, 0])
+                b = int(self.data.iloc[0, 1])
+                c = int(self.data.iloc[1, 0])
+                d = int(self.data.iloc[1, 1])
+                result = likelihood_ratios(a, b, c, d)
+                self._set_formula("Formula: Likelihood Ratios", "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec")
+                h = self._h(f"{Icons.CHART} Likelihood Ratios")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("LR+", f"{result['plr']:.4f}")
+                h += self._r("95% CI LR+", f"[{result['plr_ci_low']:.4f}, {result['plr_ci_high']:.4f}]")
+                h += self._r("LR-", f"{result['nlr']:.4f}")
+                h += self._r("95% CI LR-", f"[{result['nlr_ci_low']:.4f}, {result['nlr_ci_high']:.4f}]")
+                return h + "</table>"
+
+            elif func_name == "compare_means":
+                if self.data.shape[0] < 6:
+                    return "<b>Error:</b> Se necesitan 6 valores: m1, sd1, n1, m2, sd2, n2."
+                m1 = self.data.iloc[0, 0]
+                sd1 = self.data.iloc[1, 0]
+                n1 = int(self.data.iloc[2, 0])
+                m2 = self.data.iloc[3, 0]
+                sd2 = self.data.iloc[4, 0]
+                n2 = int(self.data.iloc[5, 0])
+                result = compare_two_means(m1, sd1, n1, m2, sd2, n2)
+                self._set_formula("Formula: Comparar 2 Medias", "t = (m1 - m2) / √(sd1²/n1 + sd2²/n2)")
+                h = self._h(f"{Icons.CHART} Comparar 2 Medias")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("t", f"{result['t']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                h += self._r("Diferencia", f"{result['diff']:.4f}")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIA SIGNIFICATIVA", "SIN DIFERENCIA")
+
+            elif func_name == "compare_props":
+                if self.data.shape[0] < 4:
+                    return "<b>Error:</b> Se necesitan 4 valores: p1, n1, p2, n2."
+                p1 = self.data.iloc[0, 0]
+                n1 = int(self.data.iloc[1, 0])
+                p2 = self.data.iloc[2, 0]
+                n2 = int(self.data.iloc[3, 0])
+                result = compare_two_proportions(p1, n1, p2, n2)
+                self._set_formula("Formula: Comparar 2 Proporciones", "z = (p1 - p2) / √(p̂(1-p̂)(1/n1 + 1/n2))")
+                h = self._h(f"{Icons.CHART} Comparar 2 Proporciones")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("z", f"{result['z']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                h += self._r("Diferencia", f"{result['diff']:.4f}")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIA SIGNIFICATIVA", "SIN DIFERENCIA")
+
+            elif func_name == "compare_auc":
+                if self.data.shape[0] < 6:
+                    return "<b>Error:</b> Se necesitan 6 valores: auc1, se1, n1, auc2, se2, n2."
+                auc1 = self.data.iloc[0, 0]
+                se1 = self.data.iloc[1, 0]
+                n1 = int(self.data.iloc[2, 0])
+                auc2 = self.data.iloc[3, 0]
+                se2 = self.data.iloc[4, 0]
+                n2 = int(self.data.iloc[5, 0])
+                result = compare_two_auc(auc1, se1, n1, auc2, se2, n2)
+                self._set_formula("Formula: Comparar 2 AUC", "z = (AUC1 - AUC2) / √(SE1² + SE2²)")
+                h = self._h(f"{Icons.CHART} Comparar 2 AUC")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("z", f"{result['z']:.4f}")
+                h += self._r("p", f"{result['p']:.6f}")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIAS SIGNIFICATIVAS", "SIN DIFERENCIAS")
+
+            elif func_name == "percentile_table":
+                if c1 is None or c1 not in self.data.columns:
+                    return "<b>Error:</b> Selecciona una columna."
+                d = self.data[c1].dropna()
+                result = percentile_table(d)
+                self._set_formula("Formula: Percentiles", "P_k = valor en posición k×(n+1)/100")
+                h = self._h(f"{Icons.CHART} Tabla de Percentiles — {c1}")
+                h += "<table style='font-size:12px;'>"
+                h += "<tr><th>Percentil</th><th>Valor</th><th>95% CI</th></tr>"
+                for p, val, ci_low, ci_high in zip(result['percentiles'], result['values'], result['ci_low'], result['ci_high']):
+                    h += f"<tr><td>{p}%</td><td>{val:.4f}</td><td>[{ci_low:.4f}, {ci_high:.4f}]</td></tr>"
+                return h + "</table>"
+
+            elif func_name == "age_related":
+                if self.data.shape[1] < 2:
+                    return "<b>Error:</b> Se necesitan 2 columnas: edad, valor."
+                ages = self.data.iloc[:, 0].dropna().values
+                values = self.data.iloc[:, 1].dropna().values
+                min_len = min(len(ages), len(values))
+                ages, values = ages[:min_len], values[:min_len]
+                result = age_related_reference(ages, values)
+                self._set_formula("Formula: Intervalos por Edad", "Intervalos basados en percentiles por grupo de edad")
+                h = self._h(f"{Icons.CHART} Intervalos de Referencia por Edad")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Grupo", f"{result['age_min']}-{result['age_max']} años")
+                h += self._r("n", result['n'])
+                h += self._r("Media", f"{result['mean']:.4f}")
+                h += self._r("2.5%-97.5%", f"[{result['ref_low']:.4f}, {result['ref_high']:.4f}]")
+                return h + "</table>"
+
+            elif func_name == "generalized_esd":
+                if c1 is None or c1 not in self.data.columns:
+                    return "<b>Error:</b> Selecciona una columna."
+                d = self.data[c1].dropna().values
+                result = generalized_esd(d, max_outliers=10, alpha=0.05)
+                self._set_formula("Formula: ESD Generalizado", "R_i = |x_i - x̄| / s")
+                h = self._h(f"{Icons.CHART} Test ESD Generalizado — {c1}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Outliers encontrados", len(result['outliers']))
+                if result['outliers']:
+                    h += self._r("Valores", ", ".join([f"{v:.4f}" for v in result['outliers']]))
+                h += self._r("Índices", str(result['indices']))
+                return h + "</table>"
+
+            elif func_name == "bootstrap_median":
+                if c1 is None or c1 not in self.data.columns:
+                    return "<b>Error:</b> Selecciona una columna."
+                d = self.data[c1].dropna().values
+                result = bootstrap_median(d)
+                self._set_formula("Formula: Bootstrap Mediana", "IC = percentiles de la distribución bootstrap")
+                h = self._h(f"{Icons.CHART} Bootstrap (Mediana) — {c1}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Mediana", f"{result['median']:.4f}")
+                h += self._r("95% CI", f"[{result['ci_low']:.4f}, {result['ci_high']:.4f}]")
+                return h + "</table>"
+
+            elif func_name == "bootstrap_regression":
+                if c1 is None or c2 is None:
+                    return "<b>Error:</b> Selecciona 2 columnas."
+                if c1 not in self.data.columns or c2 not in self.data.columns:
+                    return "<b>Error:</b> Columnas no encontradas."
+                x = self.data[c1].dropna().values
+                y = self.data[c2].dropna().values
+                min_len = min(len(x), len(y))
+                x, y = x[:min_len], y[:min_len]
+                result = bootstrap_regression(x, y)
+                self._set_formula("Formula: Bootstrap Regresión", "IC para coeficientes de regresión")
+                h = self._h(f"{Icons.CHART} Bootstrap (Regresión) — {c1} vs {c2}")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("Pendiente", f"{result['slope']:.4f}")
+                h += self._r("95% CI pendiente", f"[{result['slope_ci_low']:.4f}, {result['slope_ci_high']:.4f}]")
+                h += self._r("Intercepto", f"{result['intercept']:.4f}")
+                return h + "</table>"
+
+            elif func_name == "sample_size_corr":
+                if c1 is None or c2 is None:
+                    return "<b>Error:</b> Selecciona 2 columnas para calcular r."
+                if c1 not in self.data.columns or c2 not in self.data.columns:
+                    return "<b>Error:</b> Columnas no encontradas."
+                r_result = pearson_r(self.data[c1].dropna(), self.data[c2].dropna())
+                r = abs(r_result['r'])
+                result = sample_size_correlation(r)
+                self._set_formula("Formula: Tamaño Muestral (Correlación)", "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3")
+                h = self._h(f"{Icons.CHART} Tamaño Muestral (Correlación)")
+                h += "<table style='font-size:12px;'>"
+                h += self._r("r observado", f"{r:.4f}")
+                h += self._r("n necesario", result['n'])
+                h += self._r("Poder", f"{result['power']:.4f}")
+                return h + "</table>"
+
+            else:
+                return f"<b>Error:</b> Función desconocida: {func_name}"
+
+        except Exception as e:
+            return f"<p style='color:red'>Error en {func_name}: {str(e)}</p>"
+
+    def _run_two_way_anova(self):
+        """Run Two-way ANOVA."""
+        if self.data.shape[1] < 2:
+            return "<b>Error:</b> Se necesitan al menos 2 columnas."
+        try:
+            n_per_cell = max(1, self.data.shape[0] // 4)
+            result = two_way_anova(self.data.values, n_per_cell)
+            self._set_formula("Formula: ANOVA Dos Vías", "F = MS_between / MS_within para cada factor e interacción")
+            h = self._h(f"{Icons.CHART} ANOVA Dos Vías")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("Factor A", f"F={result['F_A']:.4f}, p={result['p_A']:.4f}, gl={result['df_A']}")
+            h += self._r("Factor B", f"F={result['F_B']:.4f}, p={result['p_B']:.4f}, gl={result['df_B']}")
+            h += self._r("Interacción A×B", f"F={result['F_AB']:.4f}, p={result['p_AB']:.4f}, gl={result['df_AB']}")
+            h += self._r("Error", f"gl={result['df_error']}")
+            return h + "</table>"
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_ancova(self, c1, c2, c3):
+        """Run ANCOVA."""
+        if c1 is None or c2 is None or c3 is None:
+            return "<b>Error:</b> Selecciona Variable dependiente (V1), Factor (V2), y Covariable (V3)."
+        if c1 not in self.data.columns or c2 not in self.data.columns or c3 not in self.data.columns:
+            return "<b>Error:</b> Columnas no encontradas."
+        try:
+            dependent = self.data[c1].dropna().values
+            group = self.data[c2].dropna().values
+            covariate = self.data[c3].dropna().values
+            min_len = min(len(dependent), len(group), len(covariate))
+            result = ancova(dependent[:min_len], group[:min_len], covariate[:min_len])
+            self._set_formula("Formula: ANCOVA", "F = MS_group / MS_error (ajustado por covariable)")
+            h = self._h(f"{Icons.CHART} ANCOVA — {c1} por {c2} | {c3}")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("Factor", f"F={result['F']:.4f}, p={result['p']:.6f}, gl={result['df_group']}")
+            h += self._r("Covariable", f"F={result['F_covariate']:.4f}, p={result['p_covariate']:.6f}")
+            h += self._r("η²", f"{result['eta_squared']:.4f}")
+            h += self._r("Error", f"gl={result['df_error']}")
+            return h + "</table>" + self._ok(result['p'] < 0.05, "EFECTO SIGNIFICATIVO", "SIN EFECTO SIGNIFICATIVO")
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_repeated_measures(self):
+        """Run Repeated Measures ANOVA."""
+        if self.data.shape[1] < 3:
+            return "<b>Error:</b> Se necesitan al menos 3 columnas (mediciones repetidas)."
+        try:
+            result = repeated_measures_anova(self.data.values)
+            self._set_formula("Formula: Medidas Repetidas", "F = MS_time / MS_error (con corrección GG)")
+            h = self._h(f"{Icons.CHART} ANOVA Medidas Repetidas")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("F", f"{result['F']:.4f}")
+            h += self._r("p", f"{result['p']:.6f}")
+            h += self._r("F (GG corregido)", f"{result['F_gg']:.4f}")
+            h += self._r("p (GG corregido)", f"{result['p_gg']:.6f}")
+            h += self._r("Epsilon (GG)", f"{result['epsilon']:.4f}")
+            h += self._r("gl tiempo", result['df_time'])
+            h += self._r("gl error", result['df_error'])
+            return h + "</table>" + self._ok(result['p_gg'] < 0.05, "CAMBIOS SIGNIFICATIVOS ENTRE TIEMPOS", "SIN CAMBIOS SIGNIFICATIVOS")
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_cox(self, c1, c2):
+        """Run Cox Regression."""
+        if c1 is None or c2 is None:
+            return "<b>Error:</b> Selecciona Tiempo (V1) y Evento (V2, 0/1)."
+        if c1 not in self.data.columns or c2 not in self.data.columns:
+            return "<b>Error:</b> Columnas no encontradas."
+        try:
+            times = self.data[c1].dropna().values
+            events = self.data[c2].dropna().values
+            covariates = self.data.iloc[:, 3:].dropna().values if self.data.shape[1] > 2 else np.ones((len(times), 1))
+            min_len = min(len(times), len(events), covariates.shape[0])
+            result = cox_regression(times[:min_len], events[:min_len], covariates[:min_len])
+            self._set_formula("Formula: Cox PH", "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)")
+            h = self._h(f"{Icons.CHART} Cox Regression")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("n", result['n'])
+            h += self._r("Eventos", result['events'])
+            h += self._r("Log-likelihood", f"{result['log_likelihood']:.4f}")
+            h += self._r("AIC", f"{result['aic']:.4f}")
+            for i, (hr, p, ci_l, ci_h) in enumerate(zip(result['hazard_ratios'], result['p_values'], result['hr_ci_low'], result['hr_ci_high'])):
+                h += self._r(f"Covariable {i+1}", f"HR={hr:.4f}, p={p:.6f}, 95%CI=[{ci_l:.4f}, {ci_h:.4f}]")
+            return h + "</table>"
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_probit(self, c1, c2):
+        """Run Probit Regression."""
+        if c1 is None or c2 is None:
+            return "<b>Error:</b> Selecciona Predictora (V1) y Respuesta binaria (V2, 0/1)."
+        if c1 not in self.data.columns or c2 not in self.data.columns:
+            return "<b>Error:</b> Columnas no encontradas."
+        try:
+            X = self.data[c1].dropna().values.reshape(-1, 1)
+            y = self.data[c2].dropna().values
+            min_len = min(len(X), len(y))
+            result = probit_regression(X[:min_len], y[:min_len])
+            self._set_formula("Formula: Probit", "P(Y=1) = Φ(β₀ + β₁x)")
+            h = self._h(f"{Icons.CHART} Probit Regression — {c1} → {c2}")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("n", result['n'])
+            h += self._r("Log-likelihood", f"{result['log_likelihood']:.4f}")
+            h += self._r("AIC", f"{result['aic']:.4f}")
+            for i, (coef, p) in enumerate(zip(result['coefficients'], result['p_values'])):
+                h += self._r(f"β{i}", f"{coef:.4f}, p={p:.6f}")
+            return h + "</table>"
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_cmh(self):
+        """Run CMH Test."""
+        if self.data.shape[0] < 2 or self.data.shape[1] < 4:
+            return "<b>Error:</b> Se necesitan al menos 2 filas y 4 columnas (2x2xK tablas)."
+        try:
+            tables = self.data.values.reshape(-1, 2, 2)
+            result = cmh_test(tables)
+            self._set_formula("Formula: CMH", "CMH = (Σ(a - n1m1/n))² / Σ(var)")
+            h = self._h(f"{Icons.CHART} Cochran-Mantel-Haenszel")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("CMH", f"{result['cmh_statistic']:.4f}")
+            h += self._r("p", f"{result['p_value']:.6f}")
+            h += self._r("OR común", f"{result['common_odds_ratio']:.4f}")
+            h += self._r("95% CI OR", f"[{result['or_ci_low']:.4f}, {result['or_ci_high']:.4f}]")
+            h += self._r("K tablas", result['K'])
+            return h + "</table>" + self._ok(result['p_value'] < 0.05, "ASOCIACIÓN SIGNIFICATIVA", "SIN ASOCIACIÓN SIGNIFICATIVA")
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_serial(self):
+        """Run Serial Measurements Analysis."""
+        if self.data.shape[1] < 3:
+            return "<b>Error:</b> Se necesitan al menos 3 columnas (mediciones repetidas)."
+        try:
+            result = serial_measurements_summary(self.data.values)
+            self._set_formula("Formula: Mediciones Seriales", "Resumen de medias, SD y pendientes por sujeto")
+            h = self._h(f"{Icons.CHART} Mediciones Seriales")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("Sujetos", result['n_subjects'])
+            h += self._r("Mediciones", result['n_timepoints'])
+            h += self._r("Pendiente media", f"{result['mean_slope']:.4f}")
+            h += self._r("DE pendientes", f"{result['sd_slope']:.4f}")
+            h += self._r("Pendiente global", f"{result['overall_slope']:.4f}")
+            h += self._r("r global", f"{result['overall_r']:.4f}")
+            h += self._r("p global", f"{result['overall_p']:.6f}")
+            h += "</table>"
+            h += "<b style='font-size:12px;'>Medias por tiempo:</b><table style='font-size:12px;'>"
+            for i, (m, s) in enumerate(zip(result['means'], result['sds'])):
+                h += self._r(f"T{i+1}", f"{m:.4f} ± {s:.4f}")
+            return h + "</table>"
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
