@@ -21,3 +21,10 @@ python-docx>=1.0.0
 
 # Utilidades
 lifelines>=0.27.0
+
+# Iconos profesionales
+qtawesome>=1.3.0
+
+# Testing (dev)
+# pytest>=8.0.0
+# flake8>=7.0.0

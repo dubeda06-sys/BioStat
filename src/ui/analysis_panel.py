@@ -67,383 +67,383 @@ plt.rcParams.update({
 })
 
 ANALYSIS_HELP = {
-    "Estadisticas descriptivas": "Media, mediana, DE, varianza, min, max, IC95%, CV%, sesgo, curtosis.",
-    "t-test pareado": "Compara medias de dos variables relacionadas (antes/despues).",
-    "t-test independiente": "Compara medias de dos grupos independientes.",
-    "ANOVA una via": "Compara medias de 3 o mas grupos.",
-    "Correlacion de Pearson": "Relacion lineal entre dos variables (requiere normalidad).",
-    "Correlacion de Spearman": "Relacion por rangos (no requiere normalidad).",
-    "Shapiro-Wilk": "Prueba de normalidad. p<0.05 = no normal.",
-    "Curva ROC": "Evaluacion de prueba diagnostica. Grafica sensibilidad vs 1-especificidad.",
-    "Bland-Altman": "Concordancia entre dos metodos de medicion.",
-    "Passing-Bablok": "Regresion robusta para comparar dos metodos.",
-    "Kaplan-Meier": "Curva de supervivencia no parametrica.",
-    "Log-rank test": "Compara dos curvas de supervivencia.",
-    "Meta-analisis": "Combina resultados de multiples estudios.",
-    "Tamano muestral (1 media)": "Calcula n para comparar una media con un valor.",
-    "Tamano muestral (2 medias)": "Calcula n para comparar dos medias.",
-    "Tamano muestral (2 proporciones)": "Calcula n para comparar dos proporciones.",
-    "Poder estadistico": "Calcula el poder para un n dado.",
-    "Bootstrap (media)": "IC bootstrap para la media.",
-    "Bootstrap (diferencia)": "IC bootstrap para diferencia de medias.",
-    "Bootstrap (correlacion)": "IC bootstrap para correlacion.",
-    "Random Forest (clasificacion)": "Clasificacion con arboles aleatorios.",
-    "Random Forest (regresion)": "Regresion con arboles aleatorios.",
-    "Mann-Whitney U": "Prueba no parametrica para comparar dos grupos independientes.",
-    "Wilcoxon pareado": "Prueba no parametrica para datos pareados.",
-    "Chi-cuadrado": "Prueba de independencia en tablas de contingencia.",
-    "Fisher exact": "Para tablas 2x2 con muestras pequenas.",
-    "McNemar": "Proporciones apareadas (antes/despues en datos categoricos).",
-    "Kruskal-Wallis": "ANOVA no parametrico para 3+ grupos.",
-    "Friedman": "Medidas repetidas no parametrico.",
-    "F-test (varianzas)": "Compara dos varianzas/de.",
-    "Kappa": "Concordancia entre dos evaluadores (datos categoricos).",
-    "ICC": "Coef. correlacion intraclase (confiabilidad).",
-    "Cronbach alfa": "Consistencia interna de una escala.",
-    "Regresion lineal": "Prediccion con una variable independiente.",
-    "Regresion multiple": "Prediccion con multiples variables.",
-    "Regresion logistica": "Prediccion de resultado binario (0/1).",
-    "Odds Ratio": "Medida de asociacion entre exposicion y resultado.",
-    "Riesgo Relativo": "Comparacion de riesgos entre dos grupos.",
-    "Diagnostic test": "Sensibilidad, especificidad, PPV, NPV de una prueba.",
-    "Outliers (Grubbs)": "Deteccion de valores atipicos individuales.",
-    "Outliers (Tukey)": "Deteccion por metodo de Tukey (IQR).",
-    "Intervalos de referencia": "Percentiles y rangos de referencia.",
-    "Asimetria y curtosis": "Forma de la distribucion.",
-    "Media recortada": "Media robusta eliminando extremos.",
-    "Correlacion parcial": "Correlacion controlando una variable.",
-    "Media geometrica": "Media geométrica de datos positivos.",
-    "Media armonica": "Media armónica de datos positivos.",
-    "t-test 1 muestra": "t-test para una muestra vs valor conocido.",
-    "ANOVA una via (core)": "ANOVA una vía usando módulo core.",
-    "Sign test": "Test de signos para datos pareados.",
-    "Cochran Q": "Test Q de Cochran para proporciones.",
-    "Kappa ponderado": "Kappa ponderado (lineal o cuadrático).",
-    "Deming regression": "Regresión Deming para métodos comparados.",
-    "CV duplicatas": "CV a partir de mediciones duplicadas.",
-    "Likelihood Ratios": "Razones de verimilitud positiva y negativa.",
-    "Comparar 2 medias": "Comparar 2 medias desde datos resumen.",
-    "Comparar 2 proporciones": "Comparar 2 proporciones desde datos resumen.",
-    "Comparar 2 AUC": "Comparar 2 curvas ROC independientes.",
-    "Tabla de percentiles": "Tabla completa de percentiles con IC.",
-    "Edad-relacionada": "Intervalos de referencia por edad.",
-    "Outliers (ESD)": "Test ESD generalizado para múltiples outliers.",
-    "Bootstrap (mediana)": "IC bootstrap para la mediana.",
-    "Bootstrap (regresion)": "IC bootstrap para regresión lineal.",
-    "Tamaño muestral (correlacion)": "Tamaño muestral para detectar correlación.",
-    "ANOVA dos vias": "ANOVA factorial (2 factores).",
-    "ANCOVA": "ANOVA con covariable continua.",
-    "Medidas repetidas": "ANOVA para medidas repetidas con corrección Greenhouse-Geisser.",
-    "Cox regression": "Regresión de riesgos proporcionales de Cox.",
-    "Probit regression": "Regresión probit para datos binarios.",
-    "CMH test": "Cochran-Mantel-Haenszel para tablas estratificadas.",
-    "Mediciones seriales": "Resumen de mediciones repetidas por sujeto.",
-    "Youden plot": "Gráfico de Youden (sensibilidad vs especificidad por umbral).",
-    "Polar plot": "Gráfico polar (radar) para múltiples variables.",
-    "Waterfall chart": "Gráfico de cascada para efectos acumulados.",
-    "Mountain plot": "Gráfico de montaña (distribución plegada).",
-    "Bland-Altman múltiple": "Bland-Altman para múltiples métodos/mediciones.",
+    "Estadisticas descriptivas": "Proporciona un resumen numérico fundamental (media, mediana, DE, etc.). Úselo en la fase inicial del análisis para entender la distribución y calidad de los datos numéricos antes de aplicar pruebas inferenciales.",
+    "t-test pareado": "Compara las medias de dos mediciones realizadas en los mismos individuos (ej. antes y después de un tratamiento). Requiere que las diferencias entre pares sigan una distribución normal.",
+    "t-test independiente": "Compara las medias de dos grupos completamente distintos (ej. pacientes sanos vs enfermos). Requiere que los datos sean numéricos continuos y aproximadamente normales en cada grupo.",
+    "ANOVA una via": "Compara las medias de tres o más grupos independientes para ver si hay diferencias significativas entre ellos. Úselo cuando tiene una variable categórica de múltiples niveles y una respuesta numérica continua.",
+    "Correlacion de Pearson": "Mide la fuerza de la relación lineal entre dos variables continuas (ej. concentración de dos analitos). Exige que ambas variables sigan una distribución normal y su relación sea lineal.",
+    "Correlacion de Spearman": "Mide la relación monótona entre dos variables utilizando sus rangos. Es la alternativa no paramétrica a Pearson, ideal cuando los datos tienen valores atípicos (outliers) o no son normales.",
+    "Shapiro-Wilk": "Evalúa formalmente si un conjunto de datos sigue una distribución normal gaussiana. Es el primer paso recomendado (p < 0.05 indica no normalidad) antes de elegir entre pruebas paramétricas o no paramétricas.",
+    "Curva ROC": "Evalúa el rendimiento de un biomarcador o prueba diagnóstica. Muestra el equilibrio entre sensibilidad y especificidad a distintos puntos de corte. Requiere un resultado binario (enfermo/sano) y un valor numérico.",
+    "Bland-Altman": "El estándar de oro para comparar dos métodos de medición clínica (ej. un analizador nuevo vs el de referencia). Evalúa si existe un sesgo sistemático y define los límites de concordancia clínica.",
+    "Passing-Bablok": "Regresión lineal robusta utilizada para comparar dos métodos analíticos. No es sensible a valores atípicos y permite determinar si hay errores sistemáticos constantes (intercepto) o proporcionales (pendiente).",
+    "Kaplan-Meier": "Estima la probabilidad de que los pacientes sobrevivan a lo largo del tiempo sin experimentar un evento (ej. muerte o recaída). Requiere datos de tiempo de seguimiento y el estado final (evento o censurado).",
+    "Log-rank test": "Compara estadísticamente dos o más curvas de supervivencia de Kaplan-Meier. Úselo para evaluar si un tratamiento mejora el tiempo de supervivencia frente a un grupo control.",
+    "Meta-analisis": "Sintetiza matemáticamente los resultados de múltiples estudios independientes. Úselo para obtener una estimación global y más potente del tamaño del efecto (ej. odds ratio global) de una intervención.",
+    "Tamano muestral (1 media)": "Calcula cuántos pacientes necesita reclutar para demostrar que la media de su muestra difiere de un valor de referencia conocido, considerando la potencia y significancia deseadas.",
+    "Tamano muestral (2 medias)": "Calcula la cantidad de pacientes necesarios para detectar una diferencia clínica importante entre dos grupos independientes. Es crucial para el diseño de ensayos clínicos.",
+    "Tamano muestral (2 proporciones)": "Determina la muestra necesaria para comparar tasas de éxito o prevalencia entre dos grupos (ej. porcentaje de curación con droga A vs droga B).",
+    "Poder estadistico": "Analiza retrospectivamente si un estudio que no encontró diferencias significativas tenía el tamaño muestral suficiente (potencia > 80%) para haberlas detectado si existieran.",
+    "Bootstrap (media)": "Técnica de remuestreo computacional para calcular intervalos de confianza de la media. Excelente alternativa cuando los datos no cumplen los supuestos de normalidad tradicional.",
+    "Bootstrap (diferencia)": "Calcula el intervalo de confianza para la diferencia de medias mediante remuestreo. Muy útil cuando se comparan grupos pequeños con distribuciones desconocidas o asimétricas.",
+    "Bootstrap (correlacion)": "Estima la robustez de un coeficiente de correlación mediante remuestreo repetido, ideal cuando se sospecha que unos pocos puntos pueden estar influenciando excesivamente el resultado.",
+    "Random Forest (clasificacion)": "Algoritmo de machine learning que utiliza múltiples árboles de decisión para clasificar pacientes en categorías (ej. alto riesgo / bajo riesgo) basado en múltiples variables predictoras complejas.",
+    "Random Forest (regresion)": "Modelo predictivo avanzado que estima un valor numérico continuo usando múltiples árboles. Puede capturar interacciones complejas no lineales entre las variables del paciente.",
+    "Mann-Whitney U": "Prueba no paramétrica equivalente al t-test independiente. Úsela para comparar dos grupos cuando los datos no son normales, son ordinales, o existen valores atípicos extremos.",
+    "Wilcoxon pareado": "Prueba no paramétrica para muestras relacionadas (antes/después). Es la alternativa al t-test pareado cuando las diferencias no se distribuyen normalmente.",
+    "Chi-cuadrado": "Prueba de asociación para dos variables categóricas (ej. grupo sanguíneo y presencia de enfermedad). Requiere que las frecuencias esperadas en la tabla de contingencia sean suficientes (>5).",
+    "Fisher exact": "Alternativa exacta al Chi-cuadrado para tablas 2x2. Es indispensable cuando se tienen muestras muy pequeñas o frecuencias esperadas menores a 5 celdas.",
+    "McNemar": "Analiza cambios en proporciones para datos pareados. Ideal para estudios antes-después donde el resultado es categórico (ej. positivo/negativo antes y después de tratamiento).",
+    "Kruskal-Wallis": "El equivalente no paramétrico de ANOVA de una vía. Permite comparar las medianas de tres o más grupos independientes cuando no se puede asumir normalidad poblacional.",
+    "Friedman": "Alternativa no paramétrica para ANOVA de medidas repetidas. Se usa cuando se evalúa a los mismos pacientes en 3 o más momentos distintos (ej. basal, mes 1, mes 6) sin asumir normalidad.",
+    "F-test (varianzas)": "Compara las varianzas de dos poblaciones para determinar si son significativamente diferentes. Es útil para evaluar si dos métodos analíticos tienen la misma precisión.",
+    "Kappa": "Evalúa el grado de concordancia entre dos observadores o métodos al clasificar datos categóricos (ej. dos patólogos leyendo biopsias), corrigiendo la coincidencia debida al azar.",
+    "ICC": "Coeficiente de Correlación Intraclase. Mide la fiabilidad y concordancia de mediciones continuas realizadas por diferentes evaluadores o equipos sobre la misma muestra.",
+    "Cronbach alfa": "Mide la consistencia interna o fiabilidad de un test o cuestionario compuesto por múltiples ítems (ej. escalas psicométricas de dolor o calidad de vida).",
+    "Regresion lineal": "Modela matemáticamente cómo una variable numérica (dependiente) cambia en función de otra (independiente). Úselo para predecir valores o establecer tendencias de calibración.",
+    "Regresion multiple": "Extensión de la regresión lineal que predice un resultado numérico usando múltiples variables independientes simultáneamente, controlando posibles factores de confusión.",
+    "Regresion logistica": "Estima la probabilidad de que ocurra un evento binario (ej. mortalidad: sí/no) basándose en una o más variables predictoras clínicas (edad, sexo, biomarcadores).",
+    "Odds Ratio": "Mide las probabilidades relativas de que ocurra un evento bajo cierta exposición frente a su ausencia. Es la medida estándar de asociación en estudios retrospectivos de casos y controles.",
+    "Riesgo Relativo": "Calcula el riesgo de un evento en el grupo expuesto comparado con el grupo no expuesto. Aplicable en estudios prospectivos de cohortes o ensayos clínicos controlados.",
+    "Diagnostic test": "Evalúa la utilidad clínica de una prueba. Requiere resultados de la prueba y el estándar de oro para calcular Sensibilidad, Especificidad y Valores Predictivos (VPP, VPN).",
+    "Outliers (Grubbs)": "Detecta si el valor más extremo en un conjunto de datos es un valor atípico estadísticamente significativo. Asume que el resto de los datos se distribuye normalmente.",
+    "Outliers (Tukey)": "Identifica valores atípicos utilizando rangos intercuartílicos (IQR). Es más robusto que Grubbs y no requiere que los datos sigan estrictamente una distribución normal.",
+    "Intervalos de referencia": "Calcula los valores esperados para una población sana (generalmente percentiles 2.5 y 97.5). Indispensable para establecer rangos normales de laboratorio para nuevos analitos.",
+    "Asimetria y curtosis": "Métricas que evalúan formalmente la forma de la distribución de los datos. Desviaciones significativas de 0 indican que los datos están sesgados (colas asimétricas) o son muy apuntados.",
+    "Media recortada": "Calcula la media descartando un porcentaje (ej. 5%) de los valores más extremos superiores e inferiores. Proporciona un estimado robusto de la tendencia central resistente a outliers.",
+    "Correlacion parcial": "Mide la relación lineal entre dos variables continuas mientras se elimina (controla) matemáticamente el efecto de una tercera variable de confusión.",
+    "Media geometrica": "Medida de tendencia central adecuada para datos que crecen exponencialmente o están fuertemente sesgados a la derecha (ej. títulos de anticuerpos o cargas virales).",
+    "Media armonica": "Promedio utilizado frecuentemente para analizar tasas y proporciones. Es útil cuando se trabaja con promedios de velocidades o tiempos de procesamiento de laboratorio.",
+    "t-test 1 muestra": "Compara la media observada de su muestra frente a un valor teórico conocido o establecido previamente. Úselo para verificar si sus datos se desvían de un estándar.",
+    "ANOVA una via (core)": "Prueba paramétrica para comparar medias de múltiples grupos. Usado como motor de cálculo interno optimizado para reportes de comparaciones múltiples.",
+    "Sign test": "Alternativa muy simple al Wilcoxon pareado que solo evalúa la dirección del cambio (positivo o negativo) sin considerar la magnitud. Es extremadamente robusto a outliers.",
+    "Cochran Q": "Extensión de la prueba de McNemar para comparar 3 o más tratamientos en datos dicotómicos relacionados (ej. éxito/fracaso de 3 terapias diferentes en los mismos pacientes).",
+    "Kappa ponderado": "Versión del índice Kappa que penaliza los desacuerdos entre evaluadores dependiendo de su magnitud. Esencial para categorías ordinales (ej. grados tumorales I, II, III).",
+    "Deming regression": "Regresión lineal avanzada que asume que existen errores de medición tanto en X como en Y. Es el método recomendado (junto con Passing-Bablok) para comparar métodos de laboratorio.",
+    "CV duplicatas": "Calcula el Coeficiente de Variación analítico a partir de muestras procesadas en duplicado. Es clave para validar la repetibilidad intralaboratorio de un ensayo.",
+    "Likelihood Ratios": "Razones de verosimilitud (LR+ y LR-) que indican cuánto cambia la probabilidad post-prueba de una enfermedad. LR+ alto (>10) confirma; LR- bajo (<0.1) descarta firmemente.",
+    "Comparar 2 medias": "Calcula diferencias significativas entre dos grupos ingresando directamente datos resumidos (media, DE, n) sin necesidad de tener los datos crudos originales.",
+    "Comparar 2 proporciones": "Evalúa diferencias entre tasas de éxito utilizando datos agrupados (casos/totales) en lugar de variables binarias individuales a nivel de paciente.",
+    "Comparar 2 AUC": "Prueba estadística formal (ej. método DeLong) para determinar si un biomarcador es significativamente mejor que otro al comparar las áreas bajo sus curvas ROC.",
+    "Tabla de percentiles": "Genera una tabla completa de cuantiles (ej. p5, p10, p50, p90, p95) con sus respectivos intervalos de confianza. Útil para curvas de crecimiento pediátrico.",
+    "Edad-relacionada": "Permite segmentar y calcular intervalos de referencia específicos para distintos grupos etarios o factores continuos. Clave en analitos como hormonas pediátricas.",
+    "Outliers (ESD)": "Prueba de Desviación Estudentizada Extrema Generalizada (Rosner). Detecta progresivamente múltiples outliers simultáneos en una serie, superando el límite de Grubbs.",
+    "Bootstrap (mediana)": "Remuestreo para calcular el intervalo de confianza de la mediana. Extremadamente útil en datos fuertemente asimétricos como tiempos de hospitalización.",
+    "Bootstrap (regresion)": "Genera estimaciones robustas e intervalos empíricos para las pendientes de regresión. Se emplea cuando se violan los supuestos de homocedasticidad o normalidad de los residuos.",
+    "Tamaño muestral (correlacion)": "Determina el número de sujetos necesarios para detectar si un coeficiente de correlación específico es estadísticamente diferente de cero.",
+    "ANOVA dos vias": "Analiza simultáneamente el efecto de dos variables categóricas independientes sobre una respuesta continua. También evalúa si existe interacción entre los factores.",
+    "ANCOVA": "Análisis de covarianza. Compara grupos ajustando por variables continuas de confusión (covariables, ej. edad basal). Aumenta el poder estadístico al reducir el error residual.",
+    "Medidas repetidas": "Compara promedios de la misma variable medida en múltiples ocasiones en los mismos sujetos. Aplica correcciones automáticas (Greenhouse-Geisser) para violaciones de esfericidad.",
+    "Cox regression": "Modelo de riesgos proporcionales. Estima cómo múltiples factores de riesgo influyen simultáneamente en el tiempo de supervivencia de los pacientes frente a un evento clínico.",
+    "Probit regression": "Modelo predictivo para respuestas binomiales basado en la distribución normal acumulada. Utilizado frecuentemente en toxicología y farmacología (ej. análisis dosis-respuesta y LD50).",
+    "CMH test": "Test de Cochran-Mantel-Haenszel. Permite analizar la asociación en tablas de contingencia 2x2 controlando (estratificando) por una tercera variable de confusión multicategórica.",
+    "Mediciones seriales": "Resumen longitudinal de mediciones en pacientes (ej. curvas de glucosa). Permite calcular y analizar métricas como el Área Bajo la Curva (AUC), Cmax o Tmax individual.",
+    "Youden plot": "Representación gráfica avanzada de la sensibilidad frente a la especificidad. Ayuda a seleccionar visualmente el punto de corte óptimo que maximiza el Índice de Youden.",
+    "Polar plot": "Gráfico de radar utilizado para visualizar y comparar simultáneamente múltiples parámetros (ej. panel de citocinas) entre grupos o estados de la enfermedad.",
+    "Waterfall chart": "Visualiza los cambios secuenciales positivos y negativos frente a un valor basal. Frecuentemente usado en oncología para mostrar la reducción o progresión del tamaño tumoral en pacientes.",
+    "Mountain plot": "También conocido como gráfico de distribución plegada (folded empirical CDF). Muestra de forma muy sensible las diferencias de distribución o sesgos entre dos métodos clínicos.",
+    "Bland-Altman múltiple": "Adaptación del método de Bland-Altman para cuando se tienen mediciones repetidas en los mismos sujetos para ambos métodos. Considera la varianza intra-sujeto e inter-sujeto.",
 }
 
 ANALYSIS_LEGENDS = {
     "Estadisticas descriptivas": {
-        "legend": "Resume las características principales de un conjunto de datos. La media indica el valor central, la mediana el valor que divide la distribución al 50%, y la desviación estándar mide la dispersión. El CV% (coeficiente de variación) indica la variabilidad relativa.",
+        "legend": "Proporciona un resumen numérico fundamental (media, mediana, DE, etc.). Úselo en la fase inicial del análisis para entender la distribución y calidad de los datos numéricos antes de aplicar pruebas inferenciales.",
         "formula": "Media: x̄ = Σxi / n\nDE: s = √[Σ(xi - x̄)² / (n-1)]\nCV%: (s / x̄) × 100"
     },
     "t-test pareado": {
-        "legend": "Compara las medias de dos mediciones relacionadas (antes/despues, izquierda/derecha). Útil cuando cada sujeto sirve como su propio control. Asume que las diferencias siguen una distribución normal.",
+        "legend": "Compara las medias de dos mediciones realizadas en los mismos individuos (ej. antes y después de un tratamiento). Requiere que las diferencias entre pares sigan una distribución normal.",
         "formula": "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipótesis nula)"
     },
     "t-test independiente": {
-        "legend": "Compara las medias de dos grupos independientes. Útil para comparar tratamientos, sexos, o cualquier agrupación. Usa la corrección de Welch para varianzas desiguales.",
+        "legend": "Compara las medias de dos grupos completamente distintos (ej. pacientes sanos vs enfermos). Requiere que los datos sean numéricos continuos y aproximadamente normales en cada grupo.",
         "formula": "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamaño"
     },
     "ANOVA una via": {
-        "legend": "Compara las medias de 3 o más grupos independientes. Determina si al menos un grupo es diferente, pero no identifica cuál. Post-hoc (Tukey, Bonferroni) para comparaciones múltiples.",
+        "legend": "Compara las medias de tres o más grupos independientes para ver si hay diferencias significativas entre ellos. Úselo cuando tiene una variable categórica de múltiples niveles y una respuesta numérica continua.",
         "formula": "F = MS_entre / MS_dentro\nMS_entre = SS_entre / (k-1)\nMS_dentro = SS_dentro / (N-k)"
     },
     "Correlacion de Pearson": {
-        "legend": "Mide la fuerza y dirección de la relación lineal entre dos variables continuas. Varía de -1 (correlación negativa perfecta) a +1 (correlación positiva perfecta). Requiere normalidad bivariada.",
+        "legend": "Mide la fuerza de la relación lineal entre dos variables continuas (ej. concentración de dos analitos). Exige que ambas variables sigan una distribución normal y su relación sea lineal.",
         "formula": "r = Σ[(xi - x̄)(yi - ȳ)] / √[Σ(xi - x̄)² × Σ(yi - ȳ)²]\nt = r × √(n-2) / √(1-r²)"
     },
     "Correlacion de Spearman": {
-        "legend": "Mide la relación monotónica entre dos variables usando rangos. No requiere normalidad ni relación lineal. Útil para datos ordinales o con outliers.",
+        "legend": "Mide la relación monótona entre dos variables utilizando sus rangos. Es la alternativa no paramétrica a Pearson, ideal cuando los datos tienen valores atípicos (outliers) o no son normales.",
         "formula": "ρ = 1 - (6 × Σd²) / (n × (n² - 1))\ndonde d = diferencia de rangos"
     },
     "Shapiro-Wilk": {
-        "legend": "Prueba la hipótesis nula de que los datos siguen una distribución normal. p < 0.05 sugiere desviación de la normalidad. Es una de las pruebas de normalidad más potentes.",
+        "legend": "Evalúa formalmente si un conjunto de datos sigue una distribución normal gaussiana. Es el primer paso recomendado (p < 0.05 indica no normalidad) antes de elegir entre pruebas paramétricas o no paramétricas.",
         "formula": "W = (Σaᵢxᵢ)² / Σ(xi - x̄)²\ndonde xᵢ son los datos ordenados"
     },
     "Curva ROC": {
-        "legend": "Evalúa el rendimiento de una prueba diagnóstica a diferentes umbrales. El AUC (Área Bajo la Curva) indica la capacidad discriminativa: 0.5 = azar, 1.0 = perfecto.",
+        "legend": "Evalúa el rendimiento de un biomarcador o prueba diagnóstica. Muestra el equilibrio entre sensibilidad y especificidad a distintos puntos de corte. Requiere un resultado binario (enfermo/sano) y un valor numérico.",
         "formula": "Sensibilidad = TP / (TP + FN)\nEspecificidad = TN / (TN + FP)\nAUC = ∫ Sensibilidad d(1-Especificidad)"
     },
     "Bland-Altman": {
-        "legend": "Evalúa la concordancia entre dos métodos de medición. Grafica las diferencias contra las medias. Los límites de concordancia (LoA) indican el rango esperado de diferencias.",
+        "legend": "El estándar de oro para comparar dos métodos de medición clínica (ej. un analizador nuevo vs el de referencia). Evalúa si existe un sesgo sistemático y define los límites de concordancia clínica.",
         "formula": "Sesgo = Media(diferencias)\nLoA = Sesgo ± 1.96 × DE(diferencias)\n% Sesgo = (Sesgo / Media Método 1) × 100"
     },
     "Passing-Bablok": {
-        "legend": "Regresión robusta para comparar dos métodos. No asume distribución normal ni que un método es referencia. Pendiente = 1 e intercepto = 0 indica concordancia perfecta.",
+        "legend": "Regresión lineal robusta utilizada para comparar dos métodos analíticos. No es sensible a valores atípicos y permite determinar si hay errores sistemáticos constantes (intercepto) o proporcionales (pendiente).",
         "formula": "y = β₀ + β₁x\nPendiente = 1 y β₀ = 0 → concordancia"
     },
     "Kaplan-Meier": {
-        "legend": "Estima la función de supervivencia no parametricamente. Cada punto representa la probabilidad de sobrevivir más allá de un tiempo dado. Útil para análisis de tiempo hasta evento.",
+        "legend": "Estima la probabilidad de que los pacientes sobrevivan a lo largo del tiempo sin experimentar un evento (ej. muerte o recaída). Requiere datos de tiempo de seguimiento y el estado final (evento o censurado).",
         "formula": "S(t) = Π[(nᵢ - dᵢ) / nᵢ]\ndonde nᵢ = en riesgo, dᵢ = eventos"
     },
     "Log-rank test": {
-        "legend": "Compara dos o más curvas de supervivencia. Evalúa si las diferencias entre curvas son estadísticamente significativas. No asume forma específica de la curva.",
+        "legend": "Compara estadísticamente dos o más curvas de supervivencia de Kaplan-Meier. Úselo para evaluar si un tratamiento mejora el tiempo de supervivencia frente a un grupo control.",
         "formula": "χ² = (O₁ - E₁)² / E₁ + (O₂ - E₂)² / E₂\ndonde O = observados, E = esperados"
     },
     "Meta-analisis": {
-        "legend": "Combina resultados de múltiples estudios para obtener una estimación global. Los estudios con mayor precisión (menor error estándar) tienen mayor peso.",
+        "legend": "Sintetiza matemáticamente los resultados de múltiples estudios independientes. Úselo para obtener una estimación global y más potente del tamaño del efecto (ej. odds ratio global) de una intervención.",
         "formula": "EF = Σ(wᵢ × EFᵢ) / Σ(wᵢ)\nwᵢ = 1 / SEᵢ²\nI² = (Q - df) / Q × 100%"
     },
     "Tamano muestral (1 media)": {
-        "legend": "Calcula el tamaño de muestra necesario para detectar una diferencia dada en una media. Considera la variabilidad esperada, el nivel de significancia y el poder deseado.",
+        "legend": "Calcula cuántos pacientes necesita reclutar para demostrar que la media de su muestra difiere de un valor de referencia conocido, considerando la potencia y significancia deseadas.",
         "formula": "n = [(Z_α/2 + Z_β) × σ / δ]²\ndonde δ = diferencia a detectar, σ = DE"
     },
     "Tamano muestral (2 medias)": {
-        "legend": "Calcula el tamaño de muestra para comparar dos medias independientes. Permite especificar el ratio entre grupos.",
+        "legend": "Calcula la cantidad de pacientes necesarios para detectar una diferencia clínica importante entre dos grupos independientes. Es crucial para el diseño de ensayos clínicos.",
         "formula": "n₁ = [(Z_α/2 + Z_β) × σ / δ]² × (1 + 1/r)\nn₂ = n₁ × r"
     },
     "Tamano muestral (2 proporciones)": {
-        "legend": "Calcula el tamaño de muestra para comparar dos proporciones. Útil para estudios de prevalencia o ensayos clínicos.",
+        "legend": "Determina la muestra necesaria para comparar tasas de éxito o prevalencia entre dos grupos (ej. porcentaje de curación con droga A vs droga B).",
         "formula": "n = [Z_α/2 × √(2p̄(1-p̄)) + Z_β × √(p₁(1-p₁) + p₂(1-p₂))]² / (p₁ - p₂)²"
     },
     "Poder estadistico": {
-        "legend": "Calcula la probabilidad de detectar un efecto real cuando existe. Poder = 1 - β (probabilidad de evitar error tipo II). Se recomienda poder ≥ 0.80.",
+        "legend": "Analiza retrospectivamente si un estudio que no encontró diferencias significativas tenía el tamaño muestral suficiente (potencia > 80%) para haberlas detectado si existieran.",
         "formula": "Poder = 1 - β = P(rechazar H₀ | H₁ es verdadera)\nncp = δ × √n / σ"
     },
     "Bootstrap (media)": {
-        "legend": "Estima intervalos de confianza para la media usando remuestreo con reemplazo. No asume normalidad. Útil para distribuciones desconocidas o asimétricas.",
+        "legend": "Técnica de remuestreo computacional para calcular intervalos de confianza de la media. Excelente alternativa cuando los datos no cumplen los supuestos de normalidad tradicional.",
         "formula": "IC = [θ*_(α/2), θ*_(1-α/2)]\ndonde θ* son los percentiles de B remuestreos"
     },
     "Bootstrap (diferencia)": {
-        "legend": "Estima IC para la diferencia de medias entre dos grupos. Método no paramétrico que no requiere supuestos distribucionales.",
+        "legend": "Calcula el intervalo de confianza para la diferencia de medias mediante remuestreo. Muy útil cuando se comparan grupos pequeños con distribuciones desconocidas o asimétricas.",
         "formula": "IC = [θ*_(α/2), θ*_(1-α/2)]\nθ* = diferencia media de B remuestreos"
     },
     "Bootstrap (correlacion)": {
-        "legend": "Estima IC para el coeficiente de correlación. Método robusto que funciona con cualquier tipo de correlación.",
+        "legend": "Estima la robustez de un coeficiente de correlación mediante remuestreo repetido, ideal cuando se sospecha que unos pocos puntos pueden estar influenciando excesivamente el resultado.",
         "formula": "IC = [r*_(α/2), r*_(1-α/2)]\nr* = correlación de B remuestreos"
     },
     "Random Forest (clasificacion)": {
-        "legend": "Ensemble de árboles de decisión para clasificación. Cada árbol entrena con una muestra aleatoria y usa un subconjunto de variables. La predicción es la moda de todos los árboles.",
+        "legend": "Algoritmo de machine learning que utiliza múltiples árboles de decisión para clasificar pacientes en categorías (ej. alto riesgo / bajo riesgo) basado en múltiples variables predictoras complejas.",
         "formula": "ŷ = mode(.Tree₁(x), Tree₂(x), ..., Tree_B(x))\nImportancia = reducción en impureza Gini"
     },
     "Random Forest (regresion)": {
-        "legend": "Ensemble de árboles de decisión para regresión. La predicción es el promedio de todos los árboles. Reduce el overfitting vs un solo árbol.",
+        "legend": "Modelo predictivo avanzado que estima un valor numérico continuo usando múltiples árboles. Puede capturar interacciones complejas no lineales entre las variables del paciente.",
         "formula": "ŷ = (1/B) × Σ Treeᵦ(x)\nMSE = (1/n) × Σ(yᵢ - ŷᵢ)²"
     },
     "Mann-Whitney U": {
-        "legend": "Prueba no paramétrica para comparar dos grupos independientes. Compara rangos en lugar de medias. Alternativa al t-test cuando no se cumple normalidad.",
+        "legend": "Prueba no paramétrica equivalente al t-test independiente. Úsela para comparar dos grupos cuando los datos no son normales, son ordinales, o existen valores atípicos extremos.",
         "formula": "U = n₁ × n₂ + n₁(n₁+1)/2 - R₁\ndonde R₁ = suma de rangos del grupo 1"
     },
     "Wilcoxon pareado": {
-        "legend": "Prueba no paramétrica para datos pareados. Compara las diferencias entre pares. Alternativa al t-test pareado cuando no hay normalidad.",
+        "legend": "Prueba no paramétrica para muestras relacionadas (antes/después). Es la alternativa al t-test pareado cuando las diferencias no se distribuyen normalmente.",
         "formula": "W = Σ Rᵢ⁺\ndonde Rᵢ⁺ = rangos de diferencias positivas"
     },
     "Chi-cuadrado": {
-        "legend": "Prueba de independencia entre dos variables categóricas. Evalúa si la distribución observada difiere de la esperada bajo independencia.",
+        "legend": "Prueba de asociación para dos variables categóricas (ej. grupo sanguíneo y presencia de enfermedad). Requiere que las frecuencias esperadas en la tabla de contingencia sean suficientes (>5).",
         "formula": "χ² = Σ[(Oᵢⱼ - Eᵢⱼ)² / Eᵢⱼ]\nEᵢⱼ = (Filaᵢ × Columnaⱼ) / Total"
     },
     "Fisher exact": {
-        "legend": "Prueba exacta para tablas 2×2 cuando las muestras son pequeñas (n < 20 o frecuencias esperadas < 5). Más precisa que Chi-cuadrado en estos casos.",
+        "legend": "Alternativa exacta al Chi-cuadrado para tablas 2x2. Es indispensable cuando se tienen muestras muy pequeñas o frecuencias esperadas menores a 5 celdas.",
         "formula": "P = (a+b)!(c+d)!(a+c)!(b+d)! / (a!b!c!d!n!)"
     },
     "McNemar": {
-        "legend": "Prueba para proporciones apareadas (antes/despues). Evalúa si el cambio en una categoría es significativo. Útil para datos dicotómicos.",
+        "legend": "Analiza cambios en proporciones para datos pareados. Ideal para estudios antes-después donde el resultado es categórico (ej. positivo/negativo antes y después de tratamiento).",
         "formula": "χ² = (b - c)² / (b + c)\ndonde b y c son las discordancias"
     },
     "Kruskal-Wallis": {
-        "legend": "ANOVA no paramétrico para 3+ grupos independientes. Compara rangos. Alternativa a ANOVA cuando no hay normalidad o los tamaños son pequeños.",
+        "legend": "El equivalente no paramétrico de ANOVA de una vía. Permite comparar las medianas de tres o más grupos independientes cuando no se puede asumir normalidad poblacional.",
         "formula": "H = (12 / (n(n+1))) × Σ(Rᵢ²/nᵢ) - 3(n+1)\ndonde Rᵢ = suma de rangos del grupo i"
     },
     "Friedman": {
-        "legend": "Prueba no paramétrica para medidas repetidas (3+ condiciones). Compara rangos dentro de cada sujeto. Alternativa a ANOVA de medidas repetidas.",
+        "legend": "Alternativa no paramétrica para ANOVA de medidas repetidas. Se usa cuando se evalúa a los mismos pacientes en 3 o más momentos distintos (ej. basal, mes 1, mes 6) sin asumir normalidad.",
         "formula": "Q = (12 / (nk(k+1))) × ΣRⱼ² - 3n(k+1)\ndonde Rⱼ = suma de rangos de la condición j"
     },
     "F-test (varianzas)": {
-        "legend": "Compara dos varianzas para determinar si son significativamente diferentes. Útil antes del t-test para verificar igualdad de varianzas.",
+        "legend": "Compara las varianzas de dos poblaciones para determinar si son significativamente diferentes. Es útil para evaluar si dos métodos analíticos tienen la misma precisión.",
         "formula": "F = s₁² / s₂²\ndonde s₁² > s₂² (mayor varianza numerador)"
     },
     "Kappa": {
-        "legend": "Mide la concordancia entre dos evaluadores corregida por azar. Varía de -1 a 1: <0.2 pobre, 0.2-0.4 regular, 0.4-0.6 moderado, 0.6-0.8 bueno, >0.8 muy bueno.",
+        "legend": "Evalúa el grado de concordancia entre dos observadores o métodos al clasificar datos categóricos (ej. dos patólogos leyendo biopsias), corrigiendo la coincidencia debida al azar.",
         "formula": "κ = (Pₒ - Pₑ) / (1 - Pₑ)\nPₒ = concordancia observada\nPₑ = concordancia esperada por azar"
     },
     "ICC": {
-        "legend": "Coeficiente de Correlación Intraclase. Mide la confiabilidad (consistencia) entre mediciones del mismo sujeto. Valores > 0.75 indican buena confiabilidad.",
+        "legend": "Coeficiente de Correlación Intraclase. Mide la fiabilidad y concordancia de mediciones continuas realizadas por diferentes evaluadores o equipos sobre la misma muestra.",
         "formula": "ICC = (MS_entre - MS_dentro) / (MS_entre + (k-1)×MS_dentro)\nk = número de mediciones"
     },
     "Cronbach alfa": {
-        "legend": "Mide la consistencia interna de una escala. Indica cuánto las ítems miden el mismo constructo. α > 0.7 es aceptable, > 0.8 es bueno.",
+        "legend": "Mide la consistencia interna o fiabilidad de un test o cuestionario compuesto por múltiples ítems (ej. escalas psicométricas de dolor o calidad de vida).",
         "formula": "α = (k / (k-1)) × (1 - Σσᵢ² / σₜ²)\nk = número de ítems, σᵢ² = varianza de cada ítem"
     },
     "Regresion lineal": {
-        "legend": "Modelo que predice una variable continua a partir de otra continua. Estima la pendiente (efecto) e intercepto (valor base).",
+        "legend": "Modela matemáticamente cómo una variable numérica (dependiente) cambia en función de otra (independiente). Úselo para predecir valores o establecer tendencias de calibración.",
         "formula": "ŷ = β₀ + β₁x\nβ₁ = Σ[(xi - x̄)(yi - ȳ)] / Σ(xi - x̄)²\nβ₀ = ȳ - β₁x̄"
     },
     "Regresion multiple": {
-        "legend": "Modelo que predice una variable continua a partir de múltiples predictores. Útil para controlar variables confusoras.",
+        "legend": "Extensión de la regresión lineal que predice un resultado numérico usando múltiples variables independientes simultáneamente, controlando posibles factores de confusión.",
         "formula": "ŷ = β₀ + β₁x₁ + β₂x₂ + ... + βₚxₚ\nβ = (X'X)⁻¹X'y"
     },
     "Regresion logistica": {
-        "legend": "Modelo para predecir resultados binarios (0/1). Estima la probabilidad de un evento. Los coeficientes se interpretan como log-odds ratios.",
+        "legend": "Estima la probabilidad de que ocurra un evento binario (ej. mortalidad: sí/no) basándose en una o más variables predictoras clínicas (edad, sexo, biomarcadores).",
         "formula": "ln(p/(1-p)) = β₀ + β₁x₁ + ... + βₚxₚ\np = 1 / (1 + e^-(β₀ + Σβᵢxᵢ))"
     },
     "Odds Ratio": {
-        "legend": "Mide la asociación entre exposición y resultado. OR = 1: sin asociación, OR > 1: mayor riesgo con exposición, OR < 1: menor riesgo.",
+        "legend": "Mide las probabilidades relativas de que ocurra un evento bajo cierta exposición frente a su ausencia. Es la medida estándar de asociación en estudios retrospectivos de casos y controles.",
         "formula": "OR = (a × d) / (b × c)\nln(OR) ± 1.96 × SE(ln(OR))"
     },
     "Riesgo Relativo": {
-        "legend": "Compara el riesgo de un evento entre dos grupos. RR = 1: sin diferencia, RR > 1: mayor riesgo en grupo expuesto.",
+        "legend": "Calcula el riesgo de un evento en el grupo expuesto comparado con el grupo no expuesto. Aplicable en estudios prospectivos de cohortes o ensayos clínicos controlados.",
         "formula": "RR = [a/(a+b)] / [c/(c+d)]\nARR = Riesgo_expuesto - Riesgo_no_expuesto\nNNT = 1/ARR"
     },
     "Diagnostic test": {
-        "legend": "Evalúa una prueba diagnóstica: Sensibilidad (detecta positivos), Especificidad (detecta negativos), PPV (probabilidad real de positivo), NPV (probabilidad real de negativo).",
+        "legend": "Evalúa la utilidad clínica de una prueba. Requiere resultados de la prueba y el estándar de oro para calcular Sensibilidad, Especificidad y Valores Predictivos (VPP, VPN).",
         "formula": "Sens = TP/(TP+FN)\nSpec = TN/(TN+FP)\nPPV = TP/(TP+FP)\nNPV = TN/(TN+FN)"
     },
     "Outliers (Grubbs)": {
-        "legend": "Detecta un valor atipico individual en una muestra. Compara la distancia del valor más extremo a la media contra un valor crítico.",
+        "legend": "Detecta si el valor más extremo en un conjunto de datos es un valor atípico estadísticamente significativo. Asume que el resto de los datos se distribuye normalmente.",
         "formula": "G = |x_max - x̄| / s\nValor crítico: t_(α/2n) × √((n-1)² / (n(n-2+t²)))"
     },
     "Outliers (Tukey)": {
-        "legend": "Detecta outliers usando el rango intercuartílico (IQR). Valores fuera de 1.5×IQR son 'leves', fuera de 3×IQR son 'extremos'.",
+        "legend": "Identifica valores atípicos utilizando rangos intercuartílicos (IQR). Es más robusto que Grubbs y no requiere que los datos sigan estrictamente una distribución normal.",
         "formula": "IQR = Q₇₅ - Q₂₅\nLímite inferior = Q₂₅ - 1.5×IQR\nLímite superior = Q₇₅ + 1.5×IQR"
     },
     "Intervalos de referencia": {
-        "legend": "Establece rangos normales para una medición. Usualmente el percentil 2.5 al 97.5 cubre el 95% de la población sana.",
+        "legend": "Calcula los valores esperados para una población sana (generalmente percentiles 2.5 y 97.5). Indispensable para establecer rangos normales de laboratorio para nuevos analitos.",
         "formula": "Límite inferior = Percentil 2.5\nLímite superior = Percentil 97.5\nIC Bootstrap para precisión"
     },
     "Asimetria y curtosis": {
-        "legend": "Describe la forma de la distribución. Asimetría: simétrica (0), cola derecha (>0), cola izquierda (<0). Curtosis: mesocurtica (0), leptocurtica (>0), platicurtica (<0).",
+        "legend": "Métricas que evalúan formalmente la forma de la distribución de los datos. Desviaciones significativas de 0 indican que los datos están sesgados (colas asimétricas) o son muy apuntados.",
         "formula": "Sesgo = Σ(xi - x̄)³ / (n × s³)\nCurtosis = Σ(xi - x̄)⁴ / (n × s⁴) - 3"
     },
     "Media recortada": {
-        "legend": "Media robusta que elimina los extremos (por defecto 10%). Menos sensible a outliers que la media aritmética.",
+        "legend": "Calcula la media descartando un porcentaje (ej. 5%) de los valores más extremos superiores e inferiores. Proporciona un estimado robusto de la tendencia central resistente a outliers.",
         "formula": "Media recortada = (1/(n-2k)) × Σxᵢ\ndonde k = n × proporción recortada"
     },
     "Correlacion parcial": {
-        "legend": "Mide la relación entre dos variables controlando el efecto de una tercera. Útil para eliminar confusión.",
+        "legend": "Mide la relación lineal entre dos variables continuas mientras se elimina (controla) matemáticamente el efecto de una tercera variable de confusión.",
         "formula": "r_xy.z = (r_xy - r_xz × r_yz) / √[(1-r_xz²)(1-r_yz²)]"
     },
     "Media geometrica": {
-        "legend": "Media de datos positivos que reduce el efecto de valores extremos. Útil para tasas de crecimiento, concentraciones, títulos.",
+        "legend": "Medida de tendencia central adecuada para datos que crecen exponencialmente o están fuertemente sesgados a la derecha (ej. títulos de anticuerpos o cargas virales).",
         "formula": "GM = (x₁ × x₂ × ... × xₙ)^(1/n)\nGM = exp[(1/n) × Σln(xᵢ)]"
     },
     "Media armonica": {
-        "legend": "Media de recíprocos. Siempre menor que la media geométrica y aritmética. Útil para promediar tasas y ratios.",
+        "legend": "Promedio utilizado frecuentemente para analizar tasas y proporciones. Es útil cuando se trabaja con promedios de velocidades o tiempos de procesamiento de laboratorio.",
         "formula": "HM = n / (1/x₁ + 1/x₂ + ... + 1/xₙ)\nHM = n / Σ(1/xᵢ)"
     },
     "t-test 1 muestra": {
-        "legend": "Compara la media de una muestra con un valor conocido o teórico. Útil para verificar si una población difiere de un estándar.",
+        "legend": "Compara la media observada de su muestra frente a un valor teórico conocido o establecido previamente. Úselo para verificar si sus datos se desvían de un estándar.",
         "formula": "t = (x̄ - μ₀) / (s / √n)\ngl = n - 1"
     },
     "Sign test": {
-        "legend": "Prueba no paramétrica para datos pareados. Solo considera la dirección del cambio (positivo/negativo), no la magnitud.",
+        "legend": "Alternativa muy simple al Wilcoxon pareado que solo evalúa la dirección del cambio (positivo o negativo) sin considerar la magnitud. Es extremadamente robusto a outliers.",
         "formula": "p = 2 × Σ C(n,k) × 0.5ⁿ para k ≤ min(n_pos, n_neg)"
     },
     "Cochran Q": {
-        "legend": "Extiende McNemar a 3+ condiciones. Evalúa si las proporciones de éxito difieren entre condiciones.",
+        "legend": "Extensión de la prueba de McNemar para comparar 3 o más tratamientos en datos dicotómicos relacionados (ej. éxito/fracaso de 3 terapias diferentes en los mismos pacientes).",
         "formula": "Q = (k-1) × [k × ΣC² - T²] / [k × T - ΣR²]\nk = condiciones, T = total de éxitos"
     },
     "Kappa ponderado": {
-        "legend": "Kappa que asigna pesos a los desacuerdos. Lineal: desacuerdos leves pesan menos. Cuadrático: desacuerdos grandes pesan mucho más.",
+        "legend": "Versión del índice Kappa que penaliza los desacuerdos entre evaluadores dependiendo de su magnitud. Esencial para categorías ordinales (ej. grados tumorales I, II, III).",
         "formula": "κ_w = 1 - (Σ wᵢⱼ × Oᵢⱼ) / (Σ wᵢⱼ × Eᵢⱼ)\nwᵢⱼ = |i-j|/(k-1) (lineal)"
     },
     "Deming regression": {
-        "legend": "Regresión que considera error en ambas variables (X e Y). Más realista que OLS para comparar métodos donde ninguno es referencia.",
+        "legend": "Regresión lineal avanzada que asume que existen errores de medición tanto en X como en Y. Es el método recomendado (junto con Passing-Bablok) para comparar métodos de laboratorio.",
         "formula": "y = β₀ + β₁x\nβ₁ = (s_y - δ×s_x + √((s_y-δ×s_x)² + 4δ×s_xy²)) / (2×s_xy)"
     },
     "CV duplicatas": {
-        "legend": "Calcula el coeficiente de variación a partir de mediciones duplicadas. Separa la variabilidad intra e inter ensayo.",
+        "legend": "Calcula el Coeficiente de Variación analítico a partir de muestras procesadas en duplicado. Es clave para validar la repetibilidad intralaboratorio de un ensayo.",
         "formula": "CV = (DE × √2 / Media) × 100%\nCV intra = variabilidad dentro del ensayo"
     },
     "Likelihood Ratios": {
-        "legend": "LR+ = cuánto aumenta la probabilidad de enfermedad un resultado positivo. LR- = cuánto la disminuye un resultado negativo.",
+        "legend": "Razones de verosimilitud (LR+ y LR-) que indican cuánto cambia la probabilidad post-prueba de una enfermedad. LR+ alto (>10) confirma; LR- bajo (<0.1) descarta firmemente.",
         "formula": "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec\nPre-odds × LR = Post-odds"
     },
     "Comparar 2 medias": {
-        "legend": "Compara dos medias usando datos resumen (media, DE, n). Útil cuando solo se reportan estadísticos, no datos individuales.",
+        "legend": "Calcula diferencias significativas entre dos grupos ingresando directamente datos resumidos (media, DE, n) sin necesidad de tener los datos crudos originales.",
         "formula": "t = (m₁ - m₂) / √(s₁²/n₁ + s₂²/n₂)\ngl = Welch-Satterthwaite"
     },
     "Comparar 2 proporciones": {
-        "legend": "Compara dos proporciones usando datos resumen. Útil para meta-análisis o cuando solo se reportan proporciones.",
+        "legend": "Evalúa diferencias entre tasas de éxito utilizando datos agrupados (casos/totales) en lugar de variables binarias individuales a nivel de paciente.",
         "formula": "z = (p₁ - p₂) / √[p̄(1-p̄)(1/n₁ + 1/n₂)]\np̄ = (p₁n₁ + p₂n₂)/(n₁+n₂)"
     },
     "Comparar 2 AUC": {
-        "legend": "Evalúa si dos pruebas diagnósticas tienen diferente capacidad discriminativa. Útil para comparar métodos.",
+        "legend": "Prueba estadística formal (ej. método DeLong) para determinar si un biomarcador es significativamente mejor que otro al comparar las áreas bajo sus curvas ROC.",
         "formula": "z = (AUC₁ - AUC₂) / √(SE₁² + SE₂²)"
     },
     "Tabla de percentiles": {
-        "legend": "Presenta valores de corte para cada percentil. Útil para establecer rangos de referencia y comparar con estándares.",
+        "legend": "Genera una tabla completa de cuantiles (ej. p5, p10, p50, p90, p95) con sus respectivos intervalos de confianza. Útil para curvas de crecimiento pediátrico.",
         "formula": "Pₖ = valor en posición k×(n+1)/100\nIC Bootstrap para precisión"
     },
     "Edad-relacionada": {
-        "legend": "Establece intervalos de referencia stratificados por edad. Reconoce que los valores normales cambian con la edad.",
+        "legend": "Permite segmentar y calcular intervalos de referencia específicos para distintos grupos etarios o factores continuos. Clave en analitos como hormonas pediátricas.",
         "formula": "Intervalos por grupo de edad usando percentiles"
     },
     "Outliers (ESD)": {
-        "legend": "Test Generalizado ESD (Rosner) para detectar múltiples outliers. Realiza pruebas iterativas hasta encontrar todos los atípicos.",
+        "legend": "Prueba de Desviación Estudentizada Extrema Generalizada (Rosner). Detecta progresivamente múltiples outliers simultáneos en una serie, superando el límite de Grubbs.",
         "formula": "Rᵢ = |x_i - x̄| / s\nλᵢ = valor crítico de t para cada paso"
     },
     "Bootstrap (mediana)": {
-        "legend": "IC bootstrap para la mediana. Más robusto que la media bootstrap cuando hay outliers.",
+        "legend": "Remuestreo para calcular el intervalo de confianza de la mediana. Extremadamente útil en datos fuertemente asimétricos como tiempos de hospitalización.",
         "formula": "IC = [mediana*_(α/2), mediana*_(1-α/2)]"
     },
     "Bootstrap (regresion)": {
-        "legend": "IC bootstrap para coeficientes de regresión. No asume normalidad de los residuos.",
+        "legend": "Genera estimaciones robustas e intervalos empíricos para las pendientes de regresión. Se emplea cuando se violan los supuestos de homocedasticidad o normalidad de los residuos.",
         "formula": "IC para β = [β*_(α/2), β*_(1-α/2)]"
     },
     "Tamaño muestral (correlacion)": {
-        "legend": "Calcula n para detectar una correlación específica. Basado en la transformación Fisher z.",
+        "legend": "Determina el número de sujetos necesarios para detectar si un coeficiente de correlación específico es estadísticamente diferente de cero.",
         "formula": "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3"
     },
     "ANOVA dos vias": {
-        "legend": "Evalúa el efecto de dos factores y su interacción. Permite ver si el efecto de un factor depende del nivel del otro.",
+        "legend": "Analiza simultáneamente el efecto de dos variables categóricas independientes sobre una respuesta continua. También evalúa si existe interacción entre los factores.",
         "formula": "F_factor = MS_factor / MS_error\nF_interacción = MS_AB / MS_error"
     },
     "ANCOVA": {
-        "legend": "ANOVA que incluye una covariable continua. Controla el efecto de variables extrañas para comparar grupos más limpiamente.",
+        "legend": "Análisis de covarianza. Compara grupos ajustando por variables continuas de confusión (covariables, ej. edad basal). Aumenta el poder estadístico al reducir el error residual.",
         "formula": "F = MS_ajustado / MS_error\nη² = SS_grupo / (SS_grupo + SS_error)"
     },
     "Medidas repetidas": {
-        "legend": "ANOVA para mediciones repetidas del mismo sujeto. Incluye corrección Greenhouse-Geisser para esfericidad.",
+        "legend": "Compara promedios de la misma variable medida en múltiples ocasiones en los mismos sujetos. Aplica correcciones automáticas (Greenhouse-Geisser) para violaciones de esfericidad.",
         "formula": "F = MS_tiempo / MS_error\nCorrección GG: ε = (Σλᵢ)² / (k-1)×Σλᵢ²"
     },
     "Cox regression": {
-        "legend": "Modelo de riesgos proporcionales para datos de supervivencia. Estima hazard ratios para covariables.",
+        "legend": "Modelo de riesgos proporcionales. Estima cómo múltiples factores de riesgo influyen simultáneamente en el tiempo de supervivencia de los pacientes frente a un evento clínico.",
         "formula": "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)\nHR = exp(βᵢ)"
     },
     "Probit regression": {
-        "legend": "Modelo para datos binarios que usa la función de distribución normal inversa. Similar a logística pero con supuestos diferentes.",
+        "legend": "Modelo predictivo para respuestas binomiales basado en la distribución normal acumulada. Utilizado frecuentemente en toxicología y farmacología (ej. análisis dosis-respuesta y LD50).",
         "formula": "P(Y=1) = Φ(β₀ + β₁x)\nΦ = CDF normal estándar"
     },
     "CMH test": {
-        "legend": "Evalúa la asociación en tablas estratificadas 2×2. Combina información de múltiples estratos controlando por confusión.",
+        "legend": "Test de Cochran-Mantel-Haenszel. Permite analizar la asociación en tablas de contingencia 2x2 controlando (estratificando) por una tercera variable de confusión multicategórica.",
         "formula": "CMH = (Σ(aᵢ - n₁ᵢm₁ᵢ/nᵢ))² / Σ(var_i)"
     },
     "Mediciones seriales": {
-        "legend": "Resume tendencias en mediciones repetidas: medias por tiempo, pendientes individuales y globales.",
+        "legend": "Resumen longitudinal de mediciones en pacientes (ej. curvas de glucosa). Permite calcular y analizar métricas como el Área Bajo la Curva (AUC), Cmax o Tmax individual.",
         "formula": "Pendiente = regresión lineal tiempo vs valor\nPendiente global = pendiente promedio"
     },
     "Youden plot": {
-        "legend": "Gráfico que muestra sensibilidad, especificidad y el índice J para cada umbral. El óptimo maximiza J = Sens + Spec - 1.",
+        "legend": "Representación gráfica avanzada de la sensibilidad frente a la especificidad. Ayuda a seleccionar visualmente el punto de corte óptimo que maximiza el Índice de Youden.",
         "formula": "J = Sensibilidad + Especificidad - 1\nUmbral óptimo = argmax(J)"
     },
     "Polar plot": {
-        "legend": "Gráfico radar que muestra múltiples variables en ejes radiales. Útil para comparar perfiles de rendimiento.",
+        "legend": "Gráfico de radar utilizado para visualizar y comparar simultáneamente múltiples parámetros (ej. panel de citocinas) entre grupos o estados de la enfermedad.",
         "formula": "Ángulos = 2π × i/k\nejes = cada variable normalizada"
     },
     "Waterfall chart": {
-        "legend": "Gráfico de cascada que muestra contribuciones acumuladas. Verde = aumento, rojo = disminución.",
+        "legend": "Visualiza los cambios secuenciales positivos y negativos frente a un valor basal. Frecuentemente usado en oncología para mostrar la reducción o progresión del tamaño tumoral en pacientes.",
         "formula": "Acumulado = Σ(valores parciales)\nTotal = suma final"
     },
     "Mountain plot": {
-        "legend": "Distribución plegada (folded) que muestra la forma de los datos. Combina histograma con curva normal ajustada.",
+        "legend": "También conocido como gráfico de distribución plegada (folded empirical CDF). Muestra de forma muy sensible las diferencias de distribución o sesgos entre dos métodos clínicos.",
         "formula": "f(x) = φ((x-μ)/σ) / σ\nSymmetric around median"
     },
     "Bland-Altman múltiple": {
-        "legend": "Extiende Bland-Altman a múltiples métodos. Realiza todas las comparaciones pareadas posibles.",
+        "legend": "Adaptación del método de Bland-Altman para cuando se tienen mediciones repetidas en los mismos sujetos para ambos métodos. Considera la varianza intra-sujeto e inter-sujeto.",
         "formula": "Para cada par: Sesgo ± 1.96 × DE(diferencias)"
     },
 }

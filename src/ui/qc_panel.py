@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt
 from scipy import stats
 import matplotlib
 matplotlib.use('QtAgg')
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas  # noqa: E402
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -23,10 +23,10 @@ plt.rcParams.update({
 })
 
 QC_HELP = {
-    "Levey-Jennings": "Grafico de control de calidad que muestra cada medicion del control junto con las lineas de ±1SD, ±2SD y ±3SD. Permite detectar tendencias, shifts y valores fuera de control.",
-    "Westgard": "Aplica las reglas de Westgard para detectar rechazos: 1-3s, 2-2s, 4-1s, 10x. Si hay alguna violacion, el lote de analisis debe repetirse.",
-    "Estadisticas": "Calcula media, DE, CV% y distribucion de z-scores del control. El CV% ideal es < 5% para la mayoria de analytos.",
-    "Tendencias": "Detecta si hay una tendencia creciente o decreciente en los valores del control. Una pendiente significativa indica que el metodo necesita recalibracion.",
+    "Levey-Jennings": "Genera el gráfico clásico de control estadístico de la calidad. Muestra cada medición del material de control (eje Y) a lo largo del tiempo (eje X) frente a su media esperada y las desviaciones estándar (±1SD, ±2SD, ±3SD). Úselo diariamente para monitorear visualmente si el método analítico se mantiene estable o si hay desplazamientos repentinos (shifts) que sugieran un problema.",
+    "Westgard": "Aplica automáticamente las reglas múltiples de Westgard (ej. 1-3s, 2-2s, 4-1s, 10x) para detectar errores aleatorios o sistemáticos en el control de calidad interno. Úselo para decidir objetivamente si un lote analítico debe ser aceptado o rechazado antes de reportar resultados de pacientes.",
+    "Estadisticas": "Proporciona el resumen numérico del control interno: media observada, desviación estándar (DE), coeficiente de variación (CV%) y Z-scores. Úselo mensualmente para verificar la precisión a largo plazo; idealmente, el CV% debe ser menor al límite aceptable para el analito.",
+    "Tendencias": "Realiza un análisis de regresión lineal sobre los datos del control para detectar tendencias significativas (drifts) a lo largo del tiempo. Úselo para anticipar problemas de calibración, degradación de reactivos o envejecimiento de la lámpara antes de que las reglas de Westgard fallen.",
 }
 
 
@@ -169,8 +169,8 @@ class QCPanel(QWidget):
         {"Levey-Jennings": self._lj, "Westgard": self._wj,
          "Estadisticas": self._st, "Tendencias": self._tr}.get(t, lambda x: None)(a)
 
-    def _r(self, l, v):
-        return f"<tr><td style='padding:2px 12px 2px 0;color:#8892a4;'>{l}</td><td style='padding:2px 0;font-weight:600;'>{v}</td></tr>"
+    def _r(self, label, v):
+        return f"<tr><td style='padding:2px 12px 2px 0;color:#8892a4;'>{label}</td><td style='padding:2px 0;font-weight:600;'>{v}</td></tr>"
 
     def _wj_rules(self, data, m, s):
         if s == 0:
@@ -221,9 +221,9 @@ class QCPanel(QWidget):
         cv = (s/m)*100 if m != 0 else 0
 
         h = f"<b>{Icons.CHECK} Levey-Jennings — {a}</b><table style='font-size:12px;'>"
-        for l, v2 in [("Media del control", f"{m:.4f}"), ("SD", f"{s:.4f}"), ("CV%", f"{cv:.2f}%"),
-                       ("Mediciones (n)", len(d)), (">2SD (alerta)", o2), (">3SD (rechazo)", o3)]:
-            h += self._r(l, v2)
+        for label, v2 in [("Media del control", f"{m:.4f}"), ("SD", f"{s:.4f}"), ("CV%", f"{cv:.2f}%"),
+                           ("Mediciones (n)", len(d)), (">2SD (alerta)", o2), (">3SD (rechazo)", o3)]:
+            h += self._r(label, v2)
         h += "</table>"
         if v:
             h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'>{Icons.WARN} Violaciones detectadas:</b><br>" + "<br>".join(v) + "<br><br><i>Se recomienda repetir el analisis.</i></div>"
@@ -240,10 +240,10 @@ class QCPanel(QWidget):
         d, m, s = self._params(a)
         z = (d.values - m) / s if s > 0 else np.zeros(len(d))
         h = f"<b>{Icons.STATS} Estadisticas de Control — {a}</b><table style='font-size:12px;'>"
-        for l, v in [("Mediciones (n)", len(d)), ("Media", f"{d.mean():.4f}"), ("Media del control", f"{m:.4f}"),
-                      ("Desviacion estandar", f"{d.std():.4f}"), ("CV%", f"{(d.std()/d.mean())*100:.2f}%"),
-                      ("Minimo", f"{d.min():.4f}"), ("Maximo", f"{d.max():.4f}")]:
-            h += self._r(l, v)
+        for label, v in [("Mediciones (n)", len(d)), ("Media", f"{d.mean():.4f}"), ("Media del control", f"{m:.4f}"),
+                          ("Desviacion estandar", f"{d.std():.4f}"), ("CV%", f"{(d.std()/d.mean())*100:.2f}%"),
+                          ("Minimo", f"{d.min():.4f}"), ("Maximo", f"{d.max():.4f}")]:
+            h += self._r(label, v)
         h += "</table><b>Distribucion de Z-scores:</b><table style='font-size:12px;'>"
         ins = int(np.sum(np.abs(z) <= 1))
         h += self._r("Dentro de 1SD", f"{ins} ({ins/len(z)*100:.0f}%) — Se esperaba ~68%")
@@ -260,10 +260,10 @@ class QCPanel(QWidget):
         d, m, s = self._params(a)
         x = np.arange(len(d))
         result = stats.linregress(x, d.values)
-        slope, intercept, r, p, se = result.slope, result.intercept, result.rvalue, result.pvalue, result.stderr
+        slope, intercept, r, p = result.slope, result.intercept, result.rvalue, result.pvalue
         h = f"<b>{Icons.CHART} Analisis de Tendencia — {a}</b><table style='font-size:12px;'>"
-        for l, v in [("Pendiente", f"{slope:.6f}"), ("R-cuadrado", f"{r**2:.6f}"), ("Valor p", f"{p:.6f}")]:
-            h += self._r(l, v)
+        for label, v in [("Pendiente", f"{slope:.6f}"), ("R-cuadrado", f"{r**2:.6f}"), ("Valor p", f"{p:.6f}")]:
+            h += self._r(label, v)
         h += "</table>"
         if p < 0.05:
             dd = "creciente" if slope > 0 else "decreciente"

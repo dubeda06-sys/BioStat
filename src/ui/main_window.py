@@ -1,10 +1,9 @@
 """Ventana principal de BioStat."""
 from PyQt6.QtWidgets import (
-    QMainWindow, QTabWidget, QMenuBar, QMenu,
+    QMainWindow, QTabWidget,
     QToolBar, QStatusBar, QFileDialog, QMessageBox,
-    QWidget, QLabel
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction
 
 from src.ui.styles import MAIN_STYLE
