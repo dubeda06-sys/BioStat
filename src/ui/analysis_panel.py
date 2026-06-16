@@ -53,6 +53,11 @@ from src.core.probit import probit_regression
 from src.core.cmh import cmh_test
 from src.core.serial_measurements import serial_measurements_summary
 from src.core.plots import youden_data, polar_plot_data, waterfall_data, mountain_plot_data
+from src.core.validation import (
+    validate_numeric_data, validate_paired_data, validate_groups,
+    validate_binary_outcome, validate_positive_values, validate_range,
+    validate_contingency_table, get_validation_summary
+)
 
 plt.rcParams.update({
     'figure.facecolor': 'white', 'axes.facecolor': '#fafbfd',
