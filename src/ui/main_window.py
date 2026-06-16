@@ -80,35 +80,44 @@ class MainWindow(QMainWindow):
         tb.setIconSize(QSize(18, 18))
         self.addToolBar(tb)
 
-        for icon, text, tip, shortcut, cb in [
-            (Icons.OPEN, "Abrir", "Abrir archivo CSV o Excel (Ctrl+O)", "Ctrl+O", self._open_file),
-            (Icons.SAVE, "Guardar", "Guardar datos en archivo (Ctrl+S)", "Ctrl+S", self._save_file),
-        ]:
-            a = QAction(f"{icon} {text}", self)
-            a.setToolTip(tip)
-            a.setShortcut(shortcut)
-            a.triggered.connect(cb)
-            tb.addAction(a)
+        # Open button with SVG icon
+        a = QAction(Icons.OPEN(), "Abrir", self)
+        a.setToolTip("Abrir archivo CSV o Excel (Ctrl+O)")
+        a.setShortcut("Ctrl+O")
+        a.triggered.connect(self._open_file)
+        tb.addAction(a)
+
+        # Save button with SVG icon
+        a = QAction(Icons.SAVE(), "Guardar", self)
+        a.setToolTip("Guardar datos en archivo (Ctrl+S)")
+        a.setShortcut("Ctrl+S")
+        a.triggered.connect(self._save_file)
+        tb.addAction(a)
 
         tb.addSeparator()
 
-        for icon, text, tip, shortcut in [
-            (Icons.CSV, "CSV", "Exportar datos a CSV (Ctrl+E)", "Ctrl+E"),
-            (Icons.EXCEL, "Excel", "Exportar datos a Excel (Ctrl+Shift+E)", "Ctrl+Shift+E"),
-        ]:
-            a = QAction(f"{icon} {text}", self)
-            a.setToolTip(tip)
-            a.setShortcut(shortcut)
-            tb.addAction(a)
+        # CSV button with SVG icon
+        a = QAction(Icons.CSV(), "CSV", self)
+        a.setToolTip("Exportar datos a CSV (Ctrl+E)")
+        a.setShortcut("Ctrl+E")
+        tb.addAction(a)
+
+        # Excel button with SVG icon
+        a = QAction(Icons.EXCEL(), "Excel", self)
+        a.setToolTip("Exportar datos a Excel (Ctrl+Shift+E)")
+        a.setShortcut("Ctrl+Shift+E")
+        tb.addAction(a)
 
         tb.addSeparator()
 
-        a = QAction(f"{Icons.RUN} Analizar", self)
+        # Run button with SVG icon
+        a = QAction(Icons.RUN(), "Analizar", self)
         a.setToolTip("Ejecutar análisis estadístico (Ctrl+R)")
         a.setShortcut("Ctrl+R")
         tb.addAction(a)
 
-        a = QAction(f"{Icons.EXPORT} Exportar", self)
+        # Export button with SVG icon
+        a = QAction(Icons.EXPORT(), "Exportar", self)
         a.setToolTip("Exportar resultados (Ctrl+Shift+X)")
         a.setShortcut("Ctrl+Shift+X")
         tb.addAction(a)
