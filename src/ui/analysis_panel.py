@@ -512,18 +512,20 @@ class AnalysisPanel(QWidget):
 
         br = QHBoxLayout()
         br.setSpacing(4)
-        self.btn_run = QPushButton(f"{Icons.RUN()} Ejecutar")
+        self.btn_run = QPushButton("Ejecutar")
+        self.btn_run.setIcon(Icons.RUN())
         self.btn_run.setMinimumHeight(30)
         self.btn_run.clicked.connect(self._run)
         br.addWidget(self.btn_run)
-        btn_clr = QPushButton(f"{Icons.CLEAR()}")
+        btn_clr = QPushButton("Limpiar")
+        btn_clr.setIcon(Icons.CLEAR())
         btn_clr.setObjectName("secondary")
         btn_clr.setMinimumHeight(30)
         btn_clr.clicked.connect(self._clear)
         br.addWidget(btn_clr)
         left_l.addLayout(br)
 
-        fg = QGroupBox(f"  {Icons.INFO()}  Formula")
+        fg = QGroupBox("Formula")
         fl = QVBoxLayout()
         fl.setContentsMargins(4, 2, 4, 2)
         self.txt_formula = QTextEdit()
@@ -2639,4 +2641,5 @@ class AnalysisPanel(QWidget):
             return h
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
+
 

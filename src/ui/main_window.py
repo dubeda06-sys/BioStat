@@ -31,18 +31,20 @@ class MainWindow(QMainWindow):
         mb = self.menuBar()
 
         fm = mb.addMenu("  Archivo  ")
-        a = QAction(f"{Icons.OPEN()} Abrir", self)
+        a = QAction("Abrir", self)
+        a.setIcon(Icons.OPEN())
         a.setShortcut("Ctrl+O")
         a.triggered.connect(self._open_file)
         fm.addAction(a)
 
-        a = QAction(f"{Icons.SAVE()} Guardar", self)
+        a = QAction("Guardar", self)
+        a.setIcon(Icons.SAVE())
         a.setShortcut("Ctrl+S")
         a.triggered.connect(self._save_file)
         fm.addAction(a)
         fm.addSeparator()
 
-        ex = fm.addMenu(f"{Icons.EXPORT()} Exportar")
+        ex = fm.addMenu("Exportar")
         a = QAction("CSV", self)
         a.triggered.connect(self._export_csv)
         ex.addAction(a)
@@ -59,17 +61,17 @@ class MainWindow(QMainWindow):
         a.triggered.connect(self.close)
         fm.addAction(a)
 
-        mb.addMenu("  Edicion  ").addAction(QAction("Copiar", self))
+        mb.addMenu("Edicion").addAction(QAction("Copiar", self))
 
-        am = mb.addMenu("  Analisis  ")
+        am = mb.addMenu("Analisis")
         for n in ["Descriptivas", "ROC", "Bland-Altman", "Supervivencia"]:
             am.addAction(QAction(n, self))
 
-        qm = mb.addMenu("  Control de Calidad  ")
+        qm = mb.addMenu("Control de Calidad")
         for n in ["Levey-Jennings", "Westgard", "Validacion"]:
             qm.addAction(QAction(n, self))
 
-        hm = mb.addMenu("  Ayuda  ")
+        hm = mb.addMenu("Ayuda")
         about = QAction("Acerca de", self)
         about.triggered.connect(self._show_about)
         hm.addAction(about)
@@ -137,13 +139,13 @@ class MainWindow(QMainWindow):
         self.qc_panel = QCPanel()
 
         tabs_config = [
-            (self.data_panel, "Datos", Icons.OPEN()),
-            (self.analysis_panel, "Analisis", Icons.CHART()),
-            (self.graphs_panel, "Graficos", Icons.STATS()),
-            (self.qc_panel, "Control de Calidad", Icons.CHECK()),
+            (self.data_panel, "Datos"),
+            (self.analysis_panel, "Analisis"),
+            (self.graphs_panel, "Graficos"),
+            (self.qc_panel, "Control de Calidad"),
         ]
-        for panel, name, icon in tabs_config:
-            self.tabs.addTab(panel, f"  {icon} {name}  ")
+        for panel, name in tabs_config:
+            self.tabs.addTab(panel, name)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
