@@ -43,9 +43,15 @@ class MainWindow(QMainWindow):
         fm.addSeparator()
 
         ex = fm.addMenu(f"{Icons.EXPORT} Exportar")
-        ex.addAction(QAction("PDF", self))
-        ex.addAction(QAction("Excel", self))
-        ex.addAction(QAction("Word", self))
+        a = QAction("CSV", self)
+        a.triggered.connect(self._export_csv)
+        ex.addAction(a)
+        a = QAction("Excel", self)
+        a.triggered.connect(self._export_excel)
+        ex.addAction(a)
+        a = QAction("HTML (Resultados)", self)
+        a.triggered.connect(self._export_html)
+        ex.addAction(a)
         fm.addSeparator()
 
         a = QAction("Salir", self)
@@ -166,3 +172,42 @@ class MainWindow(QMainWindow):
             "<p>Permite importar datos, realizar analisis estadisticos, "
             "generar graficos y control de calidad.</p>"
         )
+
+    def _export_csv(self):
+        """Export data to CSV."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar CSV", "", "CSV (*.csv)"
+        )
+        if path:
+            data = self.data_panel.get_data()
+            if data is not None:
+                data.to_csv(path, index=False)
+                self.statusBar().showMessage(f"CSV exportado: {path.split('/')[-1]}")
+            else:
+                QMessageBox.warning(self, "Error", "No hay datos para exportar.")
+
+    def _export_excel(self):
+        """Export data to Excel."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar Excel", "", "Excel (*.xlsx)"
+        )
+        if path:
+            data = self.data_panel.get_data()
+            if data is not None:
+                data.to_excel(path, index=False, engine='openpyxl')
+                self.statusBar().showMessage(f"Excel exportado: {path.split('/')[-1]}")
+            else:
+                QMessageBox.warning(self, "Error", "No hay datos para exportar.")
+
+    def _export_html(self):
+        """Export results to HTML."""
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exportar HTML", "", "HTML (*.html)"
+        )
+        if path:
+            from src.core.export import export_results_to_html
+            results = self.analysis_panel.txt_results.toHtml()
+            html = export_results_to_html({'Resultados': results}, "Informe BioStat")
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(html)
+            self.statusBar().showMessage(f"HTML exportado: {path.split('/')[-1]}")
