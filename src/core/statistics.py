@@ -215,8 +215,8 @@ def sign_test(d1, d2):
     try:
         p = stats.binomtest(n_pos, n, 0.5).pvalue
     except AttributeError:
-        p = 2 * stats.binom.pmf(min(n_pos, n-n_pos), n, 0.5)
-    return {"n_pos": int(n_pos), "n_neg": int(n_neg), "n": n, "p": p}
+        p = 2 * stats.binom.sf(min(n_pos, n_neg) - 1, n, 0.5)
+    return {"n_pos": int(n_pos), "n_neg": int(n_neg), "n": n, "p": min(p, 1.0)}
 
 
 def kruskal_wallis(groups):

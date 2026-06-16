@@ -93,6 +93,6 @@ def meta_analysis(effects, se_effects, labels=None, model="random"):
 
 def odds_ratio_to_log(or_val, se_or):
     """Convierte OR y SE(OR) a log(OR) y SE(log(OR))."""
-    if or_val <= 0:
+    if or_val <= 0 or se_or <= 0:
         return None, None
     return np.log(or_val), se_or / or_val

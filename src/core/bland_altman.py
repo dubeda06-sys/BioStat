@@ -94,3 +94,68 @@ def concordance_correlation(method1, method2):
         "var2": var2,
         "covariance": cov,
     }
+
+
+def bland_altman_multiple(data, method_labels=None):
+    """
+    Bland-Altman analysis for multiple methods/measurements.
+
+    Args:
+        data: 2D array (subjects x methods) or DataFrame
+        method_labels: optional list of method names
+
+    Returns:
+        dict with pairwise comparisons
+    """
+    if hasattr(data, 'values'):
+        data = data.values
+    data = np.asarray(data, dtype=float)
+
+    n_subjects, n_methods = data.shape
+
+    if method_labels is None:
+        method_labels = [f"Método {i+1}" for i in range(n_methods)]
+
+    comparisons = []
+    for i in range(n_methods):
+        for j in range(i+1, n_methods):
+            m1 = data[:, i]
+            m2 = data[:, j]
+
+            valid = ~(np.isnan(m1) | np.isnan(m2))
+            m1_clean, m2_clean = m1[valid], m2[valid]
+
+            if len(m1_clean) < 2:
+                continue
+
+            means = (m1_clean + m2_clean) / 2
+            diffs = m1_clean - m2_clean
+
+            mean_diff = np.mean(diffs)
+            sd_diff = np.std(diffs, ddof=1)
+
+            loa_upper = mean_diff + 1.96 * sd_diff
+            loa_lower = mean_diff - 1.96 * sd_diff
+
+            bias_pct = (mean_diff / np.mean(m1_clean)) * 100 if np.mean(m1_clean) != 0 else 0
+
+            comparisons.append({
+                'method1': method_labels[i],
+                'method2': method_labels[j],
+                'n': len(m1_clean),
+                'mean_diff': mean_diff,
+                'sd_diff': sd_diff,
+                'loa_upper': loa_upper,
+                'loa_lower': loa_lower,
+                'bias_pct': bias_pct,
+                'means': means,
+                'diffs': diffs,
+            })
+
+    return {
+        'n_subjects': n_subjects,
+        'n_methods': n_methods,
+        'method_labels': method_labels,
+        'comparisons': comparisons,
+        'n_comparisons': len(comparisons)
+    }

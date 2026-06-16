@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 from src.ui.icons import Icons
 from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
-from src.core.bland_altman import bland_altman_analysis, concordance_correlation
+from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 from src.core.passing_bablok import passing_bablok
 from src.core.survival import kaplan_meier, log_rank_test
 from src.core.meta_analysis import meta_analysis
@@ -137,6 +137,7 @@ ANALYSIS_HELP = {
     "Polar plot": "Gráfico polar (radar) para múltiples variables.",
     "Waterfall chart": "Gráfico de cascada para efectos acumulados.",
     "Mountain plot": "Gráfico de montaña (distribución plegada).",
+    "Bland-Altman múltiple": "Bland-Altman para múltiples métodos/mediciones.",
 }
 
 
@@ -361,6 +362,7 @@ class AnalysisPanel(QWidget):
             "Polar plot": lambda: self._run_polar(),
             "Waterfall chart": lambda: self._run_waterfall(c1),
             "Mountain plot": lambda: self._run_mountain(c1),
+            "Bland-Altman múltiple": lambda: self._run_bland_multi(),
         }
         fn = dispatch.get(at)
         if fn:
@@ -2277,6 +2279,38 @@ class AnalysisPanel(QWidget):
             ax.legend(loc='upper right', framealpha=0.9)
             fig.tight_layout()
             self._show_fig(fig)
+            
+            return h
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_bland_multi(self):
+        """Run Bland-Altman for multiple methods."""
+        if self.data.shape[1] < 3:
+            return "<b>Error:</b> Se necesitan al menos 3 columnas (múltiples métodos)."
+        try:
+            method_labels = self.data.columns.tolist()
+            result = bland_altman_multiple(self.data, method_labels)
+            
+            self._set_formula("Formula: Bland-Altman Múltiple", "Sesgo = Media(diferencias)\nLoA = Sesgo ± 1.96 × DE(diferencias)")
+            
+            h = self._h(f"{Icons.CHART} Bland-Altman Múltiple")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("Sujetos", result['n_subjects'])
+            h += self._r("Métodos", result['n_methods'])
+            h += self._r("Comparaciones", result['n_comparisons'])
+            h += "</table>"
+            
+            for comp in result['comparisons']:
+                h += f"<b style='font-size:12px;'>{comp['method1']} vs {comp['method2']}:</b>"
+                h += "<table style='font-size:12px;'>"
+                h += self._r("n", comp['n'])
+                h += self._r("Sesgo", f"{comp['mean_diff']:.4f}")
+                h += self._r("DE diferencias", f"{comp['sd_diff']:.4f}")
+                h += self._r("LoA superior", f"{comp['loa_upper']:.4f}")
+                h += self._r("LoA inferior", f"{comp['loa_lower']:.4f}")
+                h += self._r("Sesgo %", f"{comp['bias_pct']:.2f}%")
+                h += "</table>"
             
             return h
         except Exception as e:
