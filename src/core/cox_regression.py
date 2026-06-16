@@ -1,6 +1,6 @@
 """Cox Proportional Hazards Regression."""
 import numpy as np
-from scipy import optimize
+from scipy import optimize, stats
 
 
 def cox_regression(times, events, covariates):

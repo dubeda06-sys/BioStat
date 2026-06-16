@@ -61,6 +61,7 @@ def ancova(dependent, group, covariate):
     p_cov = 1 - stats.f.cdf(f_cov, df_cov, df_error) if df_cov > 0 and df_error > 0 else 1
 
     eta_squared = ss_group / (ss_group + ss_error) if (ss_group + ss_error) > 0 else 0
+    eta_squared = np.clip(eta_squared, 0, 1)
 
     return {
         'F': f_group, 'p': p_group, 'df_group': df_group, 'df_error': df_error,
