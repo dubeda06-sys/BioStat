@@ -80,29 +80,37 @@ class MainWindow(QMainWindow):
         tb.setIconSize(QSize(18, 18))
         self.addToolBar(tb)
 
-        for icon, text, tip, cb in [
-            (Icons.OPEN, "Abrir", "Abrir archivo CSV o Excel", self._open_file),
-            (Icons.SAVE, "Guardar", "Guardar datos en archivo", self._save_file),
+        for icon, text, tip, shortcut, cb in [
+            (Icons.OPEN, "Abrir", "Abrir archivo CSV o Excel (Ctrl+O)", "Ctrl+O", self._open_file),
+            (Icons.SAVE, "Guardar", "Guardar datos en archivo (Ctrl+S)", "Ctrl+S", self._save_file),
         ]:
             a = QAction(f"{icon} {text}", self)
             a.setToolTip(tip)
+            a.setShortcut(shortcut)
             a.triggered.connect(cb)
             tb.addAction(a)
 
         tb.addSeparator()
 
-        for icon, text in [(Icons.CSV, "CSV"), (Icons.EXCEL, "Excel")]:
+        for icon, text, tip, shortcut in [
+            (Icons.CSV, "CSV", "Exportar datos a CSV (Ctrl+E)", "Ctrl+E"),
+            (Icons.EXCEL, "Excel", "Exportar datos a Excel (Ctrl+Shift+E)", "Ctrl+Shift+E"),
+        ]:
             a = QAction(f"{icon} {text}", self)
+            a.setToolTip(tip)
+            a.setShortcut(shortcut)
             tb.addAction(a)
 
         tb.addSeparator()
 
         a = QAction(f"{Icons.RUN} Analizar", self)
-        a.setToolTip("Ejecutar analisis estadistico")
+        a.setToolTip("Ejecutar análisis estadístico (Ctrl+R)")
+        a.setShortcut("Ctrl+R")
         tb.addAction(a)
 
         a = QAction(f"{Icons.EXPORT} Exportar", self)
-        a.setToolTip("Exportar resultados a PDF o Excel")
+        a.setToolTip("Exportar resultados (Ctrl+Shift+X)")
+        a.setShortcut("Ctrl+Shift+X")
         tb.addAction(a)
 
     def _create_status_bar(self):
