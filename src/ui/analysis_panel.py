@@ -145,6 +145,309 @@ ANALYSIS_HELP = {
     "Bland-Altman múltiple": "Bland-Altman para múltiples métodos/mediciones.",
 }
 
+ANALYSIS_LEGENDS = {
+    "Estadisticas descriptivas": {
+        "legend": "Resume las características principales de un conjunto de datos. La media indica el valor central, la mediana el valor que divide la distribución al 50%, y la desviación estándar mide la dispersión. El CV% (coeficiente de variación) indica la variabilidad relativa.",
+        "formula": "Media: x̄ = Σxi / n\nDE: s = √[Σ(xi - x̄)² / (n-1)]\nCV%: (s / x̄) × 100"
+    },
+    "t-test pareado": {
+        "legend": "Compara las medias de dos mediciones relacionadas (antes/despues, izquierda/derecha). Útil cuando cada sujeto sirve como su propio control. Asume que las diferencias siguen una distribución normal.",
+        "formula": "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipótesis nula)"
+    },
+    "t-test independiente": {
+        "legend": "Compara las medias de dos grupos independientes. Útil para comparar tratamientos, sexos, o cualquier agrupación. Usa la corrección de Welch para varianzas desiguales.",
+        "formula": "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamaño"
+    },
+    "ANOVA una via": {
+        "legend": "Compara las medias de 3 o más grupos independientes. Determina si al menos un grupo es diferente, pero no identifica cuál. Post-hoc (Tukey, Bonferroni) para comparaciones múltiples.",
+        "formula": "F = MS_entre / MS_dentro\nMS_entre = SS_entre / (k-1)\nMS_dentro = SS_dentro / (N-k)"
+    },
+    "Correlacion de Pearson": {
+        "legend": "Mide la fuerza y dirección de la relación lineal entre dos variables continuas. Varía de -1 (correlación negativa perfecta) a +1 (correlación positiva perfecta). Requiere normalidad bivariada.",
+        "formula": "r = Σ[(xi - x̄)(yi - ȳ)] / √[Σ(xi - x̄)² × Σ(yi - ȳ)²]\nt = r × √(n-2) / √(1-r²)"
+    },
+    "Correlacion de Spearman": {
+        "legend": "Mide la relación monotónica entre dos variables usando rangos. No requiere normalidad ni relación lineal. Útil para datos ordinales o con outliers.",
+        "formula": "ρ = 1 - (6 × Σd²) / (n × (n² - 1))\ndonde d = diferencia de rangos"
+    },
+    "Shapiro-Wilk": {
+        "legend": "Prueba la hipótesis nula de que los datos siguen una distribución normal. p < 0.05 sugiere desviación de la normalidad. Es una de las pruebas de normalidad más potentes.",
+        "formula": "W = (Σaᵢxᵢ)² / Σ(xi - x̄)²\ndonde xᵢ son los datos ordenados"
+    },
+    "Curva ROC": {
+        "legend": "Evalúa el rendimiento de una prueba diagnóstica a diferentes umbrales. El AUC (Área Bajo la Curva) indica la capacidad discriminativa: 0.5 = azar, 1.0 = perfecto.",
+        "formula": "Sensibilidad = TP / (TP + FN)\nEspecificidad = TN / (TN + FP)\nAUC = ∫ Sensibilidad d(1-Especificidad)"
+    },
+    "Bland-Altman": {
+        "legend": "Evalúa la concordancia entre dos métodos de medición. Grafica las diferencias contra las medias. Los límites de concordancia (LoA) indican el rango esperado de diferencias.",
+        "formula": "Sesgo = Media(diferencias)\nLoA = Sesgo ± 1.96 × DE(diferencias)\n% Sesgo = (Sesgo / Media Método 1) × 100"
+    },
+    "Passing-Bablok": {
+        "legend": "Regresión robusta para comparar dos métodos. No asume distribución normal ni que un método es referencia. Pendiente = 1 e intercepto = 0 indica concordancia perfecta.",
+        "formula": "y = β₀ + β₁x\nPendiente = 1 y β₀ = 0 → concordancia"
+    },
+    "Kaplan-Meier": {
+        "legend": "Estima la función de supervivencia no parametricamente. Cada punto representa la probabilidad de sobrevivir más allá de un tiempo dado. Útil para análisis de tiempo hasta evento.",
+        "formula": "S(t) = Π[(nᵢ - dᵢ) / nᵢ]\ndonde nᵢ = en riesgo, dᵢ = eventos"
+    },
+    "Log-rank test": {
+        "legend": "Compara dos o más curvas de supervivencia. Evalúa si las diferencias entre curvas son estadísticamente significativas. No asume forma específica de la curva.",
+        "formula": "χ² = (O₁ - E₁)² / E₁ + (O₂ - E₂)² / E₂\ndonde O = observados, E = esperados"
+    },
+    "Meta-analisis": {
+        "legend": "Combina resultados de múltiples estudios para obtener una estimación global. Los estudios con mayor precisión (menor error estándar) tienen mayor peso.",
+        "formula": "EF = Σ(wᵢ × EFᵢ) / Σ(wᵢ)\nwᵢ = 1 / SEᵢ²\nI² = (Q - df) / Q × 100%"
+    },
+    "Tamano muestral (1 media)": {
+        "legend": "Calcula el tamaño de muestra necesario para detectar una diferencia dada en una media. Considera la variabilidad esperada, el nivel de significancia y el poder deseado.",
+        "formula": "n = [(Z_α/2 + Z_β) × σ / δ]²\ndonde δ = diferencia a detectar, σ = DE"
+    },
+    "Tamano muestral (2 medias)": {
+        "legend": "Calcula el tamaño de muestra para comparar dos medias independientes. Permite especificar el ratio entre grupos.",
+        "formula": "n₁ = [(Z_α/2 + Z_β) × σ / δ]² × (1 + 1/r)\nn₂ = n₁ × r"
+    },
+    "Tamano muestral (2 proporciones)": {
+        "legend": "Calcula el tamaño de muestra para comparar dos proporciones. Útil para estudios de prevalencia o ensayos clínicos.",
+        "formula": "n = [Z_α/2 × √(2p̄(1-p̄)) + Z_β × √(p₁(1-p₁) + p₂(1-p₂))]² / (p₁ - p₂)²"
+    },
+    "Poder estadistico": {
+        "legend": "Calcula la probabilidad de detectar un efecto real cuando existe. Poder = 1 - β (probabilidad de evitar error tipo II). Se recomienda poder ≥ 0.80.",
+        "formula": "Poder = 1 - β = P(rechazar H₀ | H₁ es verdadera)\nncp = δ × √n / σ"
+    },
+    "Bootstrap (media)": {
+        "legend": "Estima intervalos de confianza para la media usando remuestreo con reemplazo. No asume normalidad. Útil para distribuciones desconocidas o asimétricas.",
+        "formula": "IC = [θ*_(α/2), θ*_(1-α/2)]\ndonde θ* son los percentiles de B remuestreos"
+    },
+    "Bootstrap (diferencia)": {
+        "legend": "Estima IC para la diferencia de medias entre dos grupos. Método no paramétrico que no requiere supuestos distribucionales.",
+        "formula": "IC = [θ*_(α/2), θ*_(1-α/2)]\nθ* = diferencia media de B remuestreos"
+    },
+    "Bootstrap (correlacion)": {
+        "legend": "Estima IC para el coeficiente de correlación. Método robusto que funciona con cualquier tipo de correlación.",
+        "formula": "IC = [r*_(α/2), r*_(1-α/2)]\nr* = correlación de B remuestreos"
+    },
+    "Random Forest (clasificacion)": {
+        "legend": "Ensemble de árboles de decisión para clasificación. Cada árbol entrena con una muestra aleatoria y usa un subconjunto de variables. La predicción es la moda de todos los árboles.",
+        "formula": "ŷ = mode(.Tree₁(x), Tree₂(x), ..., Tree_B(x))\nImportancia = reducción en impureza Gini"
+    },
+    "Random Forest (regresion)": {
+        "legend": "Ensemble de árboles de decisión para regresión. La predicción es el promedio de todos los árboles. Reduce el overfitting vs un solo árbol.",
+        "formula": "ŷ = (1/B) × Σ Treeᵦ(x)\nMSE = (1/n) × Σ(yᵢ - ŷᵢ)²"
+    },
+    "Mann-Whitney U": {
+        "legend": "Prueba no paramétrica para comparar dos grupos independientes. Compara rangos en lugar de medias. Alternativa al t-test cuando no se cumple normalidad.",
+        "formula": "U = n₁ × n₂ + n₁(n₁+1)/2 - R₁\ndonde R₁ = suma de rangos del grupo 1"
+    },
+    "Wilcoxon pareado": {
+        "legend": "Prueba no paramétrica para datos pareados. Compara las diferencias entre pares. Alternativa al t-test pareado cuando no hay normalidad.",
+        "formula": "W = Σ Rᵢ⁺\ndonde Rᵢ⁺ = rangos de diferencias positivas"
+    },
+    "Chi-cuadrado": {
+        "legend": "Prueba de independencia entre dos variables categóricas. Evalúa si la distribución observada difiere de la esperada bajo independencia.",
+        "formula": "χ² = Σ[(Oᵢⱼ - Eᵢⱼ)² / Eᵢⱼ]\nEᵢⱼ = (Filaᵢ × Columnaⱼ) / Total"
+    },
+    "Fisher exact": {
+        "legend": "Prueba exacta para tablas 2×2 cuando las muestras son pequeñas (n < 20 o frecuencias esperadas < 5). Más precisa que Chi-cuadrado en estos casos.",
+        "formula": "P = (a+b)!(c+d)!(a+c)!(b+d)! / (a!b!c!d!n!)"
+    },
+    "McNemar": {
+        "legend": "Prueba para proporciones apareadas (antes/despues). Evalúa si el cambio en una categoría es significativo. Útil para datos dicotómicos.",
+        "formula": "χ² = (b - c)² / (b + c)\ndonde b y c son las discordancias"
+    },
+    "Kruskal-Wallis": {
+        "legend": "ANOVA no paramétrico para 3+ grupos independientes. Compara rangos. Alternativa a ANOVA cuando no hay normalidad o los tamaños son pequeños.",
+        "formula": "H = (12 / (n(n+1))) × Σ(Rᵢ²/nᵢ) - 3(n+1)\ndonde Rᵢ = suma de rangos del grupo i"
+    },
+    "Friedman": {
+        "legend": "Prueba no paramétrica para medidas repetidas (3+ condiciones). Compara rangos dentro de cada sujeto. Alternativa a ANOVA de medidas repetidas.",
+        "formula": "Q = (12 / (nk(k+1))) × ΣRⱼ² - 3n(k+1)\ndonde Rⱼ = suma de rangos de la condición j"
+    },
+    "F-test (varianzas)": {
+        "legend": "Compara dos varianzas para determinar si son significativamente diferentes. Útil antes del t-test para verificar igualdad de varianzas.",
+        "formula": "F = s₁² / s₂²\ndonde s₁² > s₂² (mayor varianza numerador)"
+    },
+    "Kappa": {
+        "legend": "Mide la concordancia entre dos evaluadores corregida por azar. Varía de -1 a 1: <0.2 pobre, 0.2-0.4 regular, 0.4-0.6 moderado, 0.6-0.8 bueno, >0.8 muy bueno.",
+        "formula": "κ = (Pₒ - Pₑ) / (1 - Pₑ)\nPₒ = concordancia observada\nPₑ = concordancia esperada por azar"
+    },
+    "ICC": {
+        "legend": "Coeficiente de Correlación Intraclase. Mide la confiabilidad (consistencia) entre mediciones del mismo sujeto. Valores > 0.75 indican buena confiabilidad.",
+        "formula": "ICC = (MS_entre - MS_dentro) / (MS_entre + (k-1)×MS_dentro)\nk = número de mediciones"
+    },
+    "Cronbach alfa": {
+        "legend": "Mide la consistencia interna de una escala. Indica cuánto las ítems miden el mismo constructo. α > 0.7 es aceptable, > 0.8 es bueno.",
+        "formula": "α = (k / (k-1)) × (1 - Σσᵢ² / σₜ²)\nk = número de ítems, σᵢ² = varianza de cada ítem"
+    },
+    "Regresion lineal": {
+        "legend": "Modelo que predice una variable continua a partir de otra continua. Estima la pendiente (efecto) e intercepto (valor base).",
+        "formula": "ŷ = β₀ + β₁x\nβ₁ = Σ[(xi - x̄)(yi - ȳ)] / Σ(xi - x̄)²\nβ₀ = ȳ - β₁x̄"
+    },
+    "Regresion multiple": {
+        "legend": "Modelo que predice una variable continua a partir de múltiples predictores. Útil para controlar variables confusoras.",
+        "formula": "ŷ = β₀ + β₁x₁ + β₂x₂ + ... + βₚxₚ\nβ = (X'X)⁻¹X'y"
+    },
+    "Regresion logistica": {
+        "legend": "Modelo para predecir resultados binarios (0/1). Estima la probabilidad de un evento. Los coeficientes se interpretan como log-odds ratios.",
+        "formula": "ln(p/(1-p)) = β₀ + β₁x₁ + ... + βₚxₚ\np = 1 / (1 + e^-(β₀ + Σβᵢxᵢ))"
+    },
+    "Odds Ratio": {
+        "legend": "Mide la asociación entre exposición y resultado. OR = 1: sin asociación, OR > 1: mayor riesgo con exposición, OR < 1: menor riesgo.",
+        "formula": "OR = (a × d) / (b × c)\nln(OR) ± 1.96 × SE(ln(OR))"
+    },
+    "Riesgo Relativo": {
+        "legend": "Compara el riesgo de un evento entre dos grupos. RR = 1: sin diferencia, RR > 1: mayor riesgo en grupo expuesto.",
+        "formula": "RR = [a/(a+b)] / [c/(c+d)]\nARR = Riesgo_expuesto - Riesgo_no_expuesto\nNNT = 1/ARR"
+    },
+    "Diagnostic test": {
+        "legend": "Evalúa una prueba diagnóstica: Sensibilidad (detecta positivos), Especificidad (detecta negativos), PPV (probabilidad real de positivo), NPV (probabilidad real de negativo).",
+        "formula": "Sens = TP/(TP+FN)\nSpec = TN/(TN+FP)\nPPV = TP/(TP+FP)\nNPV = TN/(TN+FN)"
+    },
+    "Outliers (Grubbs)": {
+        "legend": "Detecta un valor atipico individual en una muestra. Compara la distancia del valor más extremo a la media contra un valor crítico.",
+        "formula": "G = |x_max - x̄| / s\nValor crítico: t_(α/2n) × √((n-1)² / (n(n-2+t²)))"
+    },
+    "Outliers (Tukey)": {
+        "legend": "Detecta outliers usando el rango intercuartílico (IQR). Valores fuera de 1.5×IQR son 'leves', fuera de 3×IQR son 'extremos'.",
+        "formula": "IQR = Q₇₅ - Q₂₅\nLímite inferior = Q₂₅ - 1.5×IQR\nLímite superior = Q₇₅ + 1.5×IQR"
+    },
+    "Intervalos de referencia": {
+        "legend": "Establece rangos normales para una medición. Usualmente el percentil 2.5 al 97.5 cubre el 95% de la población sana.",
+        "formula": "Límite inferior = Percentil 2.5\nLímite superior = Percentil 97.5\nIC Bootstrap para precisión"
+    },
+    "Asimetria y curtosis": {
+        "legend": "Describe la forma de la distribución. Asimetría: simétrica (0), cola derecha (>0), cola izquierda (<0). Curtosis: mesocurtica (0), leptocurtica (>0), platicurtica (<0).",
+        "formula": "Sesgo = Σ(xi - x̄)³ / (n × s³)\nCurtosis = Σ(xi - x̄)⁴ / (n × s⁴) - 3"
+    },
+    "Media recortada": {
+        "legend": "Media robusta que elimina los extremos (por defecto 10%). Menos sensible a outliers que la media aritmética.",
+        "formula": "Media recortada = (1/(n-2k)) × Σxᵢ\ndonde k = n × proporción recortada"
+    },
+    "Correlacion parcial": {
+        "legend": "Mide la relación entre dos variables controlando el efecto de una tercera. Útil para eliminar confusión.",
+        "formula": "r_xy.z = (r_xy - r_xz × r_yz) / √[(1-r_xz²)(1-r_yz²)]"
+    },
+    "Media geometrica": {
+        "legend": "Media de datos positivos que reduce el efecto de valores extremos. Útil para tasas de crecimiento, concentraciones, títulos.",
+        "formula": "GM = (x₁ × x₂ × ... × xₙ)^(1/n)\nGM = exp[(1/n) × Σln(xᵢ)]"
+    },
+    "Media armonica": {
+        "legend": "Media de recíprocos. Siempre menor que la media geométrica y aritmética. Útil para promediar tasas y ratios.",
+        "formula": "HM = n / (1/x₁ + 1/x₂ + ... + 1/xₙ)\nHM = n / Σ(1/xᵢ)"
+    },
+    "t-test 1 muestra": {
+        "legend": "Compara la media de una muestra con un valor conocido o teórico. Útil para verificar si una población difiere de un estándar.",
+        "formula": "t = (x̄ - μ₀) / (s / √n)\ngl = n - 1"
+    },
+    "Sign test": {
+        "legend": "Prueba no paramétrica para datos pareados. Solo considera la dirección del cambio (positivo/negativo), no la magnitud.",
+        "formula": "p = 2 × Σ C(n,k) × 0.5ⁿ para k ≤ min(n_pos, n_neg)"
+    },
+    "Cochran Q": {
+        "legend": "Extiende McNemar a 3+ condiciones. Evalúa si las proporciones de éxito difieren entre condiciones.",
+        "formula": "Q = (k-1) × [k × ΣC² - T²] / [k × T - ΣR²]\nk = condiciones, T = total de éxitos"
+    },
+    "Kappa ponderado": {
+        "legend": "Kappa que asigna pesos a los desacuerdos. Lineal: desacuerdos leves pesan menos. Cuadrático: desacuerdos grandes pesan mucho más.",
+        "formula": "κ_w = 1 - (Σ wᵢⱼ × Oᵢⱼ) / (Σ wᵢⱼ × Eᵢⱼ)\nwᵢⱼ = |i-j|/(k-1) (lineal)"
+    },
+    "Deming regression": {
+        "legend": "Regresión que considera error en ambas variables (X e Y). Más realista que OLS para comparar métodos donde ninguno es referencia.",
+        "formula": "y = β₀ + β₁x\nβ₁ = (s_y - δ×s_x + √((s_y-δ×s_x)² + 4δ×s_xy²)) / (2×s_xy)"
+    },
+    "CV duplicatas": {
+        "legend": "Calcula el coeficiente de variación a partir de mediciones duplicadas. Separa la variabilidad intra e inter ensayo.",
+        "formula": "CV = (DE × √2 / Media) × 100%\nCV intra = variabilidad dentro del ensayo"
+    },
+    "Likelihood Ratios": {
+        "legend": "LR+ = cuánto aumenta la probabilidad de enfermedad un resultado positivo. LR- = cuánto la disminuye un resultado negativo.",
+        "formula": "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec\nPre-odds × LR = Post-odds"
+    },
+    "Comparar 2 medias": {
+        "legend": "Compara dos medias usando datos resumen (media, DE, n). Útil cuando solo se reportan estadísticos, no datos individuales.",
+        "formula": "t = (m₁ - m₂) / √(s₁²/n₁ + s₂²/n₂)\ngl = Welch-Satterthwaite"
+    },
+    "Comparar 2 proporciones": {
+        "legend": "Compara dos proporciones usando datos resumen. Útil para meta-análisis o cuando solo se reportan proporciones.",
+        "formula": "z = (p₁ - p₂) / √[p̄(1-p̄)(1/n₁ + 1/n₂)]\np̄ = (p₁n₁ + p₂n₂)/(n₁+n₂)"
+    },
+    "Comparar 2 AUC": {
+        "legend": "Evalúa si dos pruebas diagnósticas tienen diferente capacidad discriminativa. Útil para comparar métodos.",
+        "formula": "z = (AUC₁ - AUC₂) / √(SE₁² + SE₂²)"
+    },
+    "Tabla de percentiles": {
+        "legend": "Presenta valores de corte para cada percentil. Útil para establecer rangos de referencia y comparar con estándares.",
+        "formula": "Pₖ = valor en posición k×(n+1)/100\nIC Bootstrap para precisión"
+    },
+    "Edad-relacionada": {
+        "legend": "Establece intervalos de referencia stratificados por edad. Reconoce que los valores normales cambian con la edad.",
+        "formula": "Intervalos por grupo de edad usando percentiles"
+    },
+    "Outliers (ESD)": {
+        "legend": "Test Generalizado ESD (Rosner) para detectar múltiples outliers. Realiza pruebas iterativas hasta encontrar todos los atípicos.",
+        "formula": "Rᵢ = |x_i - x̄| / s\nλᵢ = valor crítico de t para cada paso"
+    },
+    "Bootstrap (mediana)": {
+        "legend": "IC bootstrap para la mediana. Más robusto que la media bootstrap cuando hay outliers.",
+        "formula": "IC = [mediana*_(α/2), mediana*_(1-α/2)]"
+    },
+    "Bootstrap (regresion)": {
+        "legend": "IC bootstrap para coeficientes de regresión. No asume normalidad de los residuos.",
+        "formula": "IC para β = [β*_(α/2), β*_(1-α/2)]"
+    },
+    "Tamaño muestral (correlacion)": {
+        "legend": "Calcula n para detectar una correlación específica. Basado en la transformación Fisher z.",
+        "formula": "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3"
+    },
+    "ANOVA dos vias": {
+        "legend": "Evalúa el efecto de dos factores y su interacción. Permite ver si el efecto de un factor depende del nivel del otro.",
+        "formula": "F_factor = MS_factor / MS_error\nF_interacción = MS_AB / MS_error"
+    },
+    "ANCOVA": {
+        "legend": "ANOVA que incluye una covariable continua. Controla el efecto de variables extrañas para comparar grupos más limpiamente.",
+        "formula": "F = MS_ajustado / MS_error\nη² = SS_grupo / (SS_grupo + SS_error)"
+    },
+    "Medidas repetidas": {
+        "legend": "ANOVA para mediciones repetidas del mismo sujeto. Incluye corrección Greenhouse-Geisser para esfericidad.",
+        "formula": "F = MS_tiempo / MS_error\nCorrección GG: ε = (Σλᵢ)² / (k-1)×Σλᵢ²"
+    },
+    "Cox regression": {
+        "legend": "Modelo de riesgos proporcionales para datos de supervivencia. Estima hazard ratios para covariables.",
+        "formula": "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)\nHR = exp(βᵢ)"
+    },
+    "Probit regression": {
+        "legend": "Modelo para datos binarios que usa la función de distribución normal inversa. Similar a logística pero con supuestos diferentes.",
+        "formula": "P(Y=1) = Φ(β₀ + β₁x)\nΦ = CDF normal estándar"
+    },
+    "CMH test": {
+        "legend": "Evalúa la asociación en tablas estratificadas 2×2. Combina información de múltiples estratos controlando por confusión.",
+        "formula": "CMH = (Σ(aᵢ - n₁ᵢm₁ᵢ/nᵢ))² / Σ(var_i)"
+    },
+    "Mediciones seriales": {
+        "legend": "Resume tendencias en mediciones repetidas: medias por tiempo, pendientes individuales y globales.",
+        "formula": "Pendiente = regresión lineal tiempo vs valor\nPendiente global = pendiente promedio"
+    },
+    "Youden plot": {
+        "legend": "Gráfico que muestra sensibilidad, especificidad y el índice J para cada umbral. El óptimo maximiza J = Sens + Spec - 1.",
+        "formula": "J = Sensibilidad + Especificidad - 1\nUmbral óptimo = argmax(J)"
+    },
+    "Polar plot": {
+        "legend": "Gráfico radar que muestra múltiples variables en ejes radiales. Útil para comparar perfiles de rendimiento.",
+        "formula": "Ángulos = 2π × i/k\nejes = cada variable normalizada"
+    },
+    "Waterfall chart": {
+        "legend": "Gráfico de cascada que muestra contribuciones acumuladas. Verde = aumento, rojo = disminución.",
+        "formula": "Acumulado = Σ(valores parciales)\nTotal = suma final"
+    },
+    "Mountain plot": {
+        "legend": "Distribución plegada (folded) que muestra la forma de los datos. Combina histograma con curva normal ajustada.",
+        "formula": "f(x) = φ((x-μ)/σ) / σ\nSymmetric around median"
+    },
+    "Bland-Altman múltiple": {
+        "legend": "Extiende Bland-Altman a múltiples métodos. Realiza todas las comparaciones pareadas posibles.",
+        "formula": "Para cada par: Sesgo ± 1.96 × DE(diferencias)"
+    },
+}
+
 
 class AnalysisPanel(QWidget):
     def __init__(self):
@@ -180,7 +483,12 @@ class AnalysisPanel(QWidget):
         self.lbl_help.setObjectName("subtitle")
         self.lbl_help.setWordWrap(True)
         self.lbl_help.setStyleSheet("color: #6b7280; font-style: italic; padding: 1px 0; font-size: 10px;")
+        
+        self.lbl_legend = QLabel("")
+        self.lbl_legend.setWordWrap(True)
+        self.lbl_legend.setStyleSheet("color: #374151; padding: 2px 0; font-size: 10px; background: #f9fafb; border-radius: 4px; padding: 6px;")
         cl.addRow("", self.lbl_help)
+        cl.addRow("📚", self.lbl_legend)
 
         self.combo_col1 = QComboBox()
         self.combo_col1.setMinimumHeight(28)
@@ -265,6 +573,17 @@ class AnalysisPanel(QWidget):
 
     def _on_analysis_changed(self, text):
         self.lbl_help.setText(ANALYSIS_HELP.get(text, ""))
+        
+        legend_info = ANALYSIS_LEGENDS.get(text, {})
+        if legend_info:
+            legend = legend_info.get('legend', '')
+            formula = legend_info.get('formula', '')
+            display_text = f"<b>Descripción:</b> {legend}"
+            if formula:
+                display_text += f"<br><br><b>Fórmula:</b><br><pre style='font-family:Consolas,monospace;font-size:9px;color:#4f6ef7;'>{formula}</pre>"
+            self.lbl_legend.setText(display_text)
+        else:
+            self.lbl_legend.setText("")
 
     def set_data(self, data):
         self.data = data
