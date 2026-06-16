@@ -31,18 +31,18 @@ class MainWindow(QMainWindow):
         mb = self.menuBar()
 
         fm = mb.addMenu("  Archivo  ")
-        a = QAction(f"{Icons.OPEN} Abrir", self)
+        a = QAction(f"{Icons.OPEN()} Abrir", self)
         a.setShortcut("Ctrl+O")
         a.triggered.connect(self._open_file)
         fm.addAction(a)
 
-        a = QAction(f"{Icons.SAVE} Guardar", self)
+        a = QAction(f"{Icons.SAVE()} Guardar", self)
         a.setShortcut("Ctrl+S")
         a.triggered.connect(self._save_file)
         fm.addAction(a)
         fm.addSeparator()
 
-        ex = fm.addMenu(f"{Icons.EXPORT} Exportar")
+        ex = fm.addMenu(f"{Icons.EXPORT()} Exportar")
         a = QAction("CSV", self)
         a.triggered.connect(self._export_csv)
         ex.addAction(a)
@@ -137,10 +137,10 @@ class MainWindow(QMainWindow):
         self.qc_panel = QCPanel()
 
         tabs_config = [
-            (self.data_panel, "Datos", Icons.OPEN),
-            (self.analysis_panel, "Analisis", Icons.CHART),
-            (self.graphs_panel, "Graficos", Icons.STATS),
-            (self.qc_panel, "Control de Calidad", Icons.CHECK),
+            (self.data_panel, "Datos", Icons.OPEN()),
+            (self.analysis_panel, "Analisis", Icons.CHART()),
+            (self.graphs_panel, "Graficos", Icons.STATS()),
+            (self.qc_panel, "Control de Calidad", Icons.CHECK()),
         ]
         for panel, name, icon in tabs_config:
             self.tabs.addTab(panel, f"  {icon} {name}  ")

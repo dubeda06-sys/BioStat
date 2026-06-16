@@ -53,14 +53,14 @@ class DataPanel(QWidget):
         btn_add_col.setMinimumHeight(32)
         btn_layout.addWidget(btn_add_col)
 
-        btn_add_row = QPushButton(f"{Icons.DOWN} Fila")
+        btn_add_row = QPushButton(f"{Icons.DOWN()} Fila")
         btn_add_row.setToolTip("Agregar una fila nueva a la tabla")
         btn_add_row.setObjectName("secondary")
         btn_add_row.clicked.connect(self._add_row)
         btn_add_row.setMinimumHeight(32)
         btn_layout.addWidget(btn_add_row)
 
-        btn_clear = QPushButton(f"{Icons.TRASH} Limpiar")
+        btn_clear = QPushButton(f"{Icons.TRASH()} Limpiar")
         btn_clear.setToolTip("Borrar todos los datos de la tabla")
         btn_clear.setObjectName("danger")
         btn_clear.clicked.connect(self._clear_data)
