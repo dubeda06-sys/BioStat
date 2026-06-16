@@ -15,11 +15,11 @@ def sample_size_mean(delta, sd, alpha=0.05, power=0.80):
     Returns:
         dict con n requerido
     """
+    if delta == 0 or sd == 0:
+        return None
+    
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     z_beta = stats.norm.ppf(power)
-
-    if delta == 0:
-        return None
 
     n = ((z_alpha + z_beta) * sd / delta) ** 2
     n = int(np.ceil(n))
@@ -48,6 +48,9 @@ def sample_size_two_means(delta, sd, alpha=0.05, power=0.80, ratio=1):
     Returns:
         dict con n por grupo
     """
+    if delta == 0 or sd == 0:
+        return None
+    
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     z_beta = stats.norm.ppf(power)
 
@@ -80,6 +83,9 @@ def sample_size_proportions(p1, p2, alpha=0.05, power=0.80):
     Returns:
         dict con n por grupo
     """
+    if p1 == p2:
+        return None
+    
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     z_beta = stats.norm.ppf(power)
 
@@ -110,6 +116,9 @@ def sample_size_correlation(r, alpha=0.05, power=0.80):
     Returns:
         dict con n requerido
     """
+    if r == 0:
+        return None
+    
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     z_beta = stats.norm.ppf(power)
 
@@ -137,6 +146,9 @@ def power_analysis(n, delta, sd, alpha=0.05):
     Returns:
         dict con poder calculado
     """
+    if sd == 0:
+        return None
+    
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     ncp = delta * np.sqrt(n) / sd
     power = 1 - stats.norm.cdf(z_alpha - ncp) + stats.norm.cdf(-z_alpha - ncp)

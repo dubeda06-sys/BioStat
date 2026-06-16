@@ -109,24 +109,6 @@ def cronbach_alpha(data):
             "item_variances": item_variances.tolist()}
 
 
-def concordance_correlation(d1, d2):
-    """Coeficiente de concordancia de Lin (CCC)."""
-    d1 = np.asarray(d1, dtype=float)
-    d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
-    d1, d2 = d1[valid], d2[valid]
-    n = len(d1)
-    if n < 2:
-        return None
-    mean1, mean2 = np.mean(d1), np.mean(d2)
-    var1, var2 = np.var(d1, ddof=1), np.var(d2, ddof=1)
-    cov = np.sum((d1 - mean1) * (d2 - mean2)) / (n - 1)
-    ccc = (2 * cov) / (var1 + var2 + (mean1 - mean2)**2)
-    r = cov / np.sqrt(var1 * var2) if var1 > 0 and var2 > 0 else 0
-    return {"ccc": ccc, "r": r, "mean1": mean1, "mean2": mean2,
-            "var1": var1, "var2": var2, "cov": cov, "n": n}
-
-
 def deming_regression(x, y, s_yx=1, s_xy=0):
     """Regresion de Deming."""
     x = np.asarray(x, dtype=float)

@@ -52,6 +52,7 @@ from src.core.cox_regression import cox_regression
 from src.core.probit import probit_regression
 from src.core.cmh import cmh_test
 from src.core.serial_measurements import serial_measurements_summary
+from src.core.plots import youden_data, polar_plot_data, waterfall_data, mountain_plot_data
 
 plt.rcParams.update({
     'figure.facecolor': 'white', 'axes.facecolor': '#fafbfd',
@@ -132,6 +133,10 @@ ANALYSIS_HELP = {
     "Probit regression": "Regresión probit para datos binarios.",
     "CMH test": "Cochran-Mantel-Haenszel para tablas estratificadas.",
     "Mediciones seriales": "Resumen de mediciones repetidas por sujeto.",
+    "Youden plot": "Gráfico de Youden (sensibilidad vs especificidad por umbral).",
+    "Polar plot": "Gráfico polar (radar) para múltiples variables.",
+    "Waterfall chart": "Gráfico de cascada para efectos acumulados.",
+    "Mountain plot": "Gráfico de montaña (distribución plegada).",
 }
 
 
@@ -352,6 +357,10 @@ class AnalysisPanel(QWidget):
             "Probit regression": lambda: self._run_probit(c1, c2),
             "CMH test": lambda: self._run_cmh(),
             "Mediciones seriales": lambda: self._run_serial(),
+            "Youden plot": lambda: self._run_youden(c1, c3),
+            "Polar plot": lambda: self._run_polar(),
+            "Waterfall chart": lambda: self._run_waterfall(c1),
+            "Mountain plot": lambda: self._run_mountain(c1),
         }
         fn = dispatch.get(at)
         if fn:
@@ -489,12 +498,11 @@ class AnalysisPanel(QWidget):
     def _corr_p(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
-        if n < 3:
+        df = self.data[[c1, c2]].dropna()
+        if len(df) < 3:
             return "<b>Error:</b> Minimo 3 pares."
         
-        result = pearson_r(d1[:n], d2[:n])
+        result = pearson_r(df[c1].values, df[c2].values)
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
         
@@ -518,12 +526,11 @@ class AnalysisPanel(QWidget):
     def _corr_s(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
-        if n < 3:
+        df = self.data[[c1, c2]].dropna()
+        if len(df) < 3:
             return "<b>Error:</b> Minimo 3 pares."
         
-        result = spearman_rho(d1[:n], d2[:n])
+        result = spearman_rho(df[c1].values, df[c2].values)
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
         
@@ -1652,11 +1659,12 @@ class AnalysisPanel(QWidget):
             return "<b>Error:</b> Selecciona Variable 3 para controlar."
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        x, y, z = self.data[c1].dropna(), self.data[c2].dropna(), self.data[c3].dropna()
-        n = min(len(x), len(y), len(z))
-        r = partial_correlation(x.values[:n], y.values[:n], z.values[:n])
-        if r is None:
+        df = self.data[[c1, c2, c3]].dropna()
+        if len(df) < 4:
             return "<b>Error:</b> Minimo 4 datos."
+        r = partial_correlation(df[c1].values, df[c2].values, df[c3].values)
+        if r is None:
+            return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Correlacion Parcial", "r_xy.z = (r_xy - r_xz*r_yz) / sqrt((1-r_xz^2)(1-r_yz^2))", f"r = {r['r_partial']:.4f}\np = {r['p']:.6f}")
         h = self._h(f"{Icons.CHART} Correlacion Parcial — {c1}, {c2} | {c3}")
         h += "<table style='font-size:12px;'>"
@@ -2122,5 +2130,154 @@ class AnalysisPanel(QWidget):
             for i, (m, s) in enumerate(zip(result['means'], result['sds'])):
                 h += self._r(f"T{i+1}", f"{m:.4f} ± {s:.4f}")
             return h + "</table>"
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_youden(self, score_col, label_col):
+        """Run Youden Plot."""
+        if label_col is None or label_col == "(ninguna)" or label_col not in self.data.columns:
+            return "<b>Error:</b> Selecciona Variable 3 (etiquetas 0/1)."
+        if score_col is None or score_col not in self.data.columns:
+            return "<b>Error:</b> Selecciona Variable 1 (scores)."
+        try:
+            y_true = self.data[label_col].dropna().values
+            y_score = self.data[score_col].dropna().values
+            n = min(len(y_true), len(y_score))
+            result = youden_data(y_true[:n], y_score[:n])
+            if result is None:
+                return "<b>Error:</b> No se pudo calcular."
+            
+            self._set_formula("Formula: Youden's J", "J = Sensibilidad + Especificidad - 1")
+            
+            h = self._h(f"{Icons.CHART} Youden Plot — {score_col}")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("Umbral óptimo", f"{result['optimal_threshold']:.4f}")
+            h += self._r("J máximo", f"{result['optimal_j']:.4f}")
+            h += self._r("Sensibilidad", f"{result['sensitivity'][result['optimal_idx']]:.4f}")
+            h += self._r("Especificidad", f"{result['specificity'][result['optimal_idx']]:.4f}")
+            h += "</table>"
+            
+            fig, ax = plt.subplots(figsize=(7, 5))
+            ax.plot(result['thresholds'], result['sensitivity'], label='Sensibilidad', color='#4f6ef7', lw=2)
+            ax.plot(result['thresholds'], result['specificity'], label='Especificidad', color='#22c55e', lw=2)
+            ax.plot(result['thresholds'], result['j_statistic'], label="Youden's J", color='#f59e0b', lw=2, ls='--')
+            ax.axvline(result['optimal_threshold'], color='#ef4444', ls=':', alpha=0.7, label=f'Óptimo ({result["optimal_threshold"]:.2f})')
+            ax.set_xlabel('Umbral')
+            ax.set_ylabel('Valor')
+            ax.set_title("Gráfico de Youden", fontweight='bold')
+            ax.legend(loc='lower left', framealpha=0.9)
+            ax.set_xlim([result['thresholds'][-1], result['thresholds'][0]])
+            ax.set_ylim([0, 1.1])
+            fig.tight_layout()
+            self._show_fig(fig)
+            
+            return h
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_polar(self):
+        """Run Polar Plot."""
+        if self.data.shape[1] < 3:
+            return "<b>Error:</b> Se necesitan al menos 3 columnas."
+        try:
+            categories = self.data.columns.tolist()[:min(8, self.data.shape[1])]
+            values = [self.data[c].mean() for c in categories]
+            result = polar_plot_data(categories, values)
+            
+            self._set_formula("Formula: Polar Plot", "Cada eje representa una variable")
+            
+            h = self._h(f"{Icons.CHART} Polar Plot")
+            h += "<table style='font-size:12px;'>"
+            for cat, val in zip(categories, values):
+                h += self._r(cat, f"{val:.4f}")
+            h += "</table>"
+            
+            fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+            ax.plot(result['angles'], result['values'], 'o-', linewidth=2, color='#4f6ef7')
+            ax.fill(result['angles'], result['values'], alpha=0.25, color='#4f6ef7')
+            ax.set_xticks(result['angles'][:-1])
+            ax.set_xticklabels(categories)
+            ax.set_title("Gráfico Polar", fontweight='bold', pad=20)
+            fig.tight_layout()
+            self._show_fig(fig)
+            
+            return h
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_waterfall(self, col):
+        """Run Waterfall Chart."""
+        if col is None or col not in self.data.columns:
+            return "<b>Error:</b> Selecciona una columna."
+        try:
+            values = self.data[col].dropna().values
+            if len(values) < 2:
+                return "<b>Error:</b> Se necesitan al menos 2 valores."
+            
+            result = waterfall_data(values)
+            
+            self._set_formula("Formula: Waterfall", "Muestra contribución acumulada de cada valor")
+            
+            h = self._h(f"{Icons.CHART} Waterfall Chart — {col}")
+            h += "<table style='font-size:12px;'>"
+            for label, val, cum in zip(result['labels'][:-1], result['values'][:-1], result['ends'][:-1]):
+                h += self._r(label, f"{val:.4f} (acum: {cum:.4f})")
+            h += self._r("Total", f"{result['values'][-1]:.4f}")
+            h += "</table>"
+            
+            fig, ax = plt.subplots(figsize=(10, 5))
+            x = range(len(result['labels']))
+            colors = ['#22c55e' if p else '#ef4444' for p in result['is_positive']]
+            
+            for i, (start, end, color) in enumerate(zip(result['starts'], result['ends'], colors)):
+                ax.bar(i, abs(end - start), bottom=min(start, end), color=color, edgecolor='white', width=0.6)
+            
+            ax.set_xticks(x)
+            ax.set_xticklabels(result['labels'], rotation=45, ha='right')
+            ax.set_ylabel('Valor')
+            ax.set_title('Gráfico de Cascada', fontweight='bold')
+            ax.axhline(y=0, color='black', linewidth=0.5)
+            fig.tight_layout()
+            self._show_fig(fig)
+            
+            return h
+        except Exception as e:
+            return f"<p style='color:red'>Error: {str(e)}</p>"
+
+    def _run_mountain(self, col):
+        """Run Mountain Plot."""
+        if col is None or col not in self.data.columns:
+            return "<b>Error:</b> Selecciona una columna."
+        try:
+            data = self.data[col].dropna().values
+            result = mountain_plot_data(data)
+            if result is None:
+                return "<b>Error:</b> Se necesitan al menos 5 datos."
+            
+            self._set_formula("Formula: Mountain Plot", "Distribución plegada (folded normal)")
+            
+            h = self._h(f"{Icons.CHART} Mountain Plot — {col}")
+            h += "<table style='font-size:12px;'>"
+            h += self._r("n", result['n'])
+            h += self._r("Media", f"{result['mean']:.4f}")
+            h += self._r("DE", f"{result['sd']:.4f}")
+            h += self._r("Mediana", f"{result['median']:.4f}")
+            h += self._r("Q25-Q75", f"[{result['q25']:.4f}, {result['q75']:.4f}]")
+            h += "</table>"
+            
+            fig, ax = plt.subplots(figsize=(7, 5))
+            ax.bar(result['hist_x'], result['hist_y'], width=(result['hist_x'][1] - result['hist_x'][0]) * 0.8, 
+                   alpha=0.6, color='#4f6ef7', label='Datos')
+            ax.plot(result['x'], result['y_density'], color='#ef4444', lw=2, label='Normal ajustada')
+            ax.axvline(result['mean'], color='#22c55e', ls='--', alpha=0.7, label=f'Media ({result["mean"]:.2f})')
+            ax.axvline(result['median'], color='#f59e0b', ls=':', alpha=0.7, label=f'Mediana ({result["median"]:.2f})')
+            ax.set_xlabel(col)
+            ax.set_ylabel('Densidad')
+            ax.set_title('Mountain Plot', fontweight='bold')
+            ax.legend(loc='upper right', framealpha=0.9)
+            fig.tight_layout()
+            self._show_fig(fig)
+            
+            return h
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
