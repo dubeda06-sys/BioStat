@@ -1,9 +1,14 @@
 """Ventana principal de BioStat."""
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
+import logging
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget,
     QToolBar, QStatusBar, QFileDialog, QMessageBox,
 )
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, pyqtSlot
 from PyQt6.QtGui import QAction
 
 from src.ui.styles import MAIN_STYLE
@@ -13,14 +18,30 @@ from src.ui.analysis_panel import AnalysisPanel
 from src.ui.graphs_panel import GraphsPanel
 from src.ui.qc_panel import QCPanel
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    """Ventana principal de la aplicacion BioStat."""
+    
+    def __init__(self) -> None:
+        """Inicializa la ventana principal."""
         super().__init__()
         self.setWindowTitle("BioStat")
         self.setMinimumSize(1200, 750)
         self.resize(1350, 850)
         self.setStyleSheet(MAIN_STYLE)
+        
+        # Paneles principales
+        self.data_panel: DataPanel | None = None
+        self.analysis_panel: AnalysisPanel | None = None
+        self.graphs_panel: GraphsPanel | None = None
+        self.qc_panel: QCPanel | None = None
+        self.tabs: QTabWidget | None = None
+        
         self._create_menu_bar()
         self._create_toolbar()
         self._create_status_bar()
@@ -148,41 +169,59 @@ class MainWindow(QMainWindow):
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
-    def _on_tab_changed(self, index):
+    @pyqtSlot(int)
+    def _on_tab_changed(self, index: int) -> None:
+        """Maneja el cambio de tab en la interfaz.
+        
+        Args:
+            index: Indice del tab seleccionado.
+        """
+        if self.data_panel is None:
+            return
+            
         data = self.data_panel.get_data()
         if data is None:
             return
-        if index == 1:
+            
+        if index == 1 and self.analysis_panel is not None:
             self.analysis_panel.set_data(data)
-        elif index == 2:
+        elif index == 2 and self.graphs_panel is not None:
             self.graphs_panel.set_data(data)
-        elif index == 3:
+        elif index == 3 and self.qc_panel is not None:
             self.qc_panel.set_data(data)
 
-    def _open_file(self):
+    def _open_file(self) -> None:
+        """Abre un archivo de datos (CSV o Excel)."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Abrir", "", "Datos (*.csv *.xlsx *.xls);;Todos (*)"
         )
-        if path:
+        if path and self.data_panel is not None:
             self.data_panel.load_file(path)
-            name = path.split("/")[-1].split("\\")[-1]
+            name = Path(path).name
             self.statusBar().showMessage(f"Cargado: {name}")
-            self.tabs.setCurrentIndex(0)
+            if self.tabs is not None:
+                self.tabs.setCurrentIndex(0)
 
-    def _save_file(self):
+    def _save_file(self) -> None:
+        """Guarda los datos actuales en un archivo."""
         path, _ = QFileDialog.getSaveFileName(
             self, "Guardar", "", "CSV (*.csv);;Excel (*.xlsx);;Todos (*)"
         )
-        if path:
+        if path and self.data_panel is not None:
             data = self.data_panel.get_data()
             if data is not None:
-                if path.endswith(".csv"):
-                    data.to_csv(path, index=False)
-                else:
-                    data.to_excel(path, index=False)
-                self.statusBar().showMessage(f"Guardado: {path.split('/')[-1]}")
+                try:
+                    if path.endswith(".csv"):
+                        data.to_csv(path, index=False)
+                    else:
+                        data.to_excel(path, index=False)
+                    self.statusBar().showMessage(f"Guardado: {Path(path).name}")
+                except Exception as e:
+                    logger.error(f"Error al guardar archivo: {e}")
+                    QMessageBox.critical(self, "Error", f"No se pudo guardar el archivo: {e}")
 
-    def _show_about(self):
+    def _show_about(self) -> None:
+        """Muestra el dialogo Acerca de."""
         QMessageBox.about(
             self, "Acerca de BioStat",
             "<h2>BioStat v0.1.0</h2>"
@@ -191,41 +230,53 @@ class MainWindow(QMainWindow):
             "generar graficos y control de calidad.</p>"
         )
 
-    def _export_csv(self):
-        """Export data to CSV."""
+    def _export_csv(self) -> None:
+        """Exporta los datos a formato CSV."""
         path, _ = QFileDialog.getSaveFileName(
             self, "Exportar CSV", "", "CSV (*.csv)"
         )
-        if path:
+        if path and self.data_panel is not None:
             data = self.data_panel.get_data()
             if data is not None:
-                data.to_csv(path, index=False)
-                self.statusBar().showMessage(f"CSV exportado: {path.split('/')[-1]}")
+                try:
+                    data.to_csv(path, index=False)
+                    self.statusBar().showMessage(f"CSV exportado: {Path(path).name}")
+                except Exception as e:
+                    logger.error(f"Error al exportar CSV: {e}")
+                    QMessageBox.critical(self, "Error", f"No se pudo exportar el archivo: {e}")
             else:
                 QMessageBox.warning(self, "Error", "No hay datos para exportar.")
 
-    def _export_excel(self):
-        """Export data to Excel."""
+    def _export_excel(self) -> None:
+        """Exporta los datos a formato Excel."""
         path, _ = QFileDialog.getSaveFileName(
             self, "Exportar Excel", "", "Excel (*.xlsx)"
         )
-        if path:
+        if path and self.data_panel is not None:
             data = self.data_panel.get_data()
             if data is not None:
-                data.to_excel(path, index=False, engine='openpyxl')
-                self.statusBar().showMessage(f"Excel exportado: {path.split('/')[-1]}")
+                try:
+                    data.to_excel(path, index=False, engine='openpyxl')
+                    self.statusBar().showMessage(f"Excel exportado: {Path(path).name}")
+                except Exception as e:
+                    logger.error(f"Error al exportar Excel: {e}")
+                    QMessageBox.critical(self, "Error", f"No se pudo exportar el archivo: {e}")
             else:
                 QMessageBox.warning(self, "Error", "No hay datos para exportar.")
 
-    def _export_html(self):
-        """Export results to HTML."""
+    def _export_html(self) -> None:
+        """Exporta los resultados a formato HTML."""
         path, _ = QFileDialog.getSaveFileName(
             self, "Exportar HTML", "", "HTML (*.html)"
         )
-        if path:
-            from src.core.export import export_results_to_html
-            results = self.analysis_panel.txt_results.toHtml()
-            html = export_results_to_html({'Resultados': results}, "Informe BioStat")
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(html)
-            self.statusBar().showMessage(f"HTML exportado: {path.split('/')[-1]}")
+        if path and self.analysis_panel is not None:
+            try:
+                from src.core.export import export_results_to_html
+                results = self.analysis_panel.txt_results.toHtml()
+                html = export_results_to_html({'Resultados': results}, "Informe BioStat")
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                self.statusBar().showMessage(f"HTML exportado: {Path(path).name}")
+            except Exception as e:
+                logger.error(f"Error al exportar HTML: {e}")
+                QMessageBox.critical(self, "Error", f"No se pudo exportar el archivo HTML: {e}")

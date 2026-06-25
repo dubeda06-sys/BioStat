@@ -1,15 +1,25 @@
 """Modulo de funciones estadisticas — todas las pruebas."""
+from __future__ import annotations
 import numpy as np
 from scipy import stats
+from typing import Any
 
 
-def descriptive_stats(data):
-    """Estadisticas descriptivas completas."""
+def descriptive_stats(data: np.ndarray | list[float]) -> dict[str, Any] | None:
+    """Estadisticas descriptivas completas.
+    
+    Args:
+        data: Array o lista de datos numericos.
+        
+    Returns:
+        Diccionario con estadisticas descriptivas o None si no hay datos validos.
+    """
     data = np.asarray(data, dtype=float)
     data = data[~np.isnan(data)]
     n = len(data)
     if n == 0:
         return None
+    
     mean = np.mean(data)
     median = np.median(data)
     sd = np.std(data, ddof=1)
@@ -17,15 +27,24 @@ def descriptive_stats(data):
     sem = sd / np.sqrt(n)
     skew = stats.skew(data) if n >= 8 else np.nan
     kurt = stats.kurtosis(data) if n >= 8 else np.nan
+    
     return {
-        "n": n, "mean": mean, "median": median, "std": sd, "var": var,
-        "sem": sem, "min": np.min(data), "max": np.max(data),
-        "range": np.max(data) - np.min(data),
-        "ci95": (mean - 1.96 * sem, mean + 1.96 * sem),
-        "cv": (sd / mean * 100) if mean != 0 else np.nan,
-        "skewness": skew, "kurtosis": kurt,
-        "q25": np.percentile(data, 25), "q75": np.percentile(data, 75),
-        "iqr": np.percentile(data, 75) - np.percentile(data, 25),
+        "n": n, 
+        "mean": float(mean), 
+        "median": float(median), 
+        "std": float(sd), 
+        "var": float(var),
+        "sem": float(sem), 
+        "min": float(np.min(data)), 
+        "max": float(np.max(data)),
+        "range": float(np.max(data) - np.min(data)),
+        "ci95": (float(mean - 1.96 * sem), float(mean + 1.96 * sem)),
+        "cv": float((sd / mean * 100) if mean != 0 else np.nan),
+        "skewness": float(skew), 
+        "kurtosis": float(kurt),
+        "q25": float(np.percentile(data, 25)), 
+        "q75": float(np.percentile(data, 75)),
+        "iqr": float(np.percentile(data, 75) - np.percentile(data, 25)),
     }
 
 
