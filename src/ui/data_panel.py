@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QPushButton, QLabel, QFileDialog,
     QHeaderView, QGroupBox, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 import pandas as pd
 import numpy as np
 
@@ -14,6 +14,9 @@ MAX_VISIBLE_ROWS = 500
 
 
 class DataPanel(QWidget):
+    # Se emite cuando cambian los datos cargados (import o limpiar).
+    dataChanged = pyqtSignal(object)
+
     def __init__(self):
         super().__init__()
         self.data = None
@@ -123,6 +126,7 @@ class DataPanel(QWidget):
             self.lbl_info.setText(f"{name}  •  {len(self.data)} filas × {len(self.data.columns)} cols")
             self._populate_table()
             self._update_stats()
+            self.dataChanged.emit(self.data)
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error al cargar:\n{str(e)}")
 
@@ -213,6 +217,7 @@ class DataPanel(QWidget):
             self.table.blockSignals(False)
             self.lbl_info.setText("")
             self.lbl_stats.setText("Al cargar datos numericos aqui apareceran estadisticas automaticas.")
+            self.dataChanged.emit(None)
 
     def _update_stats(self):
         df = self.get_data()

@@ -165,6 +165,16 @@ class MainWindow(QMainWindow):
             self.tabs.addTab(panel, name)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.data_panel.dataChanged.connect(self._on_data_changed)
+
+    def _on_data_changed(self, data):
+        """Propaga los datos a todos los paneles al importar/limpiar, sin esperar
+        a cambiar de pestaña."""
+        if data is None:
+            return
+        self.analysis_panel.set_data(data)
+        self.graphs_panel.set_data(data)
+        self.qc_panel.set_data(data)
 
     def _on_tab_changed(self, index):
         data = self.data_panel.get_data()
