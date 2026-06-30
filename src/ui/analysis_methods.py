@@ -1088,6 +1088,11 @@ class AnalysisMethodsMixin:
 
         if len(np.unique(y)) < 2:
             return "<b>Error:</b> Target debe tener al menos 2 clases."
+        # El clasificador requiere un target categórico (clases discretas).
+        if not np.all(y == y.astype(int)) or len(np.unique(y)) > 20:
+            return ("<b>Error:</b> El target de clasificación debe ser categórico "
+                    "(pocas clases discretas, ej. 0/1). Para una variable continua "
+                    "usa <b>Random Forest (regresión)</b>.")
 
         self._set_formula(
             "Formula: Random Forest (Clasificacion)",

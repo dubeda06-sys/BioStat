@@ -160,6 +160,39 @@ def test_bland_altman_loa():
     assert r["loa_upper"] == pytest.approx(np.mean(diffs) + 1.96 * np.std(diffs, ddof=1))
 
 
+def test_rf_importancias_reales_clasificacion():
+    """RF clasificación (sklearn): importancias reales, no uniformes; la feature
+    informativa domina. Antes eran placeholder uniforme 1/n."""
+    from src.core.random_forest import RandomForestClassifier
+    rng = np.random.RandomState(0)
+    n = 200
+    x_info = rng.normal(size=n)          # feature informativa
+    x_noise = rng.normal(size=n)         # ruido
+    y = (x_info > 0).astype(int)
+    X = np.column_stack([x_info, x_noise])
+    rf = RandomForestClassifier(n_trees=100, max_depth=8, random_state=0)
+    rf.fit(X, y)
+    imp = rf.get_feature_importance()
+    assert imp[0] > imp[1]               # la informativa pesa más que el ruido
+    assert imp[0] != pytest.approx(0.5)  # no uniforme
+    assert rf.score(X, y) > 0.9
+
+
+def test_rf_importancias_reales_regresion():
+    from src.core.random_forest import RandomForestRegressor
+    rng = np.random.RandomState(1)
+    n = 200
+    x_info = rng.normal(size=n)
+    x_noise = rng.normal(size=n)
+    y = 3.0 * x_info + rng.normal(0, 0.1, n)
+    X = np.column_stack([x_info, x_noise])
+    rf = RandomForestRegressor(n_trees=100, max_depth=8, random_state=0)
+    rf.fit(X, y)
+    imp = rf.get_feature_importance()
+    assert imp[0] > 0.8                  # la informativa concentra la importancia
+    assert rf.score(X, y) > 0.9
+
+
 def test_pearson_coincide_con_scipy():
     from src.core.statistics import pearson_r
     x = np.array([1, 2, 3, 4, 5, 6.0])
