@@ -30,7 +30,8 @@ from src.core.random_forest import RandomForestClassifier, RandomForestRegressor
 from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
     mcnemar_test, kruskal_wallis, friedman_test,
-    f_test_variances, ttest_1sample, trimmed_mean, skewness_test, kurtosis_test,
+    f_test_variances, ttest_1sample, ttest_paired, ttest_ind,
+    trimmed_mean, skewness_test, kurtosis_test,
     partial_correlation, descriptive_stats, geometric_mean, harmonic_mean,
     anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho, normality_test
 )
@@ -677,7 +678,7 @@ class AnalysisPanel(QWidget):
             "Bootstrap (mediana)": lambda: self._run_core("bootstrap_median", c1),
             "Bootstrap (regresion)": lambda: self._run_core("bootstrap_regression", c1, c2),
             "Tamaño muestral (correlacion)": lambda: self._run_core("sample_size_corr", c1, c2),
-            "ANOVA dos vias": lambda: self._run_two_way_anova(),
+            "ANOVA dos vias": lambda: self._run_two_way_anova(c1, c2, c3),
             "ANCOVA": lambda: self._run_ancova(c1, c2, c3),
             "Medidas repetidas": lambda: self._run_repeated_measures(),
             "Cox regression": lambda: self._run_cox(c1, c2),
@@ -2104,9 +2105,10 @@ class AnalysisPanel(QWidget):
                 self._set_formula("Formula: Kappa Ponderado", "κ_w = 1 - (Σ w_ij × O_ij) / (Σ w_ij × E_ij)")
                 h = self._h(f"{Icons.CHART()} Kappa Ponderado")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Kappa", f"{result['kappa']:.4f}")
-                h += self._r("SE", f"{result['se']:.4f}")
-                h += self._r("95% CI", f"[{result['ci_low']:.4f}, {result['ci_high']:.4f}]")
+                h += self._r("Kappa ponderado", f"{result['kappa']:.4f}")
+                h += self._r("Acuerdo observado (po)", f"{result['po']:.4f}")
+                h += self._r("Acuerdo esperado (pe)", f"{result['pe']:.4f}")
+                h += self._r("Pesos", str(result['weights']))
                 return h + "</table>"
 
             elif func_name == "deming":
@@ -2124,7 +2126,7 @@ class AnalysisPanel(QWidget):
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Pendiente", f"{result['slope']:.4f}")
                 h += self._r("Intercepto", f"{result['intercept']:.4f}")
-                h += self._r("95% CI pendiente", f"[{result['slope_ci_low']:.4f}, {result['slope_ci_high']:.4f}]")
+                h += self._r("R²", f"{result['r2']:.4f}")
                 return h + "</table>"
 
             elif func_name == "cv_duplicates":
@@ -2140,9 +2142,9 @@ class AnalysisPanel(QWidget):
                 self._set_formula("Formula: CV desde Duplicatas", "CV = (DE / Media) × 100%")
                 h = self._h(f"{Icons.CHART()} CV desde Duplicatas")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("CV", f"{result['cv']:.2f}%")
-                h += self._r("CV intra", f"{result['cv_intra']:.2f}%")
-                h += self._r("CV inter", f"{result['cv_inter']:.2f}%")
+                h += self._r("CV duplicados", f"{result['cv_dup']:.2f}%")
+                h += self._r("Media", f"{result['mean_cv']:.4f}")
+                h += self._r("n", result['n'])
                 return h + "</table>"
 
             elif func_name == "likelihood_ratios":
@@ -2157,9 +2159,11 @@ class AnalysisPanel(QWidget):
                 h = self._h(f"{Icons.CHART()} Likelihood Ratios")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("LR+", f"{result['plr']:.4f}")
-                h += self._r("95% CI LR+", f"[{result['plr_ci_low']:.4f}, {result['plr_ci_high']:.4f}]")
+                if result.get('ci_plr'):
+                    h += self._r("95% CI LR+", f"[{result['ci_plr'][0]:.4f}, {result['ci_plr'][1]:.4f}]")
                 h += self._r("LR-", f"{result['nlr']:.4f}")
-                h += self._r("95% CI LR-", f"[{result['nlr_ci_low']:.4f}, {result['nlr_ci_high']:.4f}]")
+                if result.get('ci_nlr'):
+                    h += self._r("95% CI LR-", f"[{result['ci_nlr'][0]:.4f}, {result['ci_nlr'][1]:.4f}]")
                 return h + "</table>"
 
             elif func_name == "compare_means":
@@ -2222,8 +2226,12 @@ class AnalysisPanel(QWidget):
                 h = self._h(f"{Icons.CHART()} Tabla de Percentiles — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += "<tr><th>Percentil</th><th>Valor</th><th>95% CI</th></tr>"
-                for p, val, ci_low, ci_high in zip(result['percentiles'], result['values'], result['ci_low'], result['ci_high']):
-                    h += f"<tr><td>{p}%</td><td>{val:.4f}</td><td>[{ci_low:.4f}, {ci_high:.4f}]</td></tr>"
+                for row in result['percentiles']:
+                    val, cl, ch = row['value'], row.get('ci_low'), row.get('ci_high')
+                    if val != val:  # NaN
+                        h += f"<tr><td>{row['percentile']}%</td><td>—</td><td>{row.get('note','')}</td></tr>"
+                    else:
+                        h += f"<tr><td>{row['percentile']}%</td><td>{val:.4f}</td><td>[{cl:.4f}, {ch:.4f}]</td></tr>"
                 return h + "</table>"
 
             elif func_name == "age_related":
@@ -2237,10 +2245,13 @@ class AnalysisPanel(QWidget):
                 self._set_formula("Formula: Intervalos por Edad", "Intervalos basados en percentiles por grupo de edad")
                 h = self._h(f"{Icons.CHART()} Intervalos de Referencia por Edad")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Grupo", f"{result['age_min']}-{result['age_max']} años")
-                h += self._r("n", result['n'])
-                h += self._r("Media", f"{result['mean']:.4f}")
-                h += self._r("2.5%-97.5%", f"[{result['ref_low']:.4f}, {result['ref_high']:.4f}]")
+                if not result['groups']:
+                    h += "<tr><td>Sin grupos de edad con n suficiente (≥5).</td></tr>"
+                else:
+                    h += "<tr><th>Grupo</th><th>n</th><th>Media</th><th>P5</th><th>Mediana</th><th>P95</th></tr>"
+                    for g in result['groups']:
+                        h += (f"<tr><td>{g['age_group']}</td><td>{g['n']}</td><td>{g['mean']:.2f}</td>"
+                              f"<td>{g['p5']:.2f}</td><td>{g['median']:.2f}</td><td>{g['p95']:.2f}</td></tr>")
                 return h + "</table>"
 
             elif func_name == "generalized_esd":
@@ -2251,10 +2262,10 @@ class AnalysisPanel(QWidget):
                 self._set_formula("Formula: ESD Generalizado", "R_i = |x_i - x̄| / s")
                 h = self._h(f"{Icons.CHART()} Test ESD Generalizado — {c1}")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Outliers encontrados", len(result['outliers']))
+                h += self._r("Outliers encontrados", result['n_outliers'])
                 if result['outliers']:
                     h += self._r("Valores", ", ".join([f"{v:.4f}" for v in result['outliers']]))
-                h += self._r("Índices", str(result['indices']))
+                h += self._r("n original", result['n_original'])
                 return h + "</table>"
 
             elif func_name == "bootstrap_median":
@@ -2265,8 +2276,9 @@ class AnalysisPanel(QWidget):
                 self._set_formula("Formula: Bootstrap Mediana", "IC = percentiles de la distribución bootstrap")
                 h = self._h(f"{Icons.CHART()} Bootstrap (Mediana) — {c1}")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Mediana", f"{result['median']:.4f}")
-                h += self._r("95% CI", f"[{result['ci_low']:.4f}, {result['ci_high']:.4f}]")
+                h += self._r("Mediana", f"{result['original_median']:.4f}")
+                h += self._r("Mediana bootstrap", f"{result['bootstrap_median']:.4f}")
+                h += self._r("95% CI", f"[{result['ci_lower']:.4f}, {result['ci_upper']:.4f}]")
                 return h + "</table>"
 
             elif func_name == "bootstrap_regression":
@@ -2282,9 +2294,9 @@ class AnalysisPanel(QWidget):
                 self._set_formula("Formula: Bootstrap Regresión", "IC para coeficientes de regresión")
                 h = self._h(f"{Icons.CHART()} Bootstrap (Regresión) — {c1} vs {c2}")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Pendiente", f"{result['slope']:.4f}")
-                h += self._r("95% CI pendiente", f"[{result['slope_ci_low']:.4f}, {result['slope_ci_high']:.4f}]")
-                h += self._r("Intercepto", f"{result['intercept']:.4f}")
+                h += self._r("Pendiente", f"{result['original_slope']:.4f}")
+                h += self._r("95% CI pendiente", f"[{result['ci_slope'][0]:.4f}, {result['ci_slope'][1]:.4f}]")
+                h += self._r("Intercepto", f"{result['original_intercept']:.4f}")
                 return h + "</table>"
 
             elif func_name == "sample_size_corr":
@@ -2309,15 +2321,20 @@ class AnalysisPanel(QWidget):
         except Exception as e:
             return f"<p style='color:red'>Error en {func_name}: {str(e)}</p>"
 
-    def _run_two_way_anova(self):
-        """Run Two-way ANOVA."""
-        if self.data.shape[1] < 2:
-            return "<b>Error:</b> Se necesitan al menos 2 columnas."
+    def _run_two_way_anova(self, c1, c2, c3):
+        """Run Two-way ANOVA. c1=respuesta (continua), c2=Factor A, c3=Factor B."""
+        if c1 is None or c2 is None or c3 is None or c3 == "(ninguna)":
+            return "<b>Error:</b> Selecciona V1=respuesta (continua), V2=Factor A, V3=Factor B."
+        for c in (c1, c2, c3):
+            if c not in self.data.columns:
+                return f"<b>Error:</b> Columna '{c}' no encontrada."
         try:
-            n_per_cell = max(1, self.data.shape[0] // 4)
-            result = two_way_anova(self.data.values, n_per_cell)
-            self._set_formula("Formula: ANOVA Dos Vías", "F = MS_between / MS_within para cada factor e interacción")
-            h = self._h(f"{Icons.CHART()} ANOVA Dos Vías")
+            sub = self.data[[c1, c2, c3]].dropna()
+            result = two_way_anova(sub[c1].values, sub[c2].values, sub[c3].values)
+            if result is None:
+                return "<b>Error:</b> Datos insuficientes o sin réplicas por celda para estimar el error."
+            self._set_formula("Formula: ANOVA Dos Vías", "y ~ C(A) + C(B) + C(A):C(B) (suma de cuadrados tipo II)")
+            h = self._h(f"{Icons.CHART()} ANOVA Dos Vías — {c1} por {c2} × {c3}")
             h += "<table style='font-size:12px;'>"
             h += self._r("Factor A", f"F={result['F_A']:.4f}, p={result['p_A']:.4f}, gl={result['df_A']}")
             h += self._r("Factor B", f"F={result['F_B']:.4f}, p={result['p_B']:.4f}, gl={result['df_B']}")

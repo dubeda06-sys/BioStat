@@ -1,6 +1,7 @@
 """Regresion — lineal, multiple, logistica, no lineal."""
 import numpy as np
 from scipy import stats
+import statsmodels.api as sm
 
 
 def linear_regression(x, y):
@@ -20,8 +21,9 @@ def linear_regression(x, y):
     r2_adj = 1 - (1 - r2) * (n - 1) / (n - 2) if n > 2 else 0
     se_slope = se
     se_intercept = np.sqrt(ss_res / (n - 2)) * np.sqrt(1/n + np.mean(x)**2 / np.sum((x - np.mean(x))**2)) if n > 2 else 0
-    ci_slope = (slope - 1.96*se_slope, slope + 1.96*se_slope)
-    ci_intercept = (intercept - 1.96*se_intercept, intercept + 1.96*se_intercept)
+    tcrit = stats.t.ppf(0.975, n - 2) if n > 2 else 1.96
+    ci_slope = (slope - tcrit*se_slope, slope + tcrit*se_slope)
+    ci_intercept = (intercept - tcrit*se_intercept, intercept + tcrit*se_intercept)
     rmse = np.sqrt(ss_res / (n - 2)) if n > 2 else 0
     f_stat = (ss_tot - ss_res) / 1 / (ss_res / (n - 2)) if n > 2 and ss_res > 0 else 0
     p_f = 1 - stats.f.cdf(f_stat, 1, n - 2) if n > 2 else p
@@ -69,7 +71,11 @@ def multiple_regression(X, y):
 
 
 def logistic_regression(X, y, max_iter=100, lr=0.1):
-    """Regresion logistica (gradiente descendente)."""
+    """Regresion logistica por maxima verosimilitud (statsmodels Logit).
+
+    Devuelve coeficientes, errores estandar, z, p, odds ratios e IC95% de los OR.
+    Los argumentos max_iter/lr se conservan por compatibilidad de firma (no se usan).
+    """
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
     if X.ndim == 1:
@@ -79,30 +85,26 @@ def logistic_regression(X, y, max_iter=100, lr=0.1):
     n, p = X.shape
     if n < p + 2:
         return None
-    X_design = np.column_stack([np.ones(n), X])
-    w = np.zeros(p + 1)
-    for _ in range(max_iter):
-        z = X_design @ w
-        pred = 1 / (1 + np.exp(-np.clip(z, -500, 500)))
-        grad = X_design.T @ (pred - y) / n
-        w -= lr * grad
-    y_pred = 1 / (1 + np.exp(-np.clip(X_design @ w, -500, 500)))
-    y_class = (y_pred >= 0.5).astype(int)
-    accuracy = np.mean(y_class == y)
-    ll = np.sum(y * np.log(y_pred + 1e-10) + (1 - y) * np.log(1 - y_pred + 1e-10))
-    aic = -2 * ll + 2 * (p + 1)
-    se = np.zeros(p + 1)
+    X_design = sm.add_constant(X, has_constant="add")
     try:
-        H = (X_design.T @ np.diag(y_pred * (1 - y_pred)) @ X_design) / n
-        se = np.sqrt(np.diag(np.linalg.inv(H)))
-    except np.linalg.LinAlgError:
-        pass
-    z_scores = w / se if np.all(se > 0) else np.zeros(p + 1)
-    p_vals = 2 * (1 - stats.norm.cdf(np.abs(z_scores)))
+        model = sm.Logit(y, X_design).fit(disp=0, maxiter=200)
+    except Exception:
+        return None
+    coeffs = np.asarray(model.params, dtype=float)
+    se = np.asarray(model.bse, dtype=float)
+    z_scores = np.asarray(model.tvalues, dtype=float)
+    p_vals = np.asarray(model.pvalues, dtype=float)
+    or_vals = np.exp(coeffs)
+    conf = np.asarray(model.conf_int(), dtype=float)  # (p+1, 2) en escala log-odds
+    or_ci_low = np.exp(conf[:, 0])
+    or_ci_high = np.exp(conf[:, 1])
+    y_pred = np.asarray(model.predict(X_design), dtype=float)
+    accuracy = float(np.mean((y_pred >= 0.5).astype(int) == y))
     return {
-        "coeffs": w, "se": se, "z": z_scores, "p": p_vals,
-        "odds_ratios": np.exp(w), "accuracy": accuracy,
-        "log_likelihood": ll, "aic": aic, "n": n, "p_predictors": p,
+        "coeffs": coeffs, "se": se, "z": z_scores, "p": p_vals,
+        "odds_ratios": or_vals, "or_ci_low": or_ci_low, "or_ci_high": or_ci_high,
+        "accuracy": accuracy, "log_likelihood": float(model.llf),
+        "aic": float(model.aic), "n": n, "p_predictors": p,
     }
 
 

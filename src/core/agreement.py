@@ -1,5 +1,7 @@
 """Concordancia y evaluacion — Kappa, ICC, Cronbach, concordance."""
 import numpy as np
+import pandas as pd
+import pingouin as pg
 from scipy import stats
 
 
@@ -56,40 +58,42 @@ def weighted_kappa(matrix, weights="linear"):
 
 
 def intraclass_correlation(data, model="one-way"):
-    """Coeficiente de correlacion intraclase (ICC)."""
+    """Coeficiente de correlacion intraclase (ICC) via pingouin.
+
+    data: matriz 2D (n sujetos x k evaluadores).
+    model: 'one-way' -> ICC1, 'two-way-random' -> ICC2, 'two-way-mixed' -> ICC3.
+    """
     data = np.asarray(data, dtype=float)
-    if data.ndim == 2:
-        n, k = data.shape
-    else:
+    if data.ndim != 2:
+        return None
+    n, k = data.shape
+    if n < 2 or k < 2:
         return None
 
-    grand_mean = np.mean(data)
-    row_means = np.mean(data, axis=1)
-    col_means = np.mean(data, axis=0)
+    # Formato largo para pingouin
+    targets = np.repeat(np.arange(n), k)
+    raters = np.tile(np.arange(k), n)
+    ratings = data.ravel()
+    long_df = pd.DataFrame({"target": targets, "rater": raters, "score": ratings}).dropna()
 
-    ss_total = np.sum((data - grand_mean)**2)
-    ss_rows = k * np.sum((row_means - grand_mean)**2)
-    ss_cols = n * np.sum((col_means - grand_mean)**2)
-    ss_error = ss_total - ss_rows - ss_cols
-
-    ms_rows = ss_rows / (n - 1)
-    ms_cols = ss_cols / (k - 1)
-    ms_error = ss_error / ((n - 1) * (k - 1))
-
-    if model == "one-way":
-        icc = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error)
-    elif model == "two-way-random":
-        icc = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error + k * (ms_cols - ms_error) / n)
-    elif model == "two-way-mixed":
-        icc = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error)
-    else:
-        icc = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error)
-
-    f_stat = ms_rows / ms_error if ms_error > 0 else np.inf
-    p = 1 - stats.f.cdf(f_stat, n - 1, (n - 1) * (k - 1))
-
-    return {"icc": icc, "f": f_stat, "p": p, "df1": n-1, "df2": (n-1)*(k-1),
-            "ms_rows": ms_rows, "ms_error": ms_error, "n": n, "k": k, "model": model}
+    # Shrout & Fleiss: one-way=ICC(1,1), two-way-random absoluto=ICC(A,1),
+    # two-way-mixed consistencia=ICC(C,1)
+    type_map = {"one-way": "ICC(1,1)", "two-way-random": "ICC(A,1)", "two-way-mixed": "ICC(C,1)"}
+    icc_type = type_map.get(model, "ICC(1,1)")
+    try:
+        res = pg.intraclass_corr(data=long_df, targets="target", raters="rater", ratings="score")
+    except Exception:
+        return None
+    sub = res[res["Type"] == icc_type]
+    if sub.empty:
+        return None
+    row = sub.iloc[0]
+    ci_col = "CI95" if "CI95" in res.columns else ("CI95%" if "CI95%" in res.columns else None)
+    ci = row[ci_col] if ci_col is not None else (np.nan, np.nan)
+    return {"icc": float(row["ICC"]), "f": float(row["F"]), "p": float(row["pval"]),
+            "df1": int(row["df1"]), "df2": int(row["df2"]),
+            "ci_low": float(ci[0]), "ci_high": float(ci[1]),
+            "n": n, "k": k, "model": model, "type": icc_type}
 
 
 def cronbach_alpha(data):

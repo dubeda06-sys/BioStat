@@ -1,6 +1,7 @@
 """Modulo de funciones estadisticas — todas las pruebas."""
 import numpy as np
 from scipy import stats
+from statsmodels.stats.contingency_tables import cochrans_q as _sm_cochrans_q
 
 
 def descriptive_stats(data):
@@ -21,7 +22,7 @@ def descriptive_stats(data):
         "n": n, "mean": mean, "median": median, "std": sd, "var": var,
         "sem": sem, "min": np.min(data), "max": np.max(data),
         "range": np.max(data) - np.min(data),
-        "ci95": (mean - 1.96 * sem, mean + 1.96 * sem),
+        "ci95": (mean - stats.t.ppf(0.975, n - 1) * sem, mean + stats.t.ppf(0.975, n - 1) * sem),
         "cv": (sd / mean * 100) if mean != 0 else np.nan,
         "skewness": skew, "kurtosis": kurt,
         "q25": np.percentile(data, 25), "q75": np.percentile(data, 75),
@@ -41,7 +42,8 @@ def trimmed_mean(data, proportion=0.1):
     trimmed = sorted_data[trim_count:n - trim_count] if trim_count > 0 else sorted_data
     mean = np.mean(trimmed)
     se = np.std(trimmed, ddof=1) / np.sqrt(len(trimmed))
-    return {"mean": mean, "se": se, "ci95": (mean - 1.96*se, mean + 1.96*se), "n_trimmed": len(trimmed)}
+    tcrit = stats.t.ppf(0.975, len(trimmed) - 1)
+    return {"mean": mean, "se": se, "ci95": (mean - tcrit*se, mean + tcrit*se), "n_trimmed": len(trimmed)}
 
 
 def geometric_mean(data):
@@ -144,7 +146,7 @@ def anova_oneway(groups):
     if len(groups) < 2:
         return None
     f, p = stats.f_oneway(*groups)
-    return {"f": f, "p": p, "df_between": len(groups)-1,
+    return {"f": f, "F": f, "p": p, "df_between": len(groups)-1,
             "df_within": sum(len(g)-1 for g in groups),
             "n_groups": len(groups), "group_means": [np.mean(g) for g in groups]}
 
@@ -216,7 +218,8 @@ def sign_test(d1, d2):
         p = stats.binomtest(n_pos, n, 0.5).pvalue
     except AttributeError:
         p = 2 * stats.binom.sf(min(n_pos, n_neg) - 1, n, 0.5)
-    return {"n_pos": int(n_pos), "n_neg": int(n_neg), "n": n, "p": min(p, 1.0)}
+    return {"n_pos": int(n_pos), "n_neg": int(n_neg), "n": n, "p": min(p, 1.0),
+            "statistic": float(min(n_pos, n_neg))}
 
 
 def kruskal_wallis(groups):
@@ -247,21 +250,18 @@ def friedman_test(*groups):
 
 
 def cochran_q(data_matrix):
-    """Cochran Q test."""
+    """Cochran Q test (statsmodels). Filas = sujetos, columnas = tratamientos (0/1)."""
     data = np.asarray(data_matrix, dtype=float)
+    if data.ndim != 2 or data.shape[1] < 2 or data.shape[0] < 2:
+        return None
     k = data.shape[1]
     n = data.shape[0]
-    if k < 2 or n < 2:
-        return None
-    col_sums = np.sum(data, axis=0)
-    row_sums = np.sum(data, axis=1)
-    T = np.sum(row_sums)
-    denom = T * (k - T) / (k * (k - 1))
-    if denom == 0:
-        return {"q": 0, "p": 1.0, "k": k, "n": n}
-    q = (k - 1) * (k * np.sum(col_sums**2) - T**2) / denom
-    p = 1 - stats.chi2.cdf(q, k - 1)
-    return {"q": q, "p": p, "k": k, "n": n, "col_sums": col_sums.tolist()}
+    res = _sm_cochrans_q(data, return_object=True)
+    q = float(res.statistic)
+    p = float(res.pvalue)
+    df = k - 1
+    return {"q": q, "Q": q, "p": p, "df": df, "k": k, "n": n,
+            "col_sums": np.sum(data, axis=0).tolist()}
 
 
 # --- Pruebas de tablas de contingencia ---
@@ -355,4 +355,4 @@ def normality_test(data):
     if n > 5000:
         data = np.random.RandomState(42).choice(data, 5000, replace=False)
     w, p = stats.shapiro(data)
-    return {"w": w, "p": p, "n": len(data), "normal": p >= 0.05}
+    return {"w": w, "statistic": w, "p": p, "n": len(data), "normal": p >= 0.05}

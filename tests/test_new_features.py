@@ -7,18 +7,15 @@ import pandas as pd
 class TestTwoWayAnova:
     def test_basic_two_way(self):
         from src.core.two_way_anova import two_way_anova
-        data = np.array([
-            [5, 6, 7],
-            [10, 11, 12],
-            [15, 16, 17]
-        ])
-        result = two_way_anova(data, n_per_cell=5)
-        assert 'F_A' in result
-        assert 'p_A' in result
-        assert 'F_B' in result
-        assert 'p_B' in result
-        assert 'F_AB' in result
-        assert 'p_AB' in result
+        rng = np.random.RandomState(0)
+        # Diseño balanceado 2x2 con 6 réplicas por celda
+        A = np.repeat([0, 1], 12)
+        B = np.tile(np.repeat([0, 1], 6), 2)
+        y = 1.0 * A + 0.0 * B + rng.normal(0, 0.3, 24)
+        result = two_way_anova(y, A, B)
+        assert 'F_A' in result and 'p_A' in result
+        assert 'F_B' in result and 'p_B' in result
+        assert 'F_AB' in result and 'p_AB' in result
         assert result['df_error'] > 0
 
 

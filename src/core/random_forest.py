@@ -209,6 +209,10 @@ class RandomForestRegressor:
         ss_tot = np.sum((y - np.mean(y))**2)
         return 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
+    def get_feature_importance(self):
+        # TODO(Fase 2): importancias placeholder (uniformes). Migrar a sklearn.ensemble.
+        return self.feature_importances_
+
 
 class DecisionTreeRegressor:
     """Arbol de decision para regresion."""

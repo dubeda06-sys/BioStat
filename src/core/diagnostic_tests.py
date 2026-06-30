@@ -67,8 +67,9 @@ def compare_two_means(m1, sd1, n1, m2, sd2, n2):
     df_den = (sd1**2/n1)**2/(n1-1) + (sd2**2/n2)**2/(n2-1)
     df = df_num / df_den if df_den > 0 else n1 + n2 - 2
     p = 2 * (1 - stats.t.cdf(abs(t), df))
+    tcrit = stats.t.ppf(0.975, df)
     return {"diff": diff, "t": t, "df": df, "p": p,
-            "se_diff": se_diff, "ci95": (diff - 1.96*se_diff, diff + 1.96*se_diff)}
+            "se_diff": se_diff, "ci95": (diff - tcrit*se_diff, diff + tcrit*se_diff)}
 
 
 def compare_two_proportions(p1, n1, p2, n2):
