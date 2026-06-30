@@ -16,3 +16,12 @@ build/
 Thumbs.db
 *.tmp
 *.bak
+
+# Skills/agents vendoreados (no son código de la app)
+.agents/
+.claude/
+skills-lock.json
+
+# Artefactos de build
+*.spec.bak
+BioStat.exe

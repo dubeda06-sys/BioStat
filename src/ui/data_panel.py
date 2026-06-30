@@ -130,38 +130,6 @@ class DataPanel(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error al cargar:\n{str(e)}")
 
-    def _read_excel_smart(self, file_path):
-        raw = pd.read_excel(file_path, header=None)
-        header_row = 0
-        for i in range(min(10, len(raw))):
-            if raw.iloc[i].notna().sum() >= 2:
-                header_row = i
-                break
-        df = pd.read_excel(file_path, header=header_row)
-        df.columns = [str(c).strip() for c in df.columns]
-        drop = [c for c in df.columns if "unnamed" in c.lower() or df[c].isna().all()]
-        if drop:
-            df = df.drop(columns=drop)
-        return df.dropna(how="all")
-
-    def _clean_data(self):
-        if self.data is None:
-            return
-        drop = [c for c in self.data.columns if "unnamed" in str(c).lower() or self.data[c].isna().all()]
-        if drop:
-            self.data = self.data.drop(columns=drop)
-        self.data = self.data.dropna(how="all")
-        errors = ["#REF!", "#DIV/0!", "#N/A", "#VALUE!", "#NAME?", "#NULL!", "#NUM!"]
-        for col in self.data.columns:
-            if self.data[col].dtype == object:
-                cleaned = self.data[col]
-                for e in errors:
-                    cleaned = cleaned.astype(str).str.replace(e, "", regex=False)
-                try:
-                    self.data[col] = pd.to_numeric(cleaned)
-                except (ValueError, AttributeError):
-                    pass
-
     def _populate_table(self):
         if self.data is None:
             return
