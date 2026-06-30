@@ -25,16 +25,22 @@ def main():
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
+        "--noconfirm",
+        "--clean",
         "--name=BioStat",
         "--hidden-import=qtawesome",
         "--hidden-import=scipy.stats",
         "--hidden-import=scipy.optimize",
-        "--hidden-import=sklearn",
-        "--hidden-import=statsmodels",
-        "--hidden-import=lifelines",
         "--hidden-import=openpyxl",
         "--hidden-import=reportlab",
         "--hidden-import=qtpy",
+        # Paquetes científicos que necesitan submódulos/datos completos.
+        # pingouin (ICC/Cronbach) arrastra pandas_flavor/outdated y datos propios.
+        "--collect-all=pingouin",
+        "--collect-submodules=statsmodels",
+        "--collect-submodules=sklearn",
+        "--collect-submodules=lifelines",
+        "--collect-data=statsmodels",
         main_py,
     ]
 
