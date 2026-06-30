@@ -2,6 +2,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget,
     QToolBar, QStatusBar, QFileDialog, QMessageBox, QApplication,
+    QLabel, QWidget, QSizePolicy,
 )
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction
@@ -94,6 +95,15 @@ class MainWindow(QMainWindow):
         tb.setMovable(False)
         tb.setIconSize(QSize(18, 18))
         self.addToolBar(tb)
+
+        # Marca de la app a la izquierda de la toolbar
+        brand = QLabel("  BioStat ")
+        brand.setStyleSheet("font-size:15px; font-weight:800; color:#0e7490; padding:0 8px;")
+        tb.addWidget(brand)
+        tag = QLabel("Lab Statistics ")
+        tag.setStyleSheet("font-size:11px; color:#94a3b8; padding-top:3px;")
+        tb.addWidget(tag)
+        tb.addSeparator()
 
         # Open button with SVG icon
         a = QAction(Icons.OPEN(), "Abrir", self)
