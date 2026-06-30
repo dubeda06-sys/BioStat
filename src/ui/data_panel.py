@@ -114,14 +114,12 @@ class DataPanel(QWidget):
 
     def load_file(self, file_path):
         try:
-            if file_path.endswith(".csv"):
-                self.data = pd.read_csv(file_path)
-            elif file_path.endswith((".xlsx", ".xls")):
-                self.data = self._read_excel_smart(file_path)
-            else:
+            from src.io.importers import read_any
+            self.data = read_any(file_path)
+            if self.data is None:
                 return
-            self._clean_data()
-            name = file_path.split("/")[-1].split("\\")[-1]
+            import os
+            name = os.path.basename(file_path)
             self.lbl_info.setText(f"{name}  •  {len(self.data)} filas × {len(self.data.columns)} cols")
             self._populate_table()
             self._update_stats()
@@ -168,7 +166,9 @@ class DataPanel(QWidget):
         self.table.setRowCount(len(show))
         self.table.setColumnCount(len(self.data.columns))
         self.table.setHorizontalHeaderLabels(self.data.columns.tolist())
-        for i, row in show.iterrows():
+        # Indexar por POSICION (i), no por la etiqueta del indice del DataFrame,
+        # que puede no ser contigua tras limpiar filas.
+        for i, (_, row) in enumerate(show.iterrows()):
             for j, val in enumerate(row):
                 self.table.setItem(i, j, QTableWidgetItem("" if pd.isna(val) else str(val)))
         self.table.blockSignals(False)

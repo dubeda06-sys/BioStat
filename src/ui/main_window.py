@@ -1,7 +1,7 @@
 """Ventana principal de BioStat."""
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget,
-    QToolBar, QStatusBar, QFileDialog, QMessageBox,
+    QToolBar, QStatusBar, QFileDialog, QMessageBox, QApplication,
 )
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction
@@ -60,15 +60,29 @@ class MainWindow(QMainWindow):
         a.triggered.connect(self.close)
         fm.addAction(a)
 
-        mb.addMenu("Edicion").addAction(QAction("Copiar", self))
+        em = mb.addMenu("Edicion")
+        copy = QAction("Copiar resultados", self)
+        copy.setShortcut("Ctrl+C")
+        copy.triggered.connect(self._copy_results)
+        em.addAction(copy)
 
         am = mb.addMenu("Analisis")
-        for n in ["Descriptivas", "ROC", "Bland-Altman", "Supervivencia"]:
-            am.addAction(QAction(n, self))
+        analisis_map = {
+            "Descriptivas": "Estadisticas descriptivas",
+            "ROC": "Curva ROC",
+            "Bland-Altman": "Bland-Altman",
+            "Supervivencia": "Kaplan-Meier",
+        }
+        for label, combo_text in analisis_map.items():
+            act = QAction(label, self)
+            act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
+            am.addAction(act)
 
         qm = mb.addMenu("Control de Calidad")
         for n in ["Levey-Jennings", "Westgard", "Validacion"]:
-            qm.addAction(QAction(n, self))
+            act = QAction(n, self)
+            act.triggered.connect(lambda _checked, t=n: self._goto_qc(t))
+            qm.addAction(act)
 
         hm = mb.addMenu("Ayuda")
         about = QAction("Acerca de", self)
@@ -101,12 +115,14 @@ class MainWindow(QMainWindow):
         a = QAction(Icons.CSV(), "CSV", self)
         a.setToolTip("Exportar datos a CSV (Ctrl+E)")
         a.setShortcut("Ctrl+E")
+        a.triggered.connect(self._export_csv)
         tb.addAction(a)
 
         # Excel button with SVG icon
         a = QAction(Icons.EXCEL(), "Excel", self)
         a.setToolTip("Exportar datos a Excel (Ctrl+Shift+E)")
         a.setShortcut("Ctrl+Shift+E")
+        a.triggered.connect(self._export_excel)
         tb.addAction(a)
 
         tb.addSeparator()
@@ -115,12 +131,14 @@ class MainWindow(QMainWindow):
         a = QAction(Icons.RUN(), "Analizar", self)
         a.setToolTip("Ejecutar análisis estadístico (Ctrl+R)")
         a.setShortcut("Ctrl+R")
+        a.triggered.connect(self._run_analysis)
         tb.addAction(a)
 
         # Export button with SVG icon
         a = QAction(Icons.EXPORT(), "Exportar", self)
-        a.setToolTip("Exportar resultados (Ctrl+Shift+X)")
+        a.setToolTip("Exportar resultados a HTML (Ctrl+Shift+X)")
         a.setShortcut("Ctrl+Shift+X")
+        a.triggered.connect(self._export_html)
         tb.addAction(a)
 
     def _create_status_bar(self):
@@ -158,6 +176,50 @@ class MainWindow(QMainWindow):
             self.graphs_panel.set_data(data)
         elif index == 3:
             self.qc_panel.set_data(data)
+
+    def _run_analysis(self):
+        """Ejecuta el analisis seleccionado: empuja datos y cambia a la pestaña Análisis."""
+        data = self.data_panel.get_data()
+        if data is None:
+            QMessageBox.warning(self, "Sin datos", "Importa o ingresa datos antes de analizar.")
+            self.tabs.setCurrentIndex(0)
+            return
+        self.analysis_panel.set_data(data)
+        self.tabs.setCurrentIndex(1)
+        self.analysis_panel._run()
+
+    def _goto_analysis(self, combo_text):
+        """Va al panel Análisis, selecciona el análisis y lo ejecuta."""
+        data = self.data_panel.get_data()
+        if data is None:
+            QMessageBox.warning(self, "Sin datos", "Importa o ingresa datos antes de analizar.")
+            self.tabs.setCurrentIndex(0)
+            return
+        self.analysis_panel.set_data(data)
+        self.tabs.setCurrentIndex(1)
+        idx = self.analysis_panel.combo_analysis.findText(combo_text)
+        if idx >= 0:
+            self.analysis_panel.combo_analysis.setCurrentIndex(idx)
+        self.analysis_panel._run()
+
+    def _goto_qc(self, combo_text):
+        """Va al panel Control de Calidad y selecciona el análisis QC."""
+        data = self.data_panel.get_data()
+        if data is not None:
+            self.qc_panel.set_data(data)
+        self.tabs.setCurrentIndex(3)
+        idx = self.qc_panel.combo_qc.findText(combo_text)
+        if idx >= 0:
+            self.qc_panel.combo_qc.setCurrentIndex(idx)
+
+    def _copy_results(self):
+        """Copia el texto de resultados del análisis al portapapeles."""
+        txt = self.analysis_panel.txt_results.toPlainText()
+        if txt.strip():
+            QApplication.clipboard().setText(txt)
+            self.statusBar().showMessage("Resultados copiados al portapapeles")
+        else:
+            self.statusBar().showMessage("No hay resultados para copiar")
 
     def _open_file(self):
         path, _ = QFileDialog.getOpenFileName(

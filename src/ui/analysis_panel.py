@@ -2351,11 +2351,8 @@ class AnalysisPanel(QWidget):
         if c1 not in self.data.columns or c2 not in self.data.columns or c3 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
         try:
-            dependent = self.data[c1].dropna().values
-            group = self.data[c2].dropna().values
-            covariate = self.data[c3].dropna().values
-            min_len = min(len(dependent), len(group), len(covariate))
-            result = ancova(dependent[:min_len], group[:min_len], covariate[:min_len])
+            sub = self.data[[c1, c2, c3]].dropna()
+            result = ancova(sub[c1].values, sub[c2].values, sub[c3].values)
             self._set_formula("Formula: ANCOVA", "F = MS_group / MS_error (ajustado por covariable)")
             h = self._h(f"{Icons.CHART()} ANCOVA — {c1} por {c2} | {c3}")
             h += "<table style='font-size:12px;'>"
