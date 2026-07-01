@@ -188,6 +188,7 @@ class MainWindow(QMainWindow):
         self.analysis_panel.set_data(data)
         self.graphs_panel.set_data(data)
         self.qc_panel.set_data(data)
+        self.omni_panel.set_data(data)
 
     def _on_tab_changed(self, index):
         data = self.data_panel.get_data()
