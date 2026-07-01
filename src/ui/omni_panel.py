@@ -1,8 +1,9 @@
-"""Panel de Omnianálisis — sistema experto estadístico automático."""
+"""Panel de Omnianálisis — motor de decisión determinista + ventana de confirmación."""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QListWidget, QListWidgetItem, QTextEdit,
-    QGroupBox, QSplitter, QAbstractItemView,
+    QGroupBox, QSplitter, QAbstractItemView, QComboBox,
+    QDialog, QDialogButtonBox, QCheckBox, QScrollArea,
 )
 from PyQt6.QtCore import Qt
 import pandas as pd
@@ -10,10 +11,66 @@ import pandas as pd
 from src.analysis.omni_analyzer import run_omnianalysis
 
 
+class ComparisonConfirmDialog(QDialog):
+    """Ventana de confirmación de comparación de métodos (spec §6.2)."""
+
+    def __init__(self, candidates: list[dict], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("¿Estas columnas son mediciones de lo mismo?")
+        self.setMinimumWidth(560)
+        self._checks = []
+
+        layout = QVBoxLayout(self)
+        intro = QLabel(
+            "El motor detectó pares que <b>podrían</b> ser mediciones comparables "
+            "(dos métodos/equipos/observadores del mismo mensurando).<br>"
+            "Confirmá cuáles lo son. En los confirmados corro <b>Bland-Altman, "
+            "Passing-Bablok/Deming y CCC</b>. Los demás se tratan solo como correlación."
+        )
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color:#2c3e50; font-size:13px;")
+        layout.addWidget(intro)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QWidget()
+        inner_layout = QVBoxLayout(inner)
+
+        for cand in candidates:
+            box = QGroupBox(f"{cand['col1']}  ↔  {cand['col2']}")
+            box.setStyleSheet("QGroupBox { font-weight:bold; color:#2b579a; margin-top:6px; }")
+            bl = QVBoxLayout(box)
+            reasons = "<br>".join(f"• {r}" for r in cand.get("reasons", []))
+            lbl = QLabel(f"Puntaje={cand['score']} | r={cand.get('corr')}<br>{reasons}")
+            lbl.setStyleSheet("font-weight:normal; color:#555; font-size:12px;")
+            lbl.setWordWrap(True)
+            bl.addWidget(lbl)
+            chk = QCheckBox("Sí, son mediciones comparables")
+            chk.setChecked(True)
+            bl.addWidget(chk)
+            self._checks.append((cand, chk))
+            inner_layout.addWidget(box)
+
+        inner_layout.addStretch()
+        scroll.setWidget(inner)
+        layout.addWidget(scroll)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def confirmed_pairs(self) -> list[tuple[str, str]]:
+        return [(c["col1"], c["col2"]) for c, chk in self._checks if chk.isChecked()]
+
+
 class OmniPanel(QWidget):
     def __init__(self):
         super().__init__()
         self._df: pd.DataFrame | None = None
+        self._manual_pairs: list[tuple[str, str]] = []
         self._build_ui()
 
     def _build_ui(self):
@@ -23,183 +80,262 @@ class OmniPanel(QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # --- Panel izquierdo: selector de variables ---
+        # --- Izquierda: selector ---
         left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(8)
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(8)
 
         lbl = QLabel("Variables a analizar:")
         lbl.setStyleSheet("font-weight: bold; font-size: 13px; color: #2c3e50;")
-        left_layout.addWidget(lbl)
-
+        ll.addWidget(lbl)
         hint = QLabel("Ctrl+clic para selección múltiple")
         hint.setStyleSheet("font-size: 11px; color: #7f8c8d;")
-        left_layout.addWidget(hint)
+        ll.addWidget(hint)
 
         self.list_vars = QListWidget()
         self.list_vars.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.list_vars.setStyleSheet(
-            "QListWidget { border: 1px solid #d8dbe3; border-radius: 6px; "
-            "background: #ffffff; font-size: 13px; }"
+            "QListWidget { border: 1px solid #d8dbe3; border-radius: 6px; background: #ffffff; font-size: 13px; }"
             "QListWidget::item:selected { background: #2b579a; color: white; }"
             "QListWidget::item:hover { background: #e8eef6; }"
         )
-        left_layout.addWidget(self.list_vars)
+        ll.addWidget(self.list_vars)
+
+        ll.addWidget(QLabel("Variable objetivo (regresión múltiple, opcional):"))
+        self.cmb_target = QComboBox()
+        self.cmb_target.setStyleSheet("QComboBox { padding:4px; border:1px solid #d8dbe3; border-radius:5px; }")
+        ll.addWidget(self.cmb_target)
 
         self.btn_run = QPushButton("Ejecutar Omnianálisis")
         self.btn_run.setEnabled(False)
         self.btn_run.setMinimumHeight(38)
         self.btn_run.setStyleSheet(
-            "QPushButton { background-color: #2b579a; color: white; border-radius: 6px; "
-            "font-size: 13px; font-weight: bold; }"
+            "QPushButton { background-color: #2b579a; color: white; border-radius: 6px; font-size: 13px; font-weight: bold; }"
             "QPushButton:hover { background-color: #1e3f73; }"
             "QPushButton:disabled { background-color: #b0bec5; }"
         )
         self.btn_run.clicked.connect(self._run)
-        left_layout.addWidget(self.btn_run)
+        ll.addWidget(self.btn_run)
+
+        self.btn_manual = QPushButton("Marcar par como comparable…")
+        self.btn_manual.setMinimumHeight(32)
+        self.btn_manual.setStyleSheet(
+            "QPushButton { background-color: #f3f5f9; color: #2c3e50; border: 1px solid #d8dbe3; border-radius: 6px; font-size: 12px; }"
+            "QPushButton:hover { background-color: #e8eef6; }"
+        )
+        self.btn_manual.clicked.connect(self._mark_manual)
+        ll.addWidget(self.btn_manual)
 
         btn_clear = QPushButton("Limpiar informe")
         btn_clear.setMinimumHeight(32)
-        btn_clear.setStyleSheet(
-            "QPushButton { background-color: #f3f5f9; color: #2c3e50; border: 1px solid #d8dbe3; "
-            "border-radius: 6px; font-size: 12px; }"
-            "QPushButton:hover { background-color: #e8eef6; }"
-        )
-        btn_clear.clicked.connect(self._clear)
-        left_layout.addWidget(btn_clear)
+        btn_clear.setStyleSheet(self.btn_manual.styleSheet())
+        btn_clear.clicked.connect(lambda: self.txt_report.clear())
+        ll.addWidget(btn_clear)
 
         splitter.addWidget(left)
 
-        # --- Panel derecho: informe ---
+        # --- Derecha: informe ---
         right = QGroupBox("Informe de Omnianálisis")
         right.setStyleSheet(
-            "QGroupBox { font-weight: bold; font-size: 13px; color: #2c3e50; "
-            "border: 1px solid #d8dbe3; border-radius: 8px; margin-top: 6px; }"
+            "QGroupBox { font-weight: bold; font-size: 13px; color: #2c3e50; border: 1px solid #d8dbe3; border-radius: 8px; margin-top: 6px; }"
             "QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }"
         )
-        right_layout = QVBoxLayout(right)
+        rl = QVBoxLayout(right)
         self.txt_report = QTextEdit()
         self.txt_report.setReadOnly(True)
         self.txt_report.setStyleSheet(
-            "QTextEdit { background: #ffffff; border: none; font-family: 'Segoe UI', sans-serif; "
-            "font-size: 13px; color: #2c3e50; padding: 8px; }"
+            "QTextEdit { background: #ffffff; border: none; font-family: 'Segoe UI', sans-serif; font-size: 13px; color: #2c3e50; padding: 8px; }"
         )
         self.txt_report.setPlaceholderText(
             "Carga datos, selecciona columnas y pulsa 'Ejecutar Omnianálisis'."
         )
-        right_layout.addWidget(self.txt_report)
+        rl.addWidget(self.txt_report)
         splitter.addWidget(right)
 
-        splitter.setSizes([260, 740])
+        splitter.setSizes([280, 720])
         main.addWidget(splitter)
 
     def set_data(self, df: pd.DataFrame):
         self._df = df
+        self._manual_pairs = []
         self.list_vars.clear()
+        self.cmb_target.clear()
+        self.cmb_target.addItem("(ninguna)")
         for col in df.columns:
             self.list_vars.addItem(QListWidgetItem(col))
+            self.cmb_target.addItem(col)
         self.btn_run.setEnabled(True)
+
+    def _selected_cols(self) -> list[str]:
+        return [item.text() for item in self.list_vars.selectedItems()]
+
+    def _target(self):
+        t = self.cmb_target.currentText()
+        return None if t == "(ninguna)" else t
 
     def _run(self):
         if self._df is None:
             return
-        selected = [item.text() for item in self.list_vars.selectedItems()]
+        selected = self._selected_cols()
         if not selected:
-            self.txt_report.setHtml(
-                "<p style='color:#c0392b;'>Selecciona al menos una variable.</p>"
-            )
+            self.txt_report.setHtml("<p style='color:#c0392b;'>Selecciona al menos una variable.</p>")
             return
 
-        results = run_omnianalysis(self._df, selected)
-        self.txt_report.setHtml(self._render_html(results))
+        # Primera pasada: detectar candidatos (sin concordancia)
+        report = run_omnianalysis(self._df, selected, confirmed_comparisons=self._manual_pairs,
+                                  target=self._target())
 
-    def _render_html(self, results: list[dict]) -> str:
+        # Ventana de confirmación si hay candidatos
+        candidates = report.get("comparison_candidates", [])
+        confirmed = list(self._manual_pairs)
+        if candidates:
+            dlg = ComparisonConfirmDialog(candidates, self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                confirmed += dlg.confirmed_pairs()
+            # re-correr con confirmados (aunque se cancele, corre sin concordancia)
+            report = run_omnianalysis(self._df, selected, confirmed_comparisons=confirmed,
+                                      target=self._target())
+
+        self.txt_report.setHtml(self._render(report))
+
+    def _mark_manual(self):
+        """Marca manualmente 2 columnas seleccionadas como comparables."""
+        sel = self._selected_cols()
+        if len(sel) != 2:
+            self.txt_report.setHtml(
+                "<p style='color:#c0392b;'>Selecciona exactamente 2 columnas para marcarlas como comparables.</p>"
+            )
+            return
+        pair = (sel[0], sel[1])
+        if pair not in self._manual_pairs:
+            self._manual_pairs.append(pair)
+        self.txt_report.setHtml(
+            f"<p style='color:#27ae60;'>Par marcado como comparable: "
+            f"<b>{sel[0]} ↔ {sel[1]}</b>. Pulsa 'Ejecutar Omnianálisis'.</p>"
+        )
+
+    # ---------- Render HTML ----------
+    def _render(self, report: dict) -> str:
+        if "error" in report:
+            return f"<p style='color:#c0392b;'>{report['error']}</p>"
+
         css = (
             "<style>"
-            "body { font-family: 'Segoe UI', sans-serif; color: #2c3e50; }"
-            "h2 { color: #2b579a; border-bottom: 2px solid #2b579a; padding-bottom: 4px; }"
-            "h3 { color: #34495e; margin-bottom: 4px; }"
-            ".badge { display:inline-block; padding:2px 8px; border-radius:10px; "
-            "font-size:11px; font-weight:bold; }"
-            ".num { background:#e8f4fd; color:#2b579a; }"
-            ".cat { background:#fef9e7; color:#b7950b; }"
-            ".cmp { background:#eafaf1; color:#1e8449; }"
-            ".step { color:#7f8c8d; font-size:12px; margin:2px 0; }"
-            ".result { background:#f3f5f9; border-left:4px solid #2b579a; "
-            "padding:8px 12px; margin:8px 0; border-radius:0 6px 6px 0; }"
-            ".sig { color:#27ae60; font-weight:bold; }"
-            ".nosig { color:#c0392b; }"
-            "table { border-collapse:collapse; width:100%; margin:8px 0; }"
-            "th { background:#2b579a; color:white; padding:4px 8px; }"
-            "td { padding:4px 8px; border-bottom:1px solid #e0e0e0; }"
-            "tr:nth-child(even) { background:#f3f5f9; }"
+            "body{font-family:'Segoe UI',sans-serif;color:#2c3e50;}"
+            "h2{color:#2b579a;border-bottom:2px solid #2b579a;padding-bottom:4px;}"
+            "h3{color:#34495e;margin:6px 0 2px;}"
+            ".badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;}"
+            ".num{background:#e8f4fd;color:#2b579a;}.cat{background:#fef9e7;color:#b7950b;}"
+            ".cmp{background:#eafaf1;color:#1e8449;}.conc{background:#fdedec;color:#c0392b;}"
+            ".step{color:#7f8c8d;font-size:12px;margin:1px 0;}"
+            ".warn{background:#fef5e7;border-left:4px solid #e67e22;padding:6px 10px;margin:4px 0;color:#8a5a00;border-radius:0 4px 4px 0;}"
+            ".result{background:#f3f5f9;border-left:4px solid #2b579a;padding:6px 10px;margin:6px 0;border-radius:0 6px 6px 0;}"
+            ".sig{color:#27ae60;font-weight:bold;}.nosig{color:#c0392b;}"
+            "table{border-collapse:collapse;width:100%;margin:6px 0;font-size:12px;}"
+            "th{background:#2b579a;color:white;padding:4px 8px;}td{padding:4px 8px;border-bottom:1px solid #e0e0e0;}"
+            "tr:nth-child(even){background:#f3f5f9;}"
             "</style>"
         )
-        body = ""
+        h = css
 
-        for r in results:
-            if "error" in r:
-                body += f"<p style='color:#c0392b;'>{r['error']}</p>"
-                continue
+        # --- Perfilado ---
+        p = report["profile"]
+        h += f"<h2>Perfilado (Rama {report['branch']})</h2>"
+        h += (f"<p>{p['n_rows']} filas · {p['n_columns']} columnas · "
+              f"estructura: {p['shape']} · duplicados: {p['full_duplicates']}</p>")
+        h += "<table><tr><th>Columna</th><th>Tipo</th><th>n válidos</th><th>Únicos</th><th>% nulos</th></tr>"
+        for c, info in p["col_types"].items():
+            nota = f" <span style='color:#e67e22;'>({info['nota']})</span>" if info.get("nota") else ""
+            h += (f"<tr><td>{c}{nota}</td><td>{info['tipo']}</td><td>{info['n_valid']}</td>"
+                  f"<td>{info['n_unique']}</td><td>{info['pct_null']}%</td></tr>")
+        h += "</table>"
 
-            tipo = r.get("tipo", "")
-            col = r.get("columna", "")
+        for w in report.get("warnings_globales", []):
+            h += f"<div class='warn'>⚠ {w}</div>"
 
-            if tipo == "numérica continua" or tipo == "prueba 1 grupo":
-                badge = f"<span class='badge num'>Numérica</span>"
-                body += f"<h2>{col} {badge}</h2>"
-                if "descriptivos" in r:
-                    d = r["descriptivos"]
-                    body += (
-                        f"<table><tr><th>n</th><th>Media</th><th>DE</th><th>Mediana</th>"
-                        f"<th>Min</th><th>Max</th><th>IC 95%</th></tr>"
-                        f"<tr><td>{d.get('n','')}</td><td>{d.get('media','')}</td>"
-                        f"<td>{d.get('DE','')}</td><td>{d.get('mediana','')}</td>"
-                        f"<td>{d.get('min','')}</td><td>{d.get('max','')}</td>"
-                        f"<td>{d.get('IC95','')}</td></tr></table>"
-                    )
+        # --- Bloques ---
+        for b in report["blocks"]:
+            tipo = b.get("tipo", "")
+            badge_cls = ("conc" if tipo == "concordancia" else
+                         "cmp" if tipo in ("comparación de grupos", "correlación", "tabla de contingencia") else
+                         "cat" if "categórica" in tipo else "num")
+            h += f"<h2>{b['titulo']} <span class='badge {badge_cls}'>{tipo}</span></h2>"
 
-            elif tipo == "categórica":
-                badge = f"<span class='badge cat'>Categórica</span>"
-                body += f"<h2>{col} {badge}</h2>"
-                if "frecuencias" in r:
-                    body += "<table><tr><th>Categoría</th><th>n</th><th>%</th></tr>"
-                    for cat, vals in r["frecuencias"].items():
-                        body += f"<tr><td>{cat}</td><td>{vals['n']}</td><td>{vals['%']}%</td></tr>"
-                    body += "</table>"
+            res = b.get("resultados", {})
+            if "descriptivos" in res:
+                d = res["descriptivos"]
+                h += (f"<table><tr><th>n</th><th>Media</th><th>DS</th><th>Mediana</th>"
+                      f"<th>Min</th><th>Max</th><th>IC95%</th></tr>"
+                      f"<tr><td>{d.get('n')}</td><td>{d.get('mean')}</td><td>{d.get('std')}</td>"
+                      f"<td>{d.get('median')}</td><td>{d.get('min')}</td><td>{d.get('max')}</td>"
+                      f"<td>{d.get('ci95')}</td></tr></table>")
+            if "tendencia_central" in res:
+                h += f"<div class='result'><b>Tendencia central:</b> {res['tendencia_central']}</div>"
+            if "frecuencias" in res:
+                h += "<table><tr><th>Categoría</th><th>n</th><th>%</th></tr>"
+                for cat, v in res["frecuencias"].items():
+                    h += f"<tr><td>{cat}</td><td>{v['n']}</td><td>{v['%']}%</td></tr>"
+                h += "</table>"
 
-            elif tipo in ("comparación 2 grupos", "tabla de contingencia"):
-                badge = f"<span class='badge cmp'>Comparación</span>"
-                body += f"<h2>{tipo.title()} {badge}</h2>"
+            if b.get("traza"):
+                h += "<h3>Árbol de decisión (trazabilidad):</h3>"
+                for step in b["traza"]:
+                    h += f"<p class='step'>▶ {step}</p>"
 
-            # Pasos del árbol de decisión
-            if r.get("pasos"):
-                body += "<h3>Árbol de decisión:</h3>"
-                for step in r["pasos"]:
-                    body += f"<p class='step'>▶ {step}</p>"
+            for pr in b.get("pruebas", []):
+                sig_cls = "sig" if pr.get("significativo") else "nosig"
+                sig_txt = "Significativo ✓" if pr.get("significativo") else "No significativo ✗"
+                extras = " ".join(f"{k}={v}" for k, v in pr.items()
+                                  if k not in ("prueba", "significativo"))
+                h += f"<div class='result'><b>{pr['prueba']}</b> — {extras} — <span class='{sig_cls}'>{sig_txt}</span></div>"
 
-            # Pruebas realizadas
-            for pr in r.get("pruebas", []):
-                sig_class = "sig" if pr.get("significativo") else "nosig"
-                sig_text = "Significativo ✓" if pr.get("significativo") else "No significativo ✗"
-                est = pr.get("estadístico", "")
-                p_val = pr.get("p", "")
-                gl = f", gl={pr['gl']}" if "gl" in pr else ""
-                body += (
-                    f"<div class='result'>"
-                    f"<b>{pr['prueba']}</b>{f': estadístico={est}' if est != '' else ''}"
-                    f"{gl}, p={p_val} — "
-                    f"<span class='{sig_class}'>{sig_text}</span></div>"
-                )
+            # Concordancia — sub-resultados
+            if "bland_altman" in res:
+                h += f"<div class='result'><b>Bland-Altman ({res['bland_altman']['tipo']}):</b> {res['bland_altman']}</div>"
+            if "regresion" in res:
+                h += f"<div class='result'><b>Regresión de comparación:</b> {res['regresion']}</div>"
+            if "ccc" in res:
+                h += f"<div class='result'><b>CCC (Lin):</b> {res['ccc']}</div>"
+            if "posthoc" in res:
+                ph = res["posthoc"]
+                h += f"<div class='result'><b>Post-hoc {ph.get('metodo','')}:</b> "
+                if "comparaciones" in ph:
+                    for cmp_ in ph["comparaciones"]:
+                        cls = "sig" if cmp_["significativo"] else "nosig"
+                        h += f"<br><span class='{cls}'>{cmp_['par']}: p_adj={cmp_['p_adj']}</span>"
+                elif "resumen" in ph:
+                    h += f"<pre style='font-size:11px;'>{ph['resumen']}</pre>"
+                h += "</div>"
 
-            # Conclusión
-            if r.get("conclusion"):
-                body += f"<p><b>Conclusión:</b> {r['conclusion']}</p>"
+            for w in b.get("advertencias", []):
+                h += f"<div class='warn'>⚠ {w}</div>"
 
-            body += "<hr style='border:none;border-top:1px solid #e0e0e0;margin:16px 0;'>"
+            if b.get("conclusion"):
+                h += f"<p><b>Conclusión:</b> {b['conclusion']}</p>"
+            h += "<hr style='border:none;border-top:1px solid #e0e0e0;margin:12px 0;'>"
 
-        return css + body
+        # --- Matriz de correlación (Rama C) ---
+        if "correlation_matrix" in report:
+            cm = report["correlation_matrix"]
+            h += "<h2>Matriz de correlación (método por celda + FDR)</h2>"
+            h += "<table><tr><th>Par</th><th>Método</th><th>Coef</th><th>p</th><th>p ajustado (BH)</th></tr>"
+            for c in cm["celdas"]:
+                cls = "sig" if c.get("significativo_adj") else "nosig"
+                h += (f"<tr><td>{c['par']}</td><td>{c['metodo']}</td><td>{c['coef']}</td>"
+                      f"<td>{c['p']}</td><td class='{cls}'>{c.get('p_adj')}</td></tr>")
+            h += "</table>"
 
-    def _clear(self):
-        self.txt_report.clear()
+        # --- Regresión múltiple ---
+        if "multiple_regression" in report:
+            mr = report["multiple_regression"]
+            h += "<h2>Regresión múltiple</h2>"
+            if "error" in mr:
+                h += f"<div class='warn'>⚠ {mr['error']}</div>"
+            else:
+                h += (f"<div class='result'>Objetivo: <b>{mr['target']}</b> · R²={mr['r2']} "
+                      f"(ajustado {mr['r2_adj']}) · p(F)={mr['f_p']}<br>"
+                      f"Coeficientes: {mr['coef']}<br>p-valores: {mr['coef_p']}<br>"
+                      f"VIF: {mr['vif']}<br>{mr['diagnostico']}</div>")
+
+        return h
