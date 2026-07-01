@@ -57,6 +57,12 @@ def passing_bablok(method1, method2):
     ci_slope_idx_high = min(k - 1, int(np.floor(k * 0.975)))
     ci_slope = (slopes_sorted[ci_slope_idx_low], slopes_sorted[ci_slope_idx_high])
 
+    # IC del intercepto: derivado de los limites del IC de la pendiente
+    # intercepto(b) = mediana(m2 - b*m1); mayor pendiente -> menor intercepto
+    intercept_low = np.median(m2 - ci_slope[1] * m1)
+    intercept_high = np.median(m2 - ci_slope[0] * m1)
+    ci_intercept = (intercept_low, intercept_high)
+
     residuals = m2 - (slope * m1 + intercept)
     se_residuals = np.std(residuals, ddof=1)
 
@@ -67,6 +73,7 @@ def passing_bablok(method1, method2):
         "slope": slope,
         "intercept": intercept,
         "ci_slope": ci_slope,
+        "ci_intercept": ci_intercept,
         "se_residuals": se_residuals,
         "residuals": residuals,
         "correlation_r": r,

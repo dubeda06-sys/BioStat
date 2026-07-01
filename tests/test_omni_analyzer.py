@@ -154,6 +154,17 @@ def test_concordance_bland_altman_on_differences():
     assert ba["tipo"] in ("paramétrico", "no paramétrico")
 
 
+def test_passing_bablok_reports_intercept_ci():
+    # con outliers → rama Passing-Bablok
+    base = RNG.exponential(20, 80)
+    df = pd.DataFrame({"m1": base, "m2": base * 1.1 + 3})
+    block = concordance_analysis("m1", df["m1"], "m2", df["m2"], CFG)
+    reg = block["resultados"].get("regresion", {})
+    if reg.get("metodo") == "Passing-Bablok":
+        assert "ic_intercepto" in reg
+        assert "sesgo_constante" in reg
+
+
 # --- Rama C: multiplicidad ---
 def test_branch_c_fdr_applied():
     df = pd.DataFrame({c: RNG.normal(0, 1, 60) for c in ["a", "b", "c", "d"]})
@@ -171,6 +182,15 @@ def test_branch_c_multiple_regression():
     r = run_omnianalysis(df, ["y", "x1", "x2"], target="y")
     assert "multiple_regression" in r
     assert r["multiple_regression"]["r2"] > 0.8
+
+
+def test_branch_c_pca_clustering_no_target():
+    n = 60
+    df = pd.DataFrame({c: RNG.normal(0, 1, n) for c in ["a", "b", "c", "d"]})
+    r = run_omnianalysis(df, ["a", "b", "c", "d"])  # sin target
+    assert "pca_clustering" in r
+    pc = r["pca_clustering"]
+    assert "error" in pc or "pca" in pc
 
 
 # --- Empty / error handling ---

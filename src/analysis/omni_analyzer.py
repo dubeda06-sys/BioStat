@@ -579,18 +579,24 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         pb = passing_bablok(a, b)
         if pb:
             ci_s = pb["ci_slope"]
+            ci_i = pb["ci_intercept"]
             slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
+            intercept_no_const = ci_i[0] <= 0 <= ci_i[1]
             block["resultados"]["regresion"] = {
                 "metodo": "Passing-Bablok",
                 "pendiente": round(pb["slope"], 4), "ic_pendiente": tuple(round(x, 4) for x in ci_s),
-                "intercepto": round(pb["intercept"], 4),
+                "intercepto": round(pb["intercept"], 4), "ic_intercepto": tuple(round(x, 4) for x in ci_i),
                 "sesgo_proporcional": not slope_no_prop,
+                "sesgo_constante": not intercept_no_const,
             }
             block["traza"].append(
                 f"Sin distribución asumida / outliers → Passing-Bablok. "
                 f"IC pendiente {tuple(round(x,4) for x in ci_s)} "
                 f"{'incluye' if slope_no_prop else 'NO incluye'} 1 → "
-                f"{'sin' if slope_no_prop else 'HAY'} sesgo proporcional."
+                f"{'sin' if slope_no_prop else 'HAY'} sesgo proporcional. "
+                f"IC intercepto {tuple(round(x,4) for x in ci_i)} "
+                f"{'incluye' if intercept_no_const else 'NO incluye'} 0 → "
+                f"{'sin' if intercept_no_const else 'HAY'} sesgo constante."
             )
 
     block["advertencias"].append(
@@ -659,6 +665,53 @@ def _fdr(p_values, cfg: OmniConfig):
         return adj
     except Exception:
         return p_values
+
+
+def _pca_clustering(df, num_cols, cfg: OmniConfig) -> dict:
+    """PCA + clustering exploratorio (muchas numéricas sin objetivo)."""
+    try:
+        from sklearn.decomposition import PCA
+        from sklearn.cluster import KMeans
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.metrics import silhouette_score
+    except Exception as e:
+        return {"error": str(e)}
+    sub = df[num_cols].dropna()
+    if len(sub) < max(10, len(num_cols) + 2):
+        return {"error": "n insuficiente para PCA/clustering."}
+    X = StandardScaler().fit_transform(sub.to_numpy(dtype=float))
+
+    # PCA
+    pca = PCA()
+    pca.fit(X)
+    evr = pca.explained_variance_ratio_
+    cum = np.cumsum(evr)
+    n_90 = int(np.searchsorted(cum, 0.90) + 1)
+    result = {
+        "pca": {
+            "varianza_explicada": [round(float(v), 4) for v in evr[:5]],
+            "varianza_acumulada": [round(float(v), 4) for v in cum[:5]],
+            "componentes_para_90pct": n_90,
+        }
+    }
+
+    # KMeans — elegir k por silhouette (2..min(6,n-1))
+    best = {"k": None, "silhouette": -1.0}
+    max_k = min(6, len(sub) - 1)
+    for k in range(2, max_k + 1):
+        try:
+            labels = KMeans(n_clusters=k, n_init=10, random_state=42).fit_predict(X)
+            sil = silhouette_score(X, labels)
+            if sil > best["silhouette"]:
+                best = {"k": k, "silhouette": round(float(sil), 4)}
+        except Exception:
+            continue
+    result["clustering"] = {
+        "metodo": "KMeans (k óptimo por silueta)",
+        "k_optimo": best["k"], "silhouette": best["silhouette"],
+        "nota": "Exploratorio: los clusters no implican grupos clínicos reales sin validación.",
+    }
+    return result
 
 
 def _multiple_regression(df, target, predictors, cfg: OmniConfig) -> dict:
@@ -789,5 +842,8 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
             predictors = [c for c in num_cols if c != target]
             if predictors:
                 report["multiple_regression"] = _multiple_regression(df, target, predictors, cfg)
+        elif len(num_cols) >= 3:
+            # Muchas numéricas sin objetivo claro → exploratorio
+            report["pca_clustering"] = _pca_clustering(df, num_cols, cfg)
 
     return report

@@ -326,6 +326,21 @@ class OmniPanel(QWidget):
                       f"<td>{c['p']}</td><td class='{cls}'>{c.get('p_adj')}</td></tr>")
             h += "</table>"
 
+        # --- PCA / clustering exploratorio ---
+        if "pca_clustering" in report:
+            pc = report["pca_clustering"]
+            h += "<h2>PCA + Clustering (exploratorio)</h2>"
+            if "error" in pc:
+                h += f"<div class='warn'>⚠ {pc['error']}</div>"
+            else:
+                h += (f"<div class='result'><b>PCA:</b> componentes para 90% varianza = "
+                      f"{pc['pca']['componentes_para_90pct']}<br>"
+                      f"Varianza explicada (5 primeras): {pc['pca']['varianza_explicada']}<br>"
+                      f"Acumulada: {pc['pca']['varianza_acumulada']}</div>")
+                cl = pc["clustering"]
+                h += (f"<div class='result'><b>{cl['metodo']}:</b> k óptimo={cl['k_optimo']}, "
+                      f"silueta={cl['silhouette']}<br><i>{cl['nota']}</i></div>")
+
         # --- Regresión múltiple ---
         if "multiple_regression" in report:
             mr = report["multiple_regression"]
