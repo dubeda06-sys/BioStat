@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['C:\\Users\\Laboratorio2\\.gemini\\antigravity\\scratch\\BioStat\\main.py'],
+    ['C:\\Users\\dubed\\BioStat\\main.py'],
     pathex=[],
     binaries=[],
     datas=[],
