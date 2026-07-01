@@ -165,6 +165,20 @@ QTableWidget {
 }
 QTableWidget::item { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
 QTableWidget::item:selected { background-color: #e0f2f1; }
+
+/* Editor en línea de la celda (al escribir): que llene la celda y sea legible.
+   Sin heredar el padding/borde grande del QLineEdit global. */
+QTableView QLineEdit, QTableWidget QLineEdit {
+    border: 2px solid #0e7490;
+    border-radius: 0px;
+    margin: 0px;
+    padding: 1px 5px;
+    font-size: 14px;
+    background-color: #ffffff;
+    color: #1e293b;
+    selection-background-color: #99e0e6;
+    selection-color: #0b5566;
+}
 QHeaderView::section {
     background-color: #f1f5f9;
     border: none;

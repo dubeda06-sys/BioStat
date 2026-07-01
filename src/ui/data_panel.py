@@ -84,8 +84,13 @@ class DataPanel(QWidget):
         layout.addLayout(btn_layout)
 
         self.table = QTableWidget()
-        self.table.setMinimumHeight(160)
+        self.table.setMinimumHeight(280)
         self.table.setAlternatingRowColors(True)
+        # Filas más altas y fuente mayor para que el editor de celda sea legible.
+        self.table.verticalHeader().setDefaultSectionSize(34)
+        _f = self.table.font()
+        _f.setPointSize(11)
+        self.table.setFont(_f)
         self.table.setRowCount(20)
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Columna 1", "Columna 2", "Columna 3", "Columna 4", "Columna 5"])
