@@ -564,17 +564,34 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         )
         block["traza"].append("Diferencias NO normales → Bland-Altman NO PARAMÉTRICO (percentiles).")
 
-    # 3) Regresión de comparación
-    # outliers en diferencias → Passing-Bablok; si ~normal+homocedástico → Deming
+    # 3) Regresión de comparación (CLSI EP09)
+    # ~normal + homocedástico → Deming (con λ configurable); si no → Passing-Bablok.
     resid_homoced = not proporcional
+    reg_slope = reg_intercept = None
     if norm_diff["normal"] and resid_homoced:
-        dem = deming_regression(a, b)
+        dem = deming_regression(a, b, lambda_ratio=cfg.DEMING_LAMBDA)
         if dem:
+            ci_s, ci_i = dem["ci_slope"], dem["ci_intercept"]
+            slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
+            intercept_no_const = ci_i[0] <= 0 <= ci_i[1]
+            reg_slope, reg_intercept = dem["slope"], dem["intercept"]
             block["resultados"]["regresion"] = {
-                "metodo": "Deming", "pendiente": round(dem["slope"], 4),
-                "intercepto": round(dem["intercept"], 4), "r2": round(dem["r2"], 4),
+                "metodo": "Deming", "lambda": dem["lambda"],
+                "pendiente": round(dem["slope"], 4), "ic_pendiente": tuple(round(x, 4) for x in ci_s),
+                "intercepto": round(dem["intercept"], 4), "ic_intercepto": tuple(round(x, 4) for x in ci_i),
+                "r2": round(dem["r2"], 4),
+                "sesgo_proporcional": not slope_no_prop,
+                "sesgo_constante": not intercept_no_const,
             }
-            block["traza"].append("Diferencias normales + homocedásticas → Deming.")
+            block["traza"].append(
+                f"Diferencias normales + homocedásticas → Deming (λ={dem['lambda']}). "
+                f"IC pendiente {tuple(round(x,4) for x in ci_s)} "
+                f"{'incluye' if slope_no_prop else 'NO incluye'} 1 → "
+                f"{'sin' if slope_no_prop else 'HAY'} sesgo proporcional. "
+                f"IC intercepto {tuple(round(x,4) for x in ci_i)} "
+                f"{'incluye' if intercept_no_const else 'NO incluye'} 0 → "
+                f"{'sin' if intercept_no_const else 'HAY'} sesgo constante."
+            )
     else:
         pb = passing_bablok(a, b)
         if pb:
@@ -582,6 +599,7 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
             ci_i = pb["ci_intercept"]
             slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
             intercept_no_const = ci_i[0] <= 0 <= ci_i[1]
+            reg_slope, reg_intercept = pb["slope"], pb["intercept"]
             block["resultados"]["regresion"] = {
                 "metodo": "Passing-Bablok",
                 "pendiente": round(pb["slope"], 4), "ic_pendiente": tuple(round(x, 4) for x in ci_s),
@@ -598,6 +616,39 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
                 f"{'incluye' if intercept_no_const else 'NO incluye'} 0 → "
                 f"{'sin' if intercept_no_const else 'HAY'} sesgo constante."
             )
+
+    # 3b) Sesgo estimado en niveles de decisión médica (desde la recta EP09)
+    if reg_slope is not None:
+        levels = list(cfg.DECISION_LEVELS) if cfg.DECISION_LEVELS else \
+            [float(np.percentile(a, q)) for q in (25, 50, 75)]
+        sesgo_niveles = []
+        for L in levels:
+            pred = reg_slope * L + reg_intercept
+            sesgo_niveles.append({
+                "nivel": round(float(L), 4),
+                "sesgo_abs": round(float(pred - L), 4),
+                "sesgo_pct": round(float((pred - L) / L * 100), 2) if L != 0 else None,
+            })
+        block["resultados"]["sesgo_en_niveles"] = sesgo_niveles
+        block["traza"].append(
+            "Sesgo estimado en niveles de decisión (desde la recta): " +
+            "; ".join(f"X={s['nivel']}→{s['sesgo_abs']}" for s in sesgo_niveles) + "."
+        )
+
+    # 3c) Datos para graficar (Bland-Altman + regresión) — los usa la UI
+    if cfg.GENERAR_GRAFICOS_COMPARACION:
+        ba_res_tmp = block["resultados"]["bland_altman"]
+        block["resultados"]["_plot"] = {
+            "x": np.asarray(a, dtype=float),
+            "y": np.asarray(b, dtype=float),
+            "nombre_x": c1, "nombre_y": c2,
+            "ba_tipo": ba_res_tmp["tipo"],
+            "sesgo": ba_res_tmp.get("sesgo", ba_res_tmp.get("sesgo_mediana")),
+            "loa": (ba_res_tmp.get("loa_inferior", ba_res_tmp.get("loa_inferior_p2.5")),
+                    ba_res_tmp.get("loa_superior", ba_res_tmp.get("loa_superior_p97.5"))),
+            "reg_metodo": block["resultados"].get("regresion", {}).get("metodo"),
+            "reg_slope": reg_slope, "reg_intercept": reg_intercept,
+        }
 
     block["advertencias"].append(
         "OLS (regresión lineal ordinaria) es INAPROPIADO para comparar métodos: asume que "

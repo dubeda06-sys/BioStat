@@ -7,8 +7,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.pyplot as plt
 
 from src.analysis.omni_analyzer import run_omnianalysis
+from src.analysis.omni_plots import comparison_figures
 
 
 class ComparisonConfirmDialog(QDialog):
@@ -150,7 +155,18 @@ class OmniPanel(QWidget):
         self.txt_report.setPlaceholderText(
             "Carga datos, selecciona columnas y pulsa 'Ejecutar Omnianálisis'."
         )
-        rl.addWidget(self.txt_report)
+        rl_split = QSplitter(Qt.Orientation.Vertical)
+        rl_split.addWidget(self.txt_report)
+        # Área de gráficos de comparación (Bland-Altman / Passing-Bablok / Deming)
+        self.plot_scroll = QScrollArea()
+        self.plot_scroll.setWidgetResizable(True)
+        self.plot_container = QWidget()
+        self.plot_layout = QVBoxLayout(self.plot_container)
+        self.plot_layout.setContentsMargins(4, 4, 4, 4)
+        self.plot_scroll.setWidget(self.plot_container)
+        rl_split.addWidget(self.plot_scroll)
+        rl_split.setSizes([520, 360])
+        rl.addWidget(rl_split)
         splitter.addWidget(right)
 
         splitter.setSizes([280, 720])
@@ -198,6 +214,39 @@ class OmniPanel(QWidget):
                                       target=self._target())
 
         self.txt_report.setHtml(self._render(report))
+        self._render_plots(report)
+
+    def _render_plots(self, report):
+        """Pinta los gráficos de comparación (Bland-Altman + regresión) por cada
+        bloque de concordancia con datos de plot."""
+        while self.plot_layout.count():
+            item = self.plot_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+        n_plots = 0
+        for b in report.get("blocks", []):
+            if b.get("tipo") != "concordancia":
+                continue
+            pdata = b.get("resultados", {}).get("_plot")
+            if not pdata:
+                continue
+            title = QLabel(b.get("titulo", ""))
+            title.setStyleSheet("font-weight:bold; color:#0e7490; padding:8px 2px 2px;")
+            self.plot_layout.addWidget(title)
+            for _name, fig in comparison_figures(pdata):
+                canvas = FigureCanvas(fig)
+                canvas.setMinimumHeight(330)
+                self.plot_layout.addWidget(canvas)
+                plt.close(fig)
+                n_plots += 1
+        if n_plots == 0:
+            hint = QLabel("Los gráficos de comparación (Bland-Altman / Passing-Bablok / "
+                          "Deming) aparecen aquí al confirmar un par de métodos comparables.")
+            hint.setWordWrap(True)
+            hint.setStyleSheet("color:#64748b; padding:10px;")
+            self.plot_layout.addWidget(hint)
+        self.plot_layout.addStretch()
 
     def _mark_manual(self):
         """Marca manualmente 2 columnas seleccionadas como comparables."""
@@ -295,6 +344,13 @@ class OmniPanel(QWidget):
                 h += f"<div class='result'><b>Bland-Altman ({res['bland_altman']['tipo']}):</b> {res['bland_altman']}</div>"
             if "regresion" in res:
                 h += f"<div class='result'><b>Regresión de comparación:</b> {res['regresion']}</div>"
+            if "sesgo_en_niveles" in res:
+                h += ("<div class='result'><b>Sesgo en niveles de decisión (CLSI EP09):</b>"
+                      "<table><tr><th>Nivel (X)</th><th>Sesgo absoluto</th><th>Sesgo %</th></tr>")
+                for s in res["sesgo_en_niveles"]:
+                    h += (f"<tr><td>{s['nivel']}</td><td>{s['sesgo_abs']}</td>"
+                          f"<td>{s['sesgo_pct'] if s['sesgo_pct'] is not None else '—'}</td></tr>")
+                h += "</table></div>"
             if "ccc" in res:
                 h += f"<div class='result'><b>CCC (Lin):</b> {res['ccc']}</div>"
             if "posthoc" in res:

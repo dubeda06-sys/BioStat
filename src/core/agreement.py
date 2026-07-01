@@ -113,8 +113,30 @@ def cronbach_alpha(data):
             "item_variances": item_variances.tolist()}
 
 
-def deming_regression(x, y, s_yx=1, s_xy=0):
-    """Regresion de Deming."""
+def _deming_fit(x, y, lam):
+    """Ajuste de Deming (núcleo). lam = λ = var_error(x)/var_error(y)."""
+    n = len(x)
+    mx, my = np.mean(x), np.mean(y)
+    sxx = np.sum((x - mx) ** 2) / (n - 1)
+    syy = np.sum((y - my) ** 2) / (n - 1)
+    sxy = np.sum((x - mx) * (y - my)) / (n - 1)
+    if sxy == 0:
+        return None
+    slope = ((syy - lam * sxx) + np.sqrt((syy - lam * sxx) ** 2 + 4 * lam * sxy ** 2)) / (2 * sxy)
+    intercept = my - slope * mx
+    return slope, intercept
+
+
+def deming_regression(x, y, lambda_ratio=1.0):
+    """Regresión de Deming (comparación de métodos, CLSI EP09).
+
+    Modelo de error en ambos ejes. `lambda_ratio` (λ) es la razón de varianzas
+    del error analítico entre X e Y (λ = σ²ε(x)/σ²ε(y)); λ=1 asume igual
+    precisión (Deming ortogonal). IC 95% de pendiente e intercepto por jackknife
+    (método de Linnet).
+
+    Devuelve slope, intercept, ci_slope, ci_intercept, r2, n, lambda.
+    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     valid = ~(np.isnan(x) | np.isnan(y))
@@ -122,21 +144,40 @@ def deming_regression(x, y, s_yx=1, s_xy=0):
     n = len(x)
     if n < 3:
         return None
-    mx, my = np.mean(x), np.mean(y)
-    sx = np.var(x, ddof=1)
-    sy = np.var(y, ddof=1)
-    sxy = np.sum((x - mx) * (y - my)) / (n - 1)
-    if sxy == 0:
+    lam = float(lambda_ratio) if lambda_ratio and lambda_ratio > 0 else 1.0
+
+    fit = _deming_fit(x, y, lam)
+    if fit is None:
         return None
-    delta = s_yx / s_xy if s_xy != 0 else 1
-    slope = (sy - delta * sx + np.sqrt((sy - delta * sx)**2 + 4 * delta * sxy**2)) / (2 * sxy)
-    intercept = my - slope * mx
+    slope, intercept = fit
+
+    # Jackknife leave-one-out para IC de pendiente e intercepto (Linnet).
+    js, ji = [], []
+    for k in range(n):
+        m = np.ones(n, dtype=bool); m[k] = False
+        f = _deming_fit(x[m], y[m], lam)
+        if f is None:
+            continue
+        js.append(f[0]); ji.append(f[1])
+    js, ji = np.asarray(js), np.asarray(ji)
+    if len(js) >= 2:
+        tcrit = stats.t.ppf(0.975, len(js) - 1)
+        se_slope = np.sqrt((len(js) - 1) / len(js) * np.sum((js - js.mean()) ** 2))
+        se_int = np.sqrt((len(ji) - 1) / len(ji) * np.sum((ji - ji.mean()) ** 2))
+        ci_slope = (slope - tcrit * se_slope, slope + tcrit * se_slope)
+        ci_intercept = (intercept - tcrit * se_int, intercept + tcrit * se_int)
+    else:
+        ci_slope = (np.nan, np.nan)
+        ci_intercept = (np.nan, np.nan)
+
     y_pred = slope * x + intercept
-    ss_res = np.sum((y - y_pred)**2)
-    ss_tot = np.sum((y - my)**2)
+    ss_res = np.sum((y - y_pred) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
     r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-    return {"slope": slope, "intercept": intercept, "r2": r2, "n": n,
-            "x_mean": mx, "y_mean": my}
+    return {"slope": slope, "intercept": intercept,
+            "ci_slope": ci_slope, "ci_intercept": ci_intercept,
+            "r2": r2, "n": n, "lambda": lam,
+            "x_mean": float(np.mean(x)), "y_mean": float(np.mean(y))}
 
 
 def cv_from_duplicates(d1, d2):

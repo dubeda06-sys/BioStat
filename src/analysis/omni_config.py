@@ -45,5 +45,14 @@ class OmniConfig:
     # Umbral de "media de diferencias pequeña" relativo al rango (regla de apoyo)
     DIF_CHICA_FRAC: float = 0.05
 
+    # --- Comparación de métodos (CLSI EP09) ---
+    # λ de Deming = razón de varianzas del error analítico X/Y. 1.0 = igual
+    # precisión (Deming ortogonal). Ajustar si se conoce la imprecisión de cada método.
+    DEMING_LAMBDA: float = 1.0
+    # Niveles de decisión médica donde estimar el sesgo desde la recta de
+    # regresión. Vacío => se usan los percentiles P25/P50/P75 de los datos.
+    DECISION_LEVELS: tuple = ()
+    GENERAR_GRAFICOS_COMPARACION: bool = True  # Bland-Altman + regresión (Passing-Bablok/Deming)
+
 
 DEFAULT_CONFIG = OmniConfig()
