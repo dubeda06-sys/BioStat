@@ -58,10 +58,19 @@ def main():
         print(f"ERROR: No se encontro el ejecutable en {exe_path}")
         sys.exit(1)
 
-    # Copiar al escritorio
-    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    if not os.path.exists(desktop):
-        desktop = os.path.join(os.path.expanduser("~"), "Escritorio")
+    # Copiar al escritorio (soporta OneDrive y localizaciones ES/EN)
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "Desktop"),
+        os.path.join(home, "Escritorio"),
+        os.path.join(home, "OneDrive", "Desktop"),
+        os.path.join(home, "OneDrive", "Escritorio"),
+    ]
+    desktop = next((d for d in candidates if os.path.isdir(d)), None)
+
+    if desktop is None:
+        print(f"AVISO: no se encontro el Escritorio. El ejecutable esta en: {exe_path}")
+        return
 
     dest = os.path.join(desktop, "BioStat.exe")
     shutil.copy2(exe_path, dest)

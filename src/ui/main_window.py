@@ -13,6 +13,7 @@ from src.ui.data_panel import DataPanel
 from src.ui.analysis_panel import AnalysisPanel
 from src.ui.graphs_panel import GraphsPanel
 from src.ui.qc_panel import QCPanel
+from src.ui.omni_panel import OmniPanel
 
 
 class MainWindow(QMainWindow):
@@ -164,12 +165,14 @@ class MainWindow(QMainWindow):
         self.analysis_panel = AnalysisPanel()
         self.graphs_panel = GraphsPanel()
         self.qc_panel = QCPanel()
+        self.omni_panel = OmniPanel()
 
         tabs_config = [
             (self.data_panel, "Datos"),
             (self.analysis_panel, "Analisis"),
             (self.graphs_panel, "Graficos"),
             (self.qc_panel, "Control de Calidad"),
+            (self.omni_panel, "Omnianálisis"),
         ]
         for panel, name in tabs_config:
             self.tabs.addTab(panel, name)
@@ -196,6 +199,8 @@ class MainWindow(QMainWindow):
             self.graphs_panel.set_data(data)
         elif index == 3:
             self.qc_panel.set_data(data)
+        elif index == 4:
+            self.omni_panel.set_data(data)
 
     def _run_analysis(self):
         """Ejecuta el analisis seleccionado: empuja datos y cambia a la pestaña Análisis."""
