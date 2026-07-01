@@ -49,7 +49,7 @@ class QCPanel(QWidget):
         top_l.setContentsMargins(0, 0, 0, 0)
         top_l.setSpacing(4)
 
-        cfg = QGroupBox(f"  {Icons.GEAR}  Parametros")
+        cfg = QGroupBox(f"    Parametros")
         cl = QFormLayout()
         cl.setSpacing(6)
         cl.setContentsMargins(8, 8, 8, 8)
@@ -87,11 +87,11 @@ class QCPanel(QWidget):
 
         br = QHBoxLayout()
         br.setSpacing(4)
-        self.btn_run = QPushButton(f"{Icons.RUN} Ejecutar")
+        self.btn_run = QPushButton(f" Ejecutar")
         self.btn_run.setMinimumHeight(32)
         self.btn_run.clicked.connect(self._run)
         br.addWidget(self.btn_run)
-        self.btn_save = QPushButton(f"{Icons.SAVE} Guardar")
+        self.btn_save = QPushButton(f" Guardar")
         self.btn_save.setObjectName("secondary")
         self.btn_save.setMinimumHeight(32)
         self.btn_save.clicked.connect(self._save)
@@ -108,19 +108,19 @@ class QCPanel(QWidget):
 
         hsplitter = QSplitter(Qt.Orientation.Horizontal)
 
-        gb = QGroupBox(f"  {Icons.CHART}  Grafico")
+        gb = QGroupBox(f"    Grafico")
         gl = QVBoxLayout()
         gl.setContentsMargins(6, 4, 6, 4)
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.ph = QLabel(f"<div style='text-align:center;color:#a0a8b8;padding:30px;'>{Icons.CHART} Grafico de control</div>")
+        self.ph = QLabel(f"<div style='text-align:center;color:#a0a8b8;padding:30px;'> Grafico de control</div>")
         self.ph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scroll.setWidget(self.ph)
         gl.addWidget(self.scroll)
         gb.setLayout(gl)
         hsplitter.addWidget(gb)
 
-        rb = QGroupBox(f"  {Icons.DOC}  Resultados")
+        rb = QGroupBox(f"    Resultados")
         rl = QVBoxLayout()
         rl.setContentsMargins(6, 4, 6, 4)
         self.txt = QTextEdit()
@@ -162,7 +162,7 @@ class QCPanel(QWidget):
 
     def _run(self):
         if self.data is None:
-            self.txt.setHtml(f"<div style='color:#d97706;padding:12px;'>{Icons.WARN} <b>Sin datos.</b> Ve a la pestaña <b>Datos</b> para importar o escribir datos de control.</div>")
+            self.txt.setHtml(f"<div style='color:#d97706;padding:12px;'> <b>Sin datos.</b> Ve a la pestaña <b>Datos</b> para importar o escribir datos de control.</div>")
             return
         a = self.combo_analyte.currentText()
         t = self.combo_qc.currentText()
@@ -220,15 +220,15 @@ class QCPanel(QWidget):
         o3 = int(np.sum(np.abs(d.values - m) > 3*s))
         cv = (s/m)*100 if m != 0 else 0
 
-        h = f"<b>{Icons.CHECK} Levey-Jennings — {a}</b><table style='font-size:12px;'>"
+        h = f"<b> Levey-Jennings — {a}</b><table style='font-size:12px;'>"
         for label, v2 in [("Media del control", f"{m:.4f}"), ("SD", f"{s:.4f}"), ("CV%", f"{cv:.2f}%"),
                            ("Mediciones (n)", len(d)), (">2SD (alerta)", o2), (">3SD (rechazo)", o3)]:
             h += self._r(label, v2)
         h += "</table>"
         if v:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'>{Icons.WARN} Violaciones detectadas:</b><br>" + "<br>".join(v) + "<br><br><i>Se recomienda repetir el analisis.</i></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'> Violaciones detectadas:</b><br>" + "<br>".join(v) + "<br><br><i>Se recomienda repetir el analisis.</i></div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK} Sin violaciones</b> — El control esta dentro de los limites aceptables.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Sin violaciones</b> — El control esta dentro de los limites aceptables.</div>"
         self.txt.setHtml(h)
 
     def _wj(self, a):
@@ -239,7 +239,7 @@ class QCPanel(QWidget):
             return
         d, m, s = self._params(a)
         z = (d.values - m) / s if s > 0 else np.zeros(len(d))
-        h = f"<b>{Icons.STATS} Estadisticas de Control — {a}</b><table style='font-size:12px;'>"
+        h = f"<b> Estadisticas de Control — {a}</b><table style='font-size:12px;'>"
         for label, v in [("Mediciones (n)", len(d)), ("Media", f"{d.mean():.4f}"), ("Media del control", f"{m:.4f}"),
                           ("Desviacion estandar", f"{d.std():.4f}"), ("CV%", f"{(d.std()/d.mean())*100:.2f}%"),
                           ("Minimo", f"{d.min():.4f}"), ("Maximo", f"{d.max():.4f}")]:
@@ -251,7 +251,7 @@ class QCPanel(QWidget):
         h += self._r("Entre 2-3SD", f"{int(np.sum((np.abs(z) > 2) & (np.abs(z) <= 3)))} — Precaucion")
         h += self._r("Fuera de 3SD", f"{int(np.sum(np.abs(z) > 3))} — Rechazo")
         h += "</table>"
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>{Icons.INFO} <b>Interpretacion:</b> Un CV% < 5% indica buena precision. Los z-scores deben distribuirse normalmente dentro de ±2SD.</div>"
+        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> <b>Interpretacion:</b> Un CV% < 5% indica buena precision. Los z-scores deben distribuirse normalmente dentro de ±2SD.</div>"
         self.txt.setHtml(h)
 
     def _tr(self, a):
@@ -261,15 +261,15 @@ class QCPanel(QWidget):
         x = np.arange(len(d))
         result = stats.linregress(x, d.values)
         slope, intercept, r, p = result.slope, result.intercept, result.rvalue, result.pvalue
-        h = f"<b>{Icons.CHART} Analisis de Tendencia — {a}</b><table style='font-size:12px;'>"
+        h = f"<b> Analisis de Tendencia — {a}</b><table style='font-size:12px;'>"
         for label, v in [("Pendiente", f"{slope:.6f}"), ("R-cuadrado", f"{r**2:.6f}"), ("Valor p", f"{p:.6f}")]:
             h += self._r(label, v)
         h += "</table>"
         if p < 0.05:
             dd = "creciente" if slope > 0 else "decreciente"
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN} Tendencia {dd} significativa (p < 0.05)</b><br>Los valores del control estan cambiando sistematicamente. Se recomienda recalibrar el metodo.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> Tendencia {dd} significativa (p < 0.05)</b><br>Los valores del control estan cambiando sistematicamente. Se recomienda recalibrar el metodo.</div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK} Sin tendencia significativa</b><br>Los valores del control son estables.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Sin tendencia significativa</b><br>Los valores del control son estables.</div>"
         self.txt.setHtml(h)
 
         fig, ax = plt.subplots(figsize=(9, 5))

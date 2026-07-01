@@ -94,7 +94,7 @@ class DataPanel(QWidget):
         self.table.setToolTip("Escribe directamente aqui o importa un archivo. Las columnas numericas se usan para analisis.")
         layout.addWidget(self.table)
 
-        stats_group = QGroupBox(f"  {Icons.STATS}  Estadisticas automaticas")
+        stats_group = QGroupBox(f"    Estadisticas automaticas")
         stats_layout = QVBoxLayout()
         stats_layout.setContentsMargins(10, 6, 10, 6)
         self.lbl_stats = QLabel("Al cargar o escribir datos numericos, aqui apareceran: media, desviacion estandar, min, max y n.")

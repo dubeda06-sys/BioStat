@@ -389,7 +389,7 @@ class AnalysisMethodsMixin:
             "Media: x̄ = Σxi / n\nDE: s = √(Σ(xi - x̄)² / (n-1))\nSE: SE = s / √n\nIC95%: x̄ ± 1.96 × SE\nCV%: (s / x̄) × 100"
         )
         
-        h = self._h(f"{Icons.STATS()} Descriptivas — {col}")
+        h = self._h(f" Descriptivas — {col}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("n", result['n']), ("Media", f"{result['mean']:.4f}"), ("Mediana", f"{result['median']:.4f}"),
                       ("DE", f"{result['std']:.4f}"), ("Varianza", f"{result['var']:.4f}"),
@@ -420,7 +420,7 @@ class AnalysisMethodsMixin:
             "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipotesis nula)"
         )
         
-        h = self._h(f"{Icons.RUN()} t-test Pareado")
+        h = self._h(f" t-test Pareado")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Var 1", c1), ("Var 2", c2), ("Pares (n)", result['n']),
                       ("Media diff", f"{result['mean_diff']:.4f}"), ("DE diff", f"{result['sd_diff']:.4f}"),
@@ -445,7 +445,7 @@ class AnalysisMethodsMixin:
             "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamano"
         )
         
-        h = self._h(f"{Icons.RUN()} t-test Independiente")
+        h = self._h(f" t-test Independiente")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Grupo 1", c1), ("Grupo 2", c2),
                       ("n1", result['n1']), ("n2", result['n2']),
@@ -465,7 +465,7 @@ class AnalysisMethodsMixin:
         result = anova_oneway(groups)
         self._set_formula("Formula: ANOVA Una Vía", "F = MS_between / MS_within")
         
-        h = self._h(f"{Icons.RUN()} ANOVA una via")
+        h = self._h(f" ANOVA una via")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Grupos", ", ".join(names)), ("F", f"{result['F']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
             h += self._r(l, v)
@@ -491,7 +491,7 @@ class AnalysisMethodsMixin:
             "r = Sum(xi - xbar)(yi - ybar) / Sqrt[Sum(xi - xbar)^2 x Sum(yi - ybar)^2]"
         )
         
-        h = self._h(f"{Icons.CHART()} Pearson")
+        h = self._h(f" Pearson")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']),
                       ("r", f"{result['r']:.4f}"), ("R2", f"{result['r2']:.4f}"),
@@ -513,7 +513,7 @@ class AnalysisMethodsMixin:
         
         self._set_formula("Formula: Spearman", "rho = 1 - (6 × Σd²) / (n × (n² - 1))")
         
-        h = self._h(f"{Icons.CHART()} Spearman")
+        h = self._h(f" Spearman")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']), ("rho", f"{result['rho']:.4f}"), ("p", f"{result['p']:.6f}")]:
             h += self._r(l, v)
@@ -535,15 +535,15 @@ class AnalysisMethodsMixin:
         
         self._set_formula("Formula: Shapiro-Wilk", "W = (Σa_i x_i)² / Σ(x_i - x̄)²")
         
-        h = self._h(f"{Icons.CHECK()} Shapiro-Wilk — {col}")
+        h = self._h(f" Shapiro-Wilk — {col}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("n", result['n']), ("W", f"{result['statistic']:.4f}"), ("p", f"{result['p']:.6f}")]:
             h += self._r(l, v)
         h += "</table>"
         if result['p'] < 0.05:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'>{Icons.WARN()} NO es normal (p<0.05)</b><br>Usa pruebas no parametricas.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'> NO es normal (p<0.05)</b><br>Usa pruebas no parametricas.</div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} Es normal (p>=0.05)</b><br>Puedes usar pruebas parametricas.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Es normal (p>=0.05)</b><br>Puedes usar pruebas parametricas.</div>"
         return h
 
     # --- Curva ROC ---
@@ -568,7 +568,7 @@ class AnalysisMethodsMixin:
         spec_opt = 1 - fpr_opt
         stats_diag = diagnostic_stats(y_true, y_score, opt_t)
 
-        h = self._h(f"{Icons.CHART()} Curva ROC — {score_col}")
+        h = self._h(f" Curva ROC — {score_col}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Variable (score)", score_col), ("Variable (etiqueta)", label_col),
                       ("Observaciones", n), ("AUC", f"{a:.4f}"),
@@ -590,7 +590,7 @@ class AnalysisMethodsMixin:
         else:
             grade = "POBRE"
 
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>{Icons.INFO()} <b>Interpretacion:</b> AUC={a:.3f} = {grade}. AUC=1.0 es perfecto, AUC=0.5 es como azar.</div>"
+        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> <b>Interpretacion:</b> AUC={a:.3f} = {grade}. AUC=1.0 es perfecto, AUC=0.5 es como azar.</div>"
 
         if stats_diag:
             h += "<b style='font-size:12px;'>Matriz de confusion (umbral optimo):</b><table style='font-size:12px;'>"
@@ -632,7 +632,7 @@ class AnalysisMethodsMixin:
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.CHART()} Bland-Altman — {c1} vs {c2}")
+        h = self._h(f" Bland-Altman — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("n", result["n"]),
                       ("Media Metodo 1", f"{result['mean_method1']:.4f}"),
@@ -648,9 +648,9 @@ class AnalysisMethodsMixin:
 
         bias_ok = abs(result["bias_pct"]) < 5
         if bias_ok:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} Sesgo bajo ({result['bias_pct']:.1f}%)</b> — Los metodos son concordantes.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Sesgo bajo ({result['bias_pct']:.1f}%)</b> — Los metodos son concordantes.</div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN()} Sesgo elevado ({result['bias_pct']:.1f}%)</b> — Revisar concordancia.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> Sesgo elevado ({result['bias_pct']:.1f}%)</b> — Revisar concordancia.</div>"
 
         means, diffs = result["means"], result["diffs"]
         fig, ax = plt.subplots(figsize=(9, 6))
@@ -681,7 +681,7 @@ class AnalysisMethodsMixin:
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.CHART()} Passing-Bablok — {c1} vs {c2}")
+        h = self._h(f" Passing-Bablok — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("n", result["n"]),
                       ("Pendiente (b)", f"{result['slope']:.4f}"),
@@ -698,14 +698,14 @@ class AnalysisMethodsMixin:
         intercept_zero = abs(result["intercept"]) < 0.1 * result["method1_mean"]
 
         if slope_incl1 and intercept_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} Metodos concordantes</b><br>Pendiente incluye 1 e intercepto cerca de 0.</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Metodos concordantes</b><br>Pendiente incluye 1 e intercepto cerca de 0.</div>"
         else:
             issues = []
             if not slope_incl1:
                 issues.append(f"pendiente={result['slope']:.3f} (IC no incluye 1)")
             if not intercept_zero:
                 issues.append(f"intercepto={result['intercept']:.3f} (no es ~0)")
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN()} Discordancia detectada</b><br>{'; '.join(issues)}</div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> Discordancia detectada</b><br>{'; '.join(issues)}</div>"
 
         m1, m2 = result["method1"], result["method2"]
         slope, intercept = result["slope"], result["intercept"]
@@ -746,7 +746,7 @@ class AnalysisMethodsMixin:
         if km is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.CHART()} Kaplan-Meier — {time_col}")
+        h = self._h(f" Kaplan-Meier — {time_col}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("n total", km["n_total"]), ("Eventos", km["n_events"]),
                       ("Censurados", km["n_censored"]),
@@ -755,7 +755,7 @@ class AnalysisMethodsMixin:
         if km["median_survival"] is not None:
             h += self._r("Supervivencia mediana", f"{km['median_survival']:.2f}")
         h += "</table>"
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>{Icons.INFO()} <b>Interpretacion:</b> La curva muestra la probabilidad de supervivencia en cada tiempo. La mediana es el tiempo donde el 50% sobrevive.</div>"
+        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> <b>Interpretacion:</b> La curva muestra la probabilidad de supervivencia en cada tiempo. La mediana es el tiempo donde el 50% sobrevive.</div>"
 
         fig, ax = plt.subplots(figsize=(9, 6))
         ax.step(km["times"], km["survival"], where='post', color='#4f6ef7', lw=2)
@@ -797,7 +797,7 @@ class AnalysisMethodsMixin:
         km1 = kaplan_meier(t1.values, e1.values.astype(int))
         km2 = kaplan_meier(t2.values, e2.values.astype(int))
 
-        h = self._h(f"{Icons.RUN()} Log-rank Test")
+        h = self._h(f" Log-rank Test")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Grupo 1", f"{groups[0]} (n={len(t1)})"),
                       ("Grupo 2", f"{groups[1]} (n={len(t2)})"),
@@ -838,7 +838,7 @@ class AnalysisMethodsMixin:
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.STATS()} Meta-analisis")
+        h = self._h(f" Meta-analisis")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Estudios (k)", result["k"]),
                       ("Modelo", result["model"]),
@@ -853,11 +853,11 @@ class AnalysisMethodsMixin:
         h += "</table>"
 
         if result['i2'] < 25:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} Baja heterogeneidad (I2={result['i2']:.0f}%)</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Baja heterogeneidad (I2={result['i2']:.0f}%)</b></div>"
         elif result['i2'] < 75:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN()} Heterogeneidad moderada (I2={result['i2']:.0f}%)</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> Heterogeneidad moderada (I2={result['i2']:.0f}%)</b></div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'>{Icons.WARN()} Heterogeneidad alta (I2={result['i2']:.0f}%)</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'> Heterogeneidad alta (I2={result['i2']:.0f}%)</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, max(3, result["k"] * 0.6 + 1)))
         y_pos = range(result["k"])
@@ -878,9 +878,9 @@ class AnalysisMethodsMixin:
 
     # --- Tamano muestral (1 media) ---
     def _ss_mean(self):
-        h = self._h(f"{Icons.STATS()} Tamano Muestral — 1 media")
+        h = self._h(f" Tamano Muestral — 1 media")
         h += "<div style='padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;margin-bottom:12px;'>"
-        h += f"{Icons.INFO()} Calcula cuantas observaciones necesitas para detectar una diferencia dada."
+        h += f" Calcula cuantas observaciones necesitas para detectar una diferencia dada."
         h += "</div>"
         h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
         h += "<b>Formula:</b> n = ((Z_alpha + Z_beta) × SD / delta)²<br><br>"
@@ -889,13 +889,13 @@ class AnalysisMethodsMixin:
         h += f"<b>n = {r['n_per_group']} observaciones</b> (tamano de efecto d={r['effect_size']:.2f})"
         h += "</div>"
         h += "<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>"
-        h += f"{Icons.INFO()} <b>Tip:</b> Para tu propio calculo, usa: sample_size_mean(delta, sd, alpha, power)"
+        h += f" <b>Tip:</b> Para tu propio calculo, usa: sample_size_mean(delta, sd, alpha, power)"
         h += "</div>"
         return h
 
     # --- Tamano muestral (2 medias) ---
     def _ss_two_means(self):
-        h = self._h(f"{Icons.STATS()} Tamano Muestral — 2 medias")
+        h = self._h(f" Tamano Muestral — 2 medias")
         r = sample_size_two_means(5, 10)
         h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
         h += "<b>Formula:</b> n = ((Z_alpha + Z_beta) × SD / delta)² × (1 + 1/ratio)<br><br>"
@@ -906,7 +906,7 @@ class AnalysisMethodsMixin:
 
     # --- Tamano muestral (2 proporciones) ---
     def _ss_prop(self):
-        h = self._h(f"{Icons.STATS()} Tamano Muestral — 2 proporciones")
+        h = self._h(f" Tamano Muestral — 2 proporciones")
         r = sample_size_proportions(0.3, 0.5)
         h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
         h += "<b>Formula:</b> basada en la prueba Z para diferencias de proporciones<br><br>"
@@ -917,7 +917,7 @@ class AnalysisMethodsMixin:
 
     # --- Poder estadistico ---
     def _power(self):
-        h = self._h(f"{Icons.STATS()} Poder Estadistico")
+        h = self._h(f" Poder Estadistico")
         r = power_analysis(100, 5, 10)
         h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
         h += "Calcula la probabilidad de detectar un efecto real dado un tamano de muestra.<br><br>"
@@ -925,7 +925,7 @@ class AnalysisMethodsMixin:
         h += f"<b>Poder = {r['power']:.1%}</b> (tamano de efecto d={r['effect_size']:.2f})"
         h += "</div>"
         h += "<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>"
-        h += f"{Icons.INFO()} <b>Interpretacion:</b> Un poder >= 80% (0.80) es generalmente aceptable."
+        h += f" <b>Interpretacion:</b> Un poder >= 80% (0.80) es generalmente aceptable."
         h += "</div>"
         return h
 
@@ -947,7 +947,7 @@ class AnalysisMethodsMixin:
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.STATS()} Bootstrap — Media de {col}")
+        h = self._h(f" Bootstrap — Media de {col}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("n original", result["n_original"]),
                       ("Media original", f"{result['original_mean']:.6f}"),
@@ -958,7 +958,7 @@ class AnalysisMethodsMixin:
                       ("Remuestreos", result["n_bootstrap"])]:
             h += self._r(l, v)
         h += "</table>"
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>{Icons.INFO()} Bootstrap no asume distribucion normal. El IC se obtiene directamente de la distribucion de medias remuestreadas.</div>"
+        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> Bootstrap no asume distribucion normal. El IC se obtiene directamente de la distribucion de medias remuestreadas.</div>"
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
         ax1.hist(d.values, bins=30, edgecolor='white', alpha=0.7, color='#4f6ef7')
@@ -995,7 +995,7 @@ class AnalysisMethodsMixin:
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.STATS()} Bootstrap — Diferencia {c1} - {c2}")
+        h = self._h(f" Bootstrap — Diferencia {c1} - {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Diferencia original", f"{result['original_diff']:.4f}"),
                       ("Diferencia bootstrap", f"{result['bootstrap_diff']:.4f}"),
@@ -1006,9 +1006,9 @@ class AnalysisMethodsMixin:
 
         includes_zero = result['ci_lower'] <= 0 <= result['ci_upper']
         if includes_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN()} IC incluye 0 — Sin diferencia significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> IC incluye 0 — Sin diferencia significativa</b></div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} IC NO incluye 0 — Diferencia significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> IC NO incluye 0 — Diferencia significativa</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.hist(result['bootstrap_distribution'], bins=50, edgecolor='white', alpha=0.7, color='#4f6ef7')
@@ -1041,7 +1041,7 @@ class AnalysisMethodsMixin:
         if result is None:
             return "<b>Error:</b> No se pudo calcular."
 
-        h = self._h(f"{Icons.CHART()} Bootstrap — Correlacion")
+        h = self._h(f" Bootstrap — Correlacion")
         h += "<table style='font-size:12px;'>"
         for l, v in [("r original", f"{result['original_r']:.6f}"),
                       ("r bootstrap", f"{result['bootstrap_r']:.6f}"),
@@ -1053,9 +1053,9 @@ class AnalysisMethodsMixin:
 
         includes_zero = result['ci_lower'] <= 0 <= result['ci_upper']
         if includes_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN()} IC incluye 0 — Sin correlacion significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> IC incluye 0 — Sin correlacion significativa</b></div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} IC NO incluye 0 — Correlacion significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> IC NO incluye 0 — Correlacion significativa</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.hist(result['bootstrap_distribution'], bins=50, edgecolor='white', alpha=0.7, color='#8b5cf6')
@@ -1105,7 +1105,7 @@ class AnalysisMethodsMixin:
         acc = rf.score(X, y)
         importances = rf.get_feature_importance()
 
-        h = self._h(f"{Icons.STATS()} Random Forest — Clasificacion")
+        h = self._h(f" Random Forest — Clasificacion")
         h += "<table style='font-size:12px;'>"
         h += self._r("Target", target_col)
         h += self._r("Features", len(nums))
@@ -1167,7 +1167,7 @@ class AnalysisMethodsMixin:
         rmse = np.sqrt(np.mean((y - y_pred)**2))
         mae = np.mean(np.abs(y - y_pred))
 
-        h = self._h(f"{Icons.STATS()} Random Forest — Regresion")
+        h = self._h(f" Random Forest — Regresion")
         h += "<table style='font-size:12px;'>"
         h += self._r("Target", target_col)
         h += self._r("Features", len(nums))
@@ -1211,7 +1211,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Mann-Whitney U", "U = n1*n2 + n1*(n1+1)/2 - R1\nDonde R1 = suma de rangos del grupo 1", f"U = {r['u']:.1f}\np = {r['p']:.6f}\nn1={r['n1']}, n2={r['n2']}")
-        h = self._h(f"{Icons.RUN()} Mann-Whitney U — {c1} vs {c2}")
+        h = self._h(f" Mann-Whitney U — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Grupo 1", f"{c1} (n={r['n1']}, mediana={r['median1']:.2f})"),
                       ("Grupo 2", f"{c2} (n={r['n2']}, mediana={r['median2']:.2f})"),
@@ -1229,7 +1229,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> Minimo 5 pares con diferencias != 0."
         self._set_formula("Formula: Wilcoxon Signed-Rank", "W = suma de rangos de |diferencias| con signo", f"W = {r['w']:.1f}\np = {r['p']:.6f}\nn = {r['n']}")
-        h = self._h(f"{Icons.RUN()} Wilcoxon — {c1} vs {c2}")
+        h = self._h(f" Wilcoxon — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Pares (n)", r['n']), ("W", f"{r['w']:.1f}"), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
@@ -1260,7 +1260,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Chi-cuadrado", "X2 = Sum((O-E)^2 / E)\nE = (fila_total * col_total) / n_total", f"X2 = {r['chi2']:.4f}\np = {r['p']:.6f}\ndf = {r['df']}")
-        h = self._h(f"{Icons.RUN()} Chi-cuadrado")
+        h = self._h(f" Chi-cuadrado")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Chi2", f"{r['chi2']:.4f}"), ("p", f"{r['p']:.6f}"), ("df", r['df'])]:
             h += self._r(l, v)
@@ -1277,7 +1277,7 @@ class AnalysisMethodsMixin:
         a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
         r = fisher_exact_test(a, b, c, d)
         self._set_formula("Formula: Fisher Exact", "P = (a+b)!(c+d)!(a+c)!(b+d)! / (a!b!c!d!n!)", f"OR = {r['odds_ratio']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} Fisher Exact")
+        h = self._h(f" Fisher Exact")
         h += "<table style='font-size:12px;'>"
         for l, v in [("OR", f"{r['odds_ratio']:.4f}"), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
@@ -1294,7 +1294,7 @@ class AnalysisMethodsMixin:
         b, c = int(table[0, 1]), int(table[1, 0])
         r = mcnemar_test(b, c)
         self._set_formula("Formula: McNemar", "X2 = (|b-c|-1)^2 / (b+c)", f"b={b}, c={c}\nX2 = {r['chi2']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} McNemar")
+        h = self._h(f" McNemar")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Discordantes b", b), ("Discordantes c", c), ("Chi2", f"{r['chi2']:.4f}"), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
@@ -1310,7 +1310,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Kruskal-Wallis", "H = (12/n(n+1)) * Sum(Ri^2/ni) - 3(n+1)", f"H = {r['h']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} Kruskal-Wallis")
+        h = self._h(f" Kruskal-Wallis")
         h += "<table style='font-size:12px;'>"
         for l, v in [("H", f"{r['h']:.4f}"), ("p", f"{r['p']:.6f}"), ("Grupos", r['k'])]:
             h += self._r(l, v)
@@ -1326,7 +1326,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Friedman", "X2r = (12/nk(k+1)) * Sum(Rj^2) - 3n(k+1)", f"X2 = {r['chi2']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} Friedman")
+        h = self._h(f" Friedman")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Chi2", f"{r['chi2']:.4f}"), ("p", f"{r['p']:.6f}"), ("k", r['k'])]:
             h += self._r(l, v)
@@ -1343,7 +1343,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: F-test", "F = s1^2 / s2^2 (mayor/menor)", f"F = {r['f']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} F-test — {c1} vs {c2}")
+        h = self._h(f" F-test — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("DE 1", f"{r['sd1']:.4f}"), ("DE 2", f"{r['sd2']:.4f}"),
                       ("F", f"{r['f']:.4f}"), ("p", f"{r['p']:.6f}")]:
@@ -1368,7 +1368,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Kappa de Cohen", "K = (Po - Pe) / (1 - Pe)", f"Kappa = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
-        h = self._h(f"{Icons.RUN()} Kappa de Cohen")
+        h = self._h(f" Kappa de Cohen")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Kappa", f"{r['kappa']:.4f}"), ("Fuerza", r['strength']), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
@@ -1387,7 +1387,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: ICC", "ICC = (MS_rows - MS_error) / (MS_rows + (k-1)*MS_error)", f"ICC = {r['icc']:.4f}\nF = {r['f']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} ICC — {c1} vs {c2}")
+        h = self._h(f" ICC — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("ICC", f"{r['icc']:.4f}"), ("F", f"{r['f']:.4f}"), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
@@ -1403,7 +1403,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Alfa de Cronbach", "a = (k/(k-1)) * (1 - Sum(var_i)/var_total)", f"Alfa = {r['alpha']:.4f}\nk = {r['n_items']}")
-        h = self._h(f"{Icons.RUN()} Alfa de Cronbach")
+        h = self._h(f" Alfa de Cronbach")
         h += "<table style='font-size:12px;'>"
         h += self._r("Alfa", f"{r['alpha']:.4f}")
         h += self._r("Items", r['n_items'])
@@ -1420,7 +1420,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> Minimo 3 datos."
         self._set_formula("Formula: Regresion Lineal", "y = b0 + b1*x\nb1 = S(x-xbar)(y-ybar) / S(x-xbar)^2", f"y = {r['intercept']:.4f} + {r['slope']:.4f}*x\nR2 = {r['r2']:.4f}\np = {r['p_slope']:.6f}")
-        h = self._h(f"{Icons.CHART()} Regresion Lineal — {c1} vs {c2}")
+        h = self._h(f" Regresion Lineal — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Pendiente", f"{r['slope']:.4f}"), ("Intercepto", f"{r['intercept']:.4f}"),
                       ("R2", f"{r['r2']:.4f}"), ("p", f"{r['p_slope']:.6f}"), ("n", r['n'])]:
@@ -1449,7 +1449,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Regresion Multiple", "y = b0 + b1*x1 + b2*x2 + ...\nBeta = (X'X)^-1 X'Y", f"R2 = {r['r2']:.4f}\nR2 adj = {r['r2_adj']:.4f}\nF = {r['f']:.4f}")
-        h = self._h(f"{Icons.CHART()} Regresion Multiple — {target}")
+        h = self._h(f" Regresion Multiple — {target}")
         h += "<table style='font-size:12px;'>"
         h += self._r("R2", f"{r['r2']:.4f}")
         h += self._r("R2 ajustado", f"{r['r2_adj']:.4f}")
@@ -1480,7 +1480,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Regresion Logistica", "ln(p/(1-p)) = b0 + b1*x1 + ...\nOR = exp(b)", f"Accuracy = {r['accuracy']:.4f}\nAIC = {r['aic']:.2f}")
-        h = self._h(f"{Icons.RUN()} Regresion Logistica — {target}")
+        h = self._h(f" Regresion Logistica — {target}")
         h += "<table style='font-size:12px;'>"
         h += self._r("Accuracy", f"{r['accuracy']:.4f}")
         h += self._r("AIC", f"{r['aic']:.2f}")
@@ -1502,7 +1502,7 @@ class AnalysisMethodsMixin:
         a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
         r = odds_ratio(a, b, c, d)
         self._set_formula("Formula: Odds Ratio", "OR = (a*d)/(b*c)\nSE(ln OR) = sqrt(1/a+1/b+1/c+1/d)", f"OR = {r['or']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.RUN()} Odds Ratio")
+        h = self._h(f" Odds Ratio")
         h += "<table style='font-size:12px;'>"
         for l, v in [("OR", f"{r['or']:.4f}"), ("IC 95%", f"[{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]"), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
@@ -1521,7 +1521,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Riesgo Relativo", "RR = (a/(a+b)) / (c/(c+d))\nNNT = 1/ARR", f"RR = {r['rr']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\nNNT = {r['nnt']:.1f}")
-        h = self._h(f"{Icons.RUN()} Riesgo Relativo")
+        h = self._h(f" Riesgo Relativo")
         h += "<table style='font-size:12px;'>"
         for l, v in [("RR", f"{r['rr']:.4f}"), ("IC 95%", f"[{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]"), ("NNT", f"{r['nnt']:.1f}")]:
             h += self._r(l, v)
@@ -1538,7 +1538,7 @@ class AnalysisMethodsMixin:
         a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
         r = diagnostic_test(a, b, c, d)
         self._set_formula("Formula: Prueba Diagnostica", "Sens=a/(a+c), Spec=d/(b+d)\nPPV=a/(a+b), NPV=d/(c+d)", f"Sens={r['sens']:.4f}, Spec={r['spec']:.4f}\nPPV={r['ppv']:.4f}, NPV={r['npv']:.4f}")
-        h = self._h(f"{Icons.RUN()} Prueba Diagnostica")
+        h = self._h(f" Prueba Diagnostica")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Sensibilidad", f"{r['sens']:.4f}"), ("Especificidad", f"{r['spec']:.4f}"),
                       ("VPP", f"{r['ppv']:.4f}"), ("VPN", f"{r['npv']:.4f}"),
@@ -1555,7 +1555,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> Minimo 5 datos."
         self._set_formula("Formula: Grubbs", "G = |xi - xbar| / s", f"G = {r['g']:.4f}\nG critico = {r['g_crit']:.4f}\nOutlier: {r['outlier_value']:.4f}")
-        h = self._h(f"{Icons.WARN()} Outliers — Grubbs ({col})")
+        h = self._h(f" Outliers — Grubbs ({col})")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Valor", f"{r['outlier_value']:.4f}"), ("G", f"{r['g']:.4f}"),
                       ("G critico", f"{r['g_crit']:.4f}"), ("Es outlier?", "SI" if r['is_outlier'] else "NO")]:
@@ -1571,7 +1571,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> Minimo 4 datos."
         self._set_formula("Formula: Tukey", "Lim interno: Q1-1.5*IQR, Q3+1.5*IQR\nLim externo: Q1-3*IQR, Q3+3*IQR", f"IQR = {r['iqr']:.4f}\nSuaves: {r['n_mild']}\nExtremos: {r['n_extreme']}")
-        h = self._h(f"{Icons.WARN()} Outliers — Tukey ({col})")
+        h = self._h(f" Outliers — Tukey ({col})")
         h += "<table style='font-size:12px;'>"
         h += self._r("IQR", f"{r['iqr']:.4f}")
         h += self._r("Outliers suaves", f"{r['n_mild']}")
@@ -1592,7 +1592,7 @@ class AnalysisMethodsMixin:
         if ri is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Intervalo de Referencia", "Basado en percentiles 2.5 y 97.5\nIC via bootstrap", f"Limite inf (2.5%): {ri['lower']:.4f}\nLimite sup (97.5%): {ri['upper']:.4f}")
-        h = self._h(f"{Icons.STATS()} Intervalos de Referencia — {col}")
+        h = self._h(f" Intervalos de Referencia — {col}")
         h += "<table style='font-size:12px;'>"
         h += self._r("Limite inferior (2.5%)", f"{ri['lower']:.4f}")
         h += self._r("Limite superior (97.5%)", f"{ri['upper']:.4f}")
@@ -1611,7 +1611,7 @@ class AnalysisMethodsMixin:
         if sk is None or ku is None:
             return "<b>Error:</b> Minimo 8 datos."
         self._set_formula("Formula: Asimetria y Curtosis", "Sesgo = E[(x-mu)^3]/sigma^3\nCurtosis = E[(x-mu)^4]/sigma^4 - 3", f"Sesgo = {sk['skewness']:.4f} (p={sk['p']:.4f})\nCurtosis = {ku['kurtosis']:.4f} (p={ku['p']:.4f})")
-        h = self._h(f"{Icons.STATS()} Asimetria y Curtosis — {col}")
+        h = self._h(f" Asimetria y Curtosis — {col}")
         h += "<table style='font-size:12px;'>"
         h += self._r("Asimetria", f"{sk['skewness']:.4f} (p={sk['p']:.4f})")
         h += self._r("Curtosis", f"{ku['kurtosis']:.4f} (p={ku['p']:.4f})")
@@ -1627,7 +1627,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> Minimo 5 datos."
         self._set_formula("Formula: Media Recortada", "Recortar 10% superior e inferior", f"Media original = {np.mean(d.values):.4f}\nMedia recortada = {r['mean']:.4f}\nSE = {r['se']:.4f}")
-        h = self._h(f"{Icons.STATS()} Media Recortada (10%) — {col}")
+        h = self._h(f" Media Recortada (10%) — {col}")
         h += "<table style='font-size:12px;'>"
         h += self._r("Media original", f"{np.mean(d.values):.4f}")
         h += self._r("Media recortada", f"{r['mean']:.4f}")
@@ -1648,7 +1648,7 @@ class AnalysisMethodsMixin:
         if r is None:
             return "<b>Error:</b> No se pudo calcular."
         self._set_formula("Formula: Correlacion Parcial", "r_xy.z = (r_xy - r_xz*r_yz) / sqrt((1-r_xz^2)(1-r_yz^2))", f"r = {r['r_partial']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f"{Icons.CHART()} Correlacion Parcial — {c1}, {c2} | {c3}")
+        h = self._h(f" Correlacion Parcial — {c1}, {c2} | {c3}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("r parcial", f"{r['r_partial']:.4f}"), ("p", f"{r['p']:.6f}"), ("df", r['df'])]:
             h += self._r(l, v)
@@ -1666,7 +1666,7 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> La media geométrica requiere datos positivos."
                 result = geometric_mean(d)
                 self._set_formula("Formula: Media Geométrica", "GM = (x1 × x2 × ... × xn)^(1/n)")
-                h = self._h(f"{Icons.CHART()} Media Geométrica — {c1}")
+                h = self._h(f" Media Geométrica — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Resultado", f"{result:.4f}")
                 h += self._r("n", len(d))
@@ -1680,7 +1680,7 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> La media armónica requiere datos positivos."
                 result = harmonic_mean(d)
                 self._set_formula("Formula: Media Armónica", "HM = n / (1/x1 + 1/x2 + ... + 1/xn)")
-                h = self._h(f"{Icons.CHART()} Media Armónica — {c1}")
+                h = self._h(f" Media Armónica — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Resultado", f"{result:.4f}")
                 h += self._r("n", len(d))
@@ -1692,7 +1692,7 @@ class AnalysisMethodsMixin:
                 d = self.data[c1].dropna()
                 result = ttest_1sample(d, mu=0)
                 self._set_formula("Formula: t-test 1 Muestra", "t = (x̄ - μ₀) / (s / √n)")
-                h = self._h(f"{Icons.CHART()} t-test 1 Muestra — {c1}")
+                h = self._h(f" t-test 1 Muestra — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("t", f"{result['t']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1706,7 +1706,7 @@ class AnalysisMethodsMixin:
                 groups = [self.data.iloc[:, i].dropna().values for i in range(self.data.shape[1])]
                 result = anova_oneway(groups)
                 self._set_formula("Formula: ANOVA Una Vía", "F = MS_between / MS_within")
-                h = self._h(f"{Icons.CHART()} ANOVA Una Vía (Core)")
+                h = self._h(f" ANOVA Una Vía (Core)")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("F", f"{result['F']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1723,7 +1723,7 @@ class AnalysisMethodsMixin:
                 d2 = self.data[c2].dropna()
                 result = sign_test(d1, d2)
                 self._set_formula("Formula: Sign Test", "p = Σ C(n,k) × 0.5^n para k ≤ observados")
-                h = self._h(f"{Icons.CHART()} Sign Test — {c1} vs {c2}")
+                h = self._h(f" Sign Test — {c1} vs {c2}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Estadístico", f"{result['statistic']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1734,7 +1734,7 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> Se necesitan al menos 2 columnas."
                 result = cochran_q(self.data.values)
                 self._set_formula("Formula: Cochran Q", "Q = (k-1) × [k×ΣC² - T²] / [k×T - ΣR²]")
-                h = self._h(f"{Icons.CHART()} Cochran Q")
+                h = self._h(f" Cochran Q")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Q", f"{result['Q']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1756,7 +1756,7 @@ class AnalysisMethodsMixin:
                     matrix[i][j] += 1
                 result = weighted_kappa(matrix)
                 self._set_formula("Formula: Kappa Ponderado", "κ_w = 1 - (Σ w_ij × O_ij) / (Σ w_ij × E_ij)")
-                h = self._h(f"{Icons.CHART()} Kappa Ponderado")
+                h = self._h(f" Kappa Ponderado")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Kappa ponderado", f"{result['kappa']:.4f}")
                 h += self._r("Acuerdo observado (po)", f"{result['po']:.4f}")
@@ -1775,7 +1775,7 @@ class AnalysisMethodsMixin:
                 x, y = x[:min_len], y[:min_len]
                 result = deming_regression(x, y)
                 self._set_formula("Formula: Deming Regression", "y = β₀ + β₁x (ajustada para error en ambas variables)")
-                h = self._h(f"{Icons.CHART()} Deming Regression — {c1} vs {c2}")
+                h = self._h(f" Deming Regression — {c1} vs {c2}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Pendiente", f"{result['slope']:.4f}")
                 h += self._r("Intercepto", f"{result['intercept']:.4f}")
@@ -1793,7 +1793,7 @@ class AnalysisMethodsMixin:
                 d1, d2 = d1[:min_len], d2[:min_len]
                 result = cv_from_duplicates(d1, d2)
                 self._set_formula("Formula: CV desde Duplicatas", "CV = (DE / Media) × 100%")
-                h = self._h(f"{Icons.CHART()} CV desde Duplicatas")
+                h = self._h(f" CV desde Duplicatas")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("CV duplicados", f"{result['cv_dup']:.2f}%")
                 h += self._r("Media", f"{result['mean_cv']:.4f}")
@@ -1809,7 +1809,7 @@ class AnalysisMethodsMixin:
                 d = int(self.data.iloc[1, 1])
                 result = likelihood_ratios(a, b, c, d)
                 self._set_formula("Formula: Likelihood Ratios", "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec")
-                h = self._h(f"{Icons.CHART()} Likelihood Ratios")
+                h = self._h(f" Likelihood Ratios")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("LR+", f"{result['plr']:.4f}")
                 if result.get('ci_plr'):
@@ -1830,7 +1830,7 @@ class AnalysisMethodsMixin:
                 n2 = int(self.data.iloc[5, 0])
                 result = compare_two_means(m1, sd1, n1, m2, sd2, n2)
                 self._set_formula("Formula: Comparar 2 Medias", "t = (m1 - m2) / √(sd1²/n1 + sd2²/n2)")
-                h = self._h(f"{Icons.CHART()} Comparar 2 Medias")
+                h = self._h(f" Comparar 2 Medias")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("t", f"{result['t']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1846,7 +1846,7 @@ class AnalysisMethodsMixin:
                 n2 = int(self.data.iloc[3, 0])
                 result = compare_two_proportions(p1, n1, p2, n2)
                 self._set_formula("Formula: Comparar 2 Proporciones", "z = (p1 - p2) / √(p̂(1-p̂)(1/n1 + 1/n2))")
-                h = self._h(f"{Icons.CHART()} Comparar 2 Proporciones")
+                h = self._h(f" Comparar 2 Proporciones")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("z", f"{result['z']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1864,7 +1864,7 @@ class AnalysisMethodsMixin:
                 n2 = int(self.data.iloc[5, 0])
                 result = compare_two_auc(auc1, se1, n1, auc2, se2, n2)
                 self._set_formula("Formula: Comparar 2 AUC", "z = (AUC1 - AUC2) / √(SE1² + SE2²)")
-                h = self._h(f"{Icons.CHART()} Comparar 2 AUC")
+                h = self._h(f" Comparar 2 AUC")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("z", f"{result['z']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
@@ -1876,7 +1876,7 @@ class AnalysisMethodsMixin:
                 d = self.data[c1].dropna()
                 result = percentile_table(d)
                 self._set_formula("Formula: Percentiles", "P_k = valor en posición k×(n+1)/100")
-                h = self._h(f"{Icons.CHART()} Tabla de Percentiles — {c1}")
+                h = self._h(f" Tabla de Percentiles — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += "<tr><th>Percentil</th><th>Valor</th><th>95% CI</th></tr>"
                 for row in result['percentiles']:
@@ -1896,7 +1896,7 @@ class AnalysisMethodsMixin:
                 ages, values = ages[:min_len], values[:min_len]
                 result = age_related_reference(ages, values)
                 self._set_formula("Formula: Intervalos por Edad", "Intervalos basados en percentiles por grupo de edad")
-                h = self._h(f"{Icons.CHART()} Intervalos de Referencia por Edad")
+                h = self._h(f" Intervalos de Referencia por Edad")
                 h += "<table style='font-size:12px;'>"
                 if not result['groups']:
                     h += "<tr><td>Sin grupos de edad con n suficiente (≥5).</td></tr>"
@@ -1913,7 +1913,7 @@ class AnalysisMethodsMixin:
                 d = self.data[c1].dropna().values
                 result = generalized_esd(d, max_outliers=10, alpha=0.05)
                 self._set_formula("Formula: ESD Generalizado", "R_i = |x_i - x̄| / s")
-                h = self._h(f"{Icons.CHART()} Test ESD Generalizado — {c1}")
+                h = self._h(f" Test ESD Generalizado — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Outliers encontrados", result['n_outliers'])
                 if result['outliers']:
@@ -1927,7 +1927,7 @@ class AnalysisMethodsMixin:
                 d = self.data[c1].dropna().values
                 result = bootstrap_median(d)
                 self._set_formula("Formula: Bootstrap Mediana", "IC = percentiles de la distribución bootstrap")
-                h = self._h(f"{Icons.CHART()} Bootstrap (Mediana) — {c1}")
+                h = self._h(f" Bootstrap (Mediana) — {c1}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Mediana", f"{result['original_median']:.4f}")
                 h += self._r("Mediana bootstrap", f"{result['bootstrap_median']:.4f}")
@@ -1945,7 +1945,7 @@ class AnalysisMethodsMixin:
                 x, y = x[:min_len], y[:min_len]
                 result = bootstrap_regression(x, y)
                 self._set_formula("Formula: Bootstrap Regresión", "IC para coeficientes de regresión")
-                h = self._h(f"{Icons.CHART()} Bootstrap (Regresión) — {c1} vs {c2}")
+                h = self._h(f" Bootstrap (Regresión) — {c1} vs {c2}")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Pendiente", f"{result['original_slope']:.4f}")
                 h += self._r("95% CI pendiente", f"[{result['ci_slope'][0]:.4f}, {result['ci_slope'][1]:.4f}]")
@@ -1961,7 +1961,7 @@ class AnalysisMethodsMixin:
                 r = abs(r_result['r'])
                 result = sample_size_correlation(r)
                 self._set_formula("Formula: Tamaño Muestral (Correlación)", "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3")
-                h = self._h(f"{Icons.CHART()} Tamaño Muestral (Correlación)")
+                h = self._h(f" Tamaño Muestral (Correlación)")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("r observado", f"{r:.4f}")
                 h += self._r("n necesario", result['n'])
@@ -1987,7 +1987,7 @@ class AnalysisMethodsMixin:
             if result is None:
                 return "<b>Error:</b> Datos insuficientes o sin réplicas por celda para estimar el error."
             self._set_formula("Formula: ANOVA Dos Vías", "y ~ C(A) + C(B) + C(A):C(B) (suma de cuadrados tipo II)")
-            h = self._h(f"{Icons.CHART()} ANOVA Dos Vías — {c1} por {c2} × {c3}")
+            h = self._h(f" ANOVA Dos Vías — {c1} por {c2} × {c3}")
             h += "<table style='font-size:12px;'>"
             h += self._r("Factor A", f"F={result['F_A']:.4f}, p={result['p_A']:.4f}, gl={result['df_A']}")
             h += self._r("Factor B", f"F={result['F_B']:.4f}, p={result['p_B']:.4f}, gl={result['df_B']}")
@@ -2007,7 +2007,7 @@ class AnalysisMethodsMixin:
             sub = self.data[[c1, c2, c3]].dropna()
             result = ancova(sub[c1].values, sub[c2].values, sub[c3].values)
             self._set_formula("Formula: ANCOVA", "F = MS_group / MS_error (ajustado por covariable)")
-            h = self._h(f"{Icons.CHART()} ANCOVA — {c1} por {c2} | {c3}")
+            h = self._h(f" ANCOVA — {c1} por {c2} | {c3}")
             h += "<table style='font-size:12px;'>"
             h += self._r("Factor", f"F={result['F']:.4f}, p={result['p']:.6f}, gl={result['df_group']}")
             h += self._r("Covariable", f"F={result['F_covariate']:.4f}, p={result['p_covariate']:.6f}")
@@ -2024,7 +2024,7 @@ class AnalysisMethodsMixin:
         try:
             result = repeated_measures_anova(self.data.values)
             self._set_formula("Formula: Medidas Repetidas", "F = MS_time / MS_error (con corrección GG)")
-            h = self._h(f"{Icons.CHART()} ANOVA Medidas Repetidas")
+            h = self._h(f" ANOVA Medidas Repetidas")
             h += "<table style='font-size:12px;'>"
             h += self._r("F", f"{result['F']:.4f}")
             h += self._r("p", f"{result['p']:.6f}")
@@ -2050,7 +2050,7 @@ class AnalysisMethodsMixin:
             min_len = min(len(times), len(events), covariates.shape[0])
             result = cox_regression(times[:min_len], events[:min_len], covariates[:min_len])
             self._set_formula("Formula: Cox PH", "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)")
-            h = self._h(f"{Icons.CHART()} Cox Regression")
+            h = self._h(f" Cox Regression")
             h += "<table style='font-size:12px;'>"
             h += self._r("n", result['n'])
             h += self._r("Eventos", result['events'])
@@ -2074,7 +2074,7 @@ class AnalysisMethodsMixin:
             min_len = min(len(X), len(y))
             result = probit_regression(X[:min_len], y[:min_len])
             self._set_formula("Formula: Probit", "P(Y=1) = Φ(β₀ + β₁x)")
-            h = self._h(f"{Icons.CHART()} Probit Regression — {c1} → {c2}")
+            h = self._h(f" Probit Regression — {c1} → {c2}")
             h += "<table style='font-size:12px;'>"
             h += self._r("n", result['n'])
             h += self._r("Log-likelihood", f"{result['log_likelihood']:.4f}")
@@ -2093,7 +2093,7 @@ class AnalysisMethodsMixin:
             tables = self.data.values.reshape(-1, 2, 2)
             result = cmh_test(tables)
             self._set_formula("Formula: CMH", "CMH = (Σ(a - n1m1/n))² / Σ(var)")
-            h = self._h(f"{Icons.CHART()} Cochran-Mantel-Haenszel")
+            h = self._h(f" Cochran-Mantel-Haenszel")
             h += "<table style='font-size:12px;'>"
             h += self._r("CMH", f"{result['cmh_statistic']:.4f}")
             h += self._r("p", f"{result['p_value']:.6f}")
@@ -2111,7 +2111,7 @@ class AnalysisMethodsMixin:
         try:
             result = serial_measurements_summary(self.data.values)
             self._set_formula("Formula: Mediciones Seriales", "Resumen de medias, SD y pendientes por sujeto")
-            h = self._h(f"{Icons.CHART()} Mediciones Seriales")
+            h = self._h(f" Mediciones Seriales")
             h += "<table style='font-size:12px;'>"
             h += self._r("Sujetos", result['n_subjects'])
             h += self._r("Mediciones", result['n_timepoints'])
@@ -2144,7 +2144,7 @@ class AnalysisMethodsMixin:
             
             self._set_formula("Formula: Youden's J", "J = Sensibilidad + Especificidad - 1")
             
-            h = self._h(f"{Icons.CHART()} Youden Plot — {score_col}")
+            h = self._h(f" Youden Plot — {score_col}")
             h += "<table style='font-size:12px;'>"
             h += self._r("Umbral óptimo", f"{result['optimal_threshold']:.4f}")
             h += self._r("J máximo", f"{result['optimal_j']:.4f}")
@@ -2181,7 +2181,7 @@ class AnalysisMethodsMixin:
             
             self._set_formula("Formula: Polar Plot", "Cada eje representa una variable")
             
-            h = self._h(f"{Icons.CHART()} Polar Plot")
+            h = self._h(f" Polar Plot")
             h += "<table style='font-size:12px;'>"
             for cat, val in zip(categories, values):
                 h += self._r(cat, f"{val:.4f}")
@@ -2213,7 +2213,7 @@ class AnalysisMethodsMixin:
             
             self._set_formula("Formula: Waterfall", "Muestra contribución acumulada de cada valor")
             
-            h = self._h(f"{Icons.CHART()} Waterfall Chart — {col}")
+            h = self._h(f" Waterfall Chart — {col}")
             h += "<table style='font-size:12px;'>"
             for label, val, cum in zip(result['labels'][:-1], result['values'][:-1], result['ends'][:-1]):
                 h += self._r(label, f"{val:.4f} (acum: {cum:.4f})")
@@ -2251,7 +2251,7 @@ class AnalysisMethodsMixin:
             
             self._set_formula("Formula: Mountain Plot", "Distribución plegada (folded normal)")
             
-            h = self._h(f"{Icons.CHART()} Mountain Plot — {col}")
+            h = self._h(f" Mountain Plot — {col}")
             h += "<table style='font-size:12px;'>"
             h += self._r("n", result['n'])
             h += self._r("Media", f"{result['mean']:.4f}")
@@ -2287,7 +2287,7 @@ class AnalysisMethodsMixin:
             
             self._set_formula("Formula: Bland-Altman Múltiple", "Sesgo = Media(diferencias)\nLoA = Sesgo ± 1.96 × DE(diferencias)")
             
-            h = self._h(f"{Icons.CHART()} Bland-Altman Múltiple")
+            h = self._h(f" Bland-Altman Múltiple")
             h += "<table style='font-size:12px;'>"
             h += self._r("Sujetos", result['n_subjects'])
             h += self._r("Métodos", result['n_methods'])

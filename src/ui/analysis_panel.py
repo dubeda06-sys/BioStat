@@ -393,7 +393,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         left_l.setContentsMargins(0, 0, 0, 0)
         left_l.setSpacing(4)
 
-        cfg = QGroupBox(f"  {Icons.GEAR()}  Configuracion")
+        cfg = QGroupBox(f"    Configuracion")
         cl = QFormLayout()
         cl.setSpacing(4)
         cl.setContentsMargins(6, 6, 6, 6)
@@ -471,7 +471,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
 
-        rg = QGroupBox(f"  {Icons.DOC()}  Resultados")
+        rg = QGroupBox(f"    Resultados")
         rl = QVBoxLayout()
         rl.setContentsMargins(4, 2, 4, 2)
         self.txt_results = QTextEdit()
@@ -481,12 +481,12 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         rg.setLayout(rl)
         right_l.addWidget(rg, stretch=2)
 
-        pg = QGroupBox(f"  {Icons.CHART()}  Grafico")
+        pg = QGroupBox(f"    Grafico")
         pl = QVBoxLayout()
         pl.setContentsMargins(4, 2, 4, 2)
         self.graph_scroll = QScrollArea()
         self.graph_scroll.setWidgetResizable(True)
-        self.graph_ph = QLabel(f"<div style='text-align:center;color:#a0a8b8;padding:20px;'>{Icons.CHART()} El grafico aparecera aqui</div>")
+        self.graph_ph = QLabel(f"<div style='text-align:center;color:#a0a8b8;padding:20px;'> El grafico aparecera aqui</div>")
         self.graph_ph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.graph_scroll.setWidget(self.graph_ph)
         pl.addWidget(self.graph_scroll)
@@ -525,7 +525,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
 
     def _run(self):
         if self.data is None:
-            self.txt_results.setHtml(f"<div style='color:#d97706;padding:12px;'>{Icons.WARN()} <b>Sin datos.</b> Importa un archivo en la pestaña Datos.</div>")
+            self.txt_results.setHtml(f"<div style='color:#d97706;padding:12px;'> <b>Sin datos.</b> Importa un archivo en la pestaña Datos.</div>")
             return
 
         at = self.combo_analysis.currentText()
@@ -637,8 +637,8 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
 
     def _ok(self, yes, msg_yes="SIGNIFICATIVO", msg_no="NO SIGNIFICATIVO"):
         if yes:
-            return f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{Icons.CHECK()} {msg_yes}</b></div>"
-        return f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{Icons.WARN()} {msg_no}</b></div>"
+            return f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> {msg_yes}</b></div>"
+        return f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> {msg_no}</b></div>"
 
     def _set_formula(self, title, formula_text, steps=None):
         """Muestra formula y pasos en el recuadro de auditoria."""
