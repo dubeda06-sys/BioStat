@@ -655,14 +655,42 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         "X no tiene error. Se usó regresión de errores en ambos ejes."
     )
 
-    # 4) Concordancia global — CCC (NO Pearson)
+    # 4) Concordancia global — CCC (NO Pearson), descompuesto en precisión × veracidad
     ccc = concordance_correlation(a, b)
     block["resultados"]["ccc"] = round(ccc["ccc"], 4)
+    block["resultados"]["ccc_rho"] = round(ccc["rho"], 4)
+    block["resultados"]["ccc_cb"] = round(ccc["cb"], 4)
+    block["resultados"]["ccc_fuerza"] = ccc["strength"]
+    if np.isfinite(ccc["ci_low"]):
+        block["resultados"]["ccc_ic95"] = (round(ccc["ci_low"], 4), round(ccc["ci_high"], 4))
     block["advertencias"].append(
         "NO usar Pearson como medida de acuerdo: correlación alta ≠ concordancia. "
         f"CCC (Lin) = {round(ccc['ccc'],4)}."
     )
-    block["traza"].append(f"Concordancia global → CCC de Lin = {round(ccc['ccc'],4)}.")
+    block["traza"].append(
+        f"Concordancia global → CCC de Lin = {round(ccc['ccc'],4)} "
+        f"({ccc['strength']}, escala de McBride 2005)."
+    )
+    # La descomposición CCC = rho × Cb dice DÓNDE está el defecto: rho bajo con Cb
+    # alto = problema de dispersión; Cb bajo con rho alto = sesgo sistemático.
+    # Son causas distintas y se corrigen por vías distintas (recalibración vs
+    # imprecisión analítica), así que conviene decirlo explícito.
+    if np.isfinite(ccc["rho"]) and np.isfinite(ccc["cb"]):
+        if ccc["cb"] < 0.95 and ccc["rho"] >= 0.95:
+            donde = ("el desacuerdo es sobre todo de VERACIDAD (sesgo): Cb="
+                     f"{round(ccc['cb'],4)} con rho={round(ccc['rho'],4)} alto. "
+                     "Apunta a calibración, no a imprecisión.")
+        elif ccc["rho"] < 0.95 and ccc["cb"] >= 0.95:
+            donde = ("el desacuerdo es sobre todo de PRECISIÓN (dispersión): rho="
+                     f"{round(ccc['rho'],4)} con Cb={round(ccc['cb'],4)} alto. "
+                     "Apunta a imprecisión analítica, no a calibración.")
+        elif ccc["rho"] < 0.95 and ccc["cb"] < 0.95:
+            donde = (f"hay componente de dispersión (rho={round(ccc['rho'],4)}) Y de "
+                     f"sesgo (Cb={round(ccc['cb'],4)}).")
+        else:
+            donde = (f"ambos componentes son altos (rho={round(ccc['rho'],4)}, "
+                     f"Cb={round(ccc['cb'],4)}).")
+        block["traza"].append("Descomposición CCC = rho × Cb → " + donde)
 
     ba_res = block["resultados"]["bland_altman"]
     sesgo = ba_res.get("sesgo", ba_res.get("sesgo_mediana"))
