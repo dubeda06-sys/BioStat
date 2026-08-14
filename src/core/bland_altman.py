@@ -2,6 +2,8 @@
 import numpy as np
 from scipy import stats
 
+from src.core.guards import finite_pair
+
 Z95 = 1.96
 
 
@@ -24,15 +26,11 @@ def bland_altman_analysis(method1, method2, reference=None):
     Returns:
         dict con medias, diferencias, limites de concordancia, etc.
     """
-    method1 = np.asarray(method1, dtype=float)
-    method2 = np.asarray(method2, dtype=float)
-
-    valid = ~(np.isnan(method1) | np.isnan(method2))
-    m1, m2 = method1[valid], method2[valid]
+    m1, m2, motivo = finite_pair(method1, method2, min_n=3,
+                                 nombre_metodo="el analisis de Bland-Altman")
+    if motivo:
+        return {"error": motivo}
     n = len(m1)
-
-    if n < 2:
-        return None
 
     means = (m1 + m2) / 2
     diffs = m1 - m2
@@ -61,12 +59,22 @@ def bland_altman_analysis(method1, method2, reference=None):
     # No exigen normalidad ni varianza constante (Bland & Altman, 1999). Usar
     # estos cuando la prueba de normalidad de las diferencias falle.
     loa_np_lower, loa_np_upper = np.percentile(diffs, [2.5, 97.5])
-    if n >= 3:
+    # Shapiro-Wilk necesita n>=3 y varianza no nula; si no, se dice, no se
+    # devuelve un NaN mudo.
+    if n >= 3 and np.ptp(diffs) > 0:
         sw_w, sw_p = stats.shapiro(diffs)
+        sw_nota = None
     else:
         sw_w, sw_p = np.nan, np.nan
+        sw_nota = ("No se puede probar normalidad: las diferencias son todas "
+                   "iguales." if np.ptp(diffs) == 0 else
+                   "No se puede probar normalidad: se necesitan al menos 3 pares.")
 
-    r, p = stats.pearsonr(means, diffs)
+    # Pearson entre promedios y diferencias: indefinido si alguno es constante.
+    if np.ptp(means) > 0 and np.ptp(diffs) > 0:
+        r, p = stats.pearsonr(means, diffs)
+    else:
+        r, p = np.nan, np.nan
 
     # Sesgo proporcional contra el eje que corresponda. Se calculan los dos.
     def _slope(base):
@@ -87,7 +95,10 @@ def bland_altman_analysis(method1, method2, reference=None):
 
     bias_pct = (mean_diff / np.mean(m1)) * 100 if np.mean(m1) != 0 else 0
 
+    avisos = [a for a in (sw_nota,) if a]
+
     return {
+        "avisos": avisos,
         "n": n,
         "mean_method1": np.mean(m1),
         "mean_method2": np.mean(m2),
@@ -153,15 +164,11 @@ def concordance_correlation(method1, method2):
     Referencias: Lin LI (1989) Biometrics 45:255-268; escala de interpretacion
     segun McBride GB (2005), NIWA Client Report HAM2005-062.
     """
-    method1 = np.asarray(method1, dtype=float)
-    method2 = np.asarray(method2, dtype=float)
-
-    valid = ~(np.isnan(method1) | np.isnan(method2))
-    m1, m2 = method1[valid], method2[valid]
+    m1, m2, motivo = finite_pair(method1, method2, min_n=3, need_variance="both",
+                                 nombre_metodo="el CCC de Lin")
+    if motivo:
+        return {"error": motivo}
     n = len(m1)
-
-    if n < 2:
-        return None
 
     mean1, mean2 = np.mean(m1), np.mean(m2)
     var1_p, var2_p = np.var(m1, ddof=0), np.var(m2, ddof=0)
@@ -170,16 +177,23 @@ def concordance_correlation(method1, method2):
     denom = var1_p + var2_p + (mean1 - mean2)**2
     ccc = (2 * cov_p) / denom if denom > 0 else np.nan
 
-    # Descomposicion precision x veracidad
-    if var1_p > 0 and var2_p > 0:
-        rho = cov_p / np.sqrt(var1_p * var2_p)
-        cb = ccc / rho if rho != 0 else np.nan
-    else:
-        rho, cb = np.nan, np.nan
+    # Descomposicion precision x veracidad. `need_variance="both"` ya garantiza
+    # var>0, asi que rho esta definido.
+    rho = cov_p / np.sqrt(var1_p * var2_p)
+    cb = ccc / rho if rho != 0 else np.nan
 
-    # IC 95% por transformacion z de Fisher sobre el CCC (Lin, 1989).
-    ci_low, ci_high = np.nan, np.nan
-    if n > 2 and np.isfinite(rho) and abs(rho) < 1 and abs(ccc) < 1 and rho != 0:
+    # IC 95% por transformacion z de Fisher sobre el CCC (Lin, 1989). Es
+    # indefinido con correlacion perfecta o con n=2; se dice cual es el motivo
+    # en vez de devolver un NaN mudo.
+    ci_low, ci_high, ci_nota = np.nan, np.nan, None
+    if n <= 2:
+        ci_nota = "IC del CCC no definido: se necesitan mas de 2 pares."
+    elif not np.isfinite(rho) or rho == 0:
+        ci_nota = "IC del CCC no definido: la correlacion es nula o indefinida."
+    elif abs(rho) >= 1 or abs(ccc) >= 1:
+        ci_nota = ("IC del CCC no definido: concordancia perfecta "
+                   "(la transformacion z diverge).")
+    if ci_nota is None:
         u = (mean1 - mean2) / ((var1_p * var2_p) ** 0.25)
         var_z = (((1 - rho**2) * ccc**2) / ((1 - ccc**2) * rho**2)
                  + (2 * ccc**3 * (1 - ccc) * u**2) / (rho * (1 - ccc**2)**2)
@@ -189,8 +203,12 @@ def concordance_correlation(method1, method2):
             se = np.sqrt(var_z)
             ci_low = float(np.tanh(z - Z95 * se))
             ci_high = float(np.tanh(z + Z95 * se))
+        else:
+            ci_nota = "IC del CCC no definido: la varianza asintotica no es positiva."
 
     return {
+        "avisos": [ci_nota] if ci_nota else [],
+        "ci_nota": ci_nota,
         "ccc": ccc,
         "rho": rho,
         "cb": cb,

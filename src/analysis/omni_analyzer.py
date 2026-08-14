@@ -18,6 +18,15 @@ from src.core.statistics import (
     chi_square_test, fisher_exact_test, pearson_r, spearman_rho,
 )
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation
+
+
+def _ok(res):
+    """True si el core devolvio un resultado usable.
+
+    Ojo: un dict de rechazo {"error": ...} es TRUTHY, asi que `if res:` no
+    alcanza; hay que mirar la clave.
+    """
+    return bool(res) and not (isinstance(res, dict) and res.get("error"))
 from src.core.passing_bablok import passing_bablok
 from src.core.agreement import deming_regression, cv_from_duplicates
 from src.core.outliers import tukey_outliers
@@ -540,6 +549,11 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         f"{'normal' if norm_diff['normal'] else 'NO normal'}."
     )
     ba = bland_altman_analysis(a, b)
+    if not _ok(ba):
+        block["resultados"]["bland_altman"] = {"error": ba.get("error") if isinstance(ba, dict)
+                                               else "No se pudo calcular Bland-Altman."}
+        block["advertencias"].append(block["resultados"]["bland_altman"]["error"])
+        return block
     if norm_diff["normal"]:
         block["resultados"]["bland_altman"] = {
             "tipo": "paramétrico",
@@ -570,7 +584,9 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
     reg_slope = reg_intercept = None
     if norm_diff["normal"] and resid_homoced:
         dem = deming_regression(a, b, lambda_ratio=cfg.DEMING_LAMBDA)
-        if dem:
+        if not _ok(dem) and isinstance(dem, dict) and dem.get("error"):
+            block["advertencias"].append(f"Regresion de Deming: {dem['error']}")
+        if _ok(dem):
             ci_s, ci_i = dem["ci_slope"], dem["ci_intercept"]
             slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
             intercept_no_const = ci_i[0] <= 0 <= ci_i[1]
@@ -594,7 +610,11 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
             )
     else:
         pb = passing_bablok(a, b)
-        if pb:
+        if not _ok(pb) and isinstance(pb, dict) and pb.get("error"):
+            block["advertencias"].append(f"Passing-Bablok: {pb['error']}")
+        elif _ok(pb) and pb.get("avisos"):
+            block["advertencias"].extend(pb["avisos"])
+        if _ok(pb):
             ci_s = pb["ci_slope"]
             ci_i = pb["ci_intercept"]
             slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
@@ -657,6 +677,11 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
 
     # 4) Concordancia global — CCC (NO Pearson), descompuesto en precisión × veracidad
     ccc = concordance_correlation(a, b)
+    if not _ok(ccc):
+        motivo = ccc.get("error") if isinstance(ccc, dict) else "No se pudo calcular el CCC."
+        block["advertencias"].append(f"CCC de Lin: {motivo}")
+        block["conclusion"] = f"Comparacion de metodos incompleta: {motivo}"
+        return block
     block["resultados"]["ccc"] = round(ccc["ccc"], 4)
     block["resultados"]["ccc_rho"] = round(ccc["rho"], 4)
     block["resultados"]["ccc_cb"] = round(ccc["cb"], 4)

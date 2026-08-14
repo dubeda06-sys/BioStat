@@ -15,6 +15,23 @@ import matplotlib.pyplot as plt
 from src.ui.icons import Icons
 from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
+
+
+def _sin_resultado(res):
+    """True si el core no pudo calcular: None, o dict de rechazo con motivo."""
+    return res is None or (isinstance(res, dict) and res.get("error"))
+
+
+def _msg_error(res, generico):
+    """Mensaje de error para la UI.
+
+    Prefiere el motivo especifico que devuelve el core (guards.py) sobre el
+    texto generico. Un "No se pudo calcular" no le dice al usuario que arreglar;
+    "Se necesitan al menos 3 pares de datos; hay 2" si.
+    """
+    if isinstance(res, dict) and res.get("error"):
+        return f"<b>No se puede calcular:</b> {res['error']}"
+    return f"<b>Error:</b> {generico}"
 from src.core.passing_bablok import passing_bablok
 from src.core.survival import kaplan_meier, log_rank_test
 from src.core.meta_analysis import meta_analysis
@@ -412,8 +429,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 2 pares."
         
         result = ttest_paired(d1[:n], d2[:n])
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
         
         self._set_formula(
             "Formula: t-test Pareado",
@@ -437,8 +454,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 2 obs por grupo."
         
         result = ttest_ind(d1, d2)
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
         
         self._set_formula(
             "Formula: t-test Independiente (Welch)",
@@ -480,8 +497,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 pares."
         
         result = pearson_r(df[c1].values, df[c2].values)
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
         
         ar = abs(result['r'])
         s = "Muy fuerte" if ar >= .9 else "Fuerte" if ar >= .7 else "Moderada" if ar >= .5 else "Debil"
@@ -508,8 +525,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 pares."
         
         result = spearman_rho(df[c1].values, df[c2].values)
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
         
         self._set_formula("Formula: Spearman", "rho = 1 - (6 × Σd²) / (n × (n² - 1))")
         
@@ -530,8 +547,8 @@ class AnalysisMethodsMixin:
             d = d.sample(5000, random_state=42)
         
         result = normality_test(d)
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
         
         self._set_formula("Formula: Shapiro-Wilk", "W = (Σa_i x_i)² / Σ(x_i - x̄)²")
         
@@ -629,8 +646,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 pares."
 
         result = bland_altman_analysis(d1.values[:n], d2.values[:n])
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
 
         h = self._h(f" Bland-Altman — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -678,8 +695,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 pares."
 
         result = passing_bablok(d1.values[:n], d2.values[:n])
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
 
         h = self._h(f" Passing-Bablok — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -743,8 +760,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 5 observaciones."
 
         km = kaplan_meier(t.values[:n], e.values[:n].astype(int))
-        if km is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(km):
+            return _msg_error(km, "No se pudo calcular.")
 
         h = self._h(f" Kaplan-Meier — {time_col}")
         h += "<table style='font-size:12px;'>"
@@ -835,8 +852,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 2 estudios."
 
         result = meta_analysis(eff[:n], se[:n])
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
 
         h = self._h(f" Meta-analisis")
         h += "<table style='font-size:12px;'>"
@@ -944,8 +961,8 @@ class AnalysisMethodsMixin:
         )
 
         result = bootstrap_mean(d.values)
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
 
         h = self._h(f" Bootstrap — Media de {col}")
         h += "<table style='font-size:12px;'>"
@@ -992,8 +1009,8 @@ class AnalysisMethodsMixin:
         )
 
         result = bootstrap_difference(d1.values, d2.values)
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
 
         h = self._h(f" Bootstrap — Diferencia {c1} - {c2}")
         h += "<table style='font-size:12px;'>"
@@ -1038,8 +1055,8 @@ class AnalysisMethodsMixin:
         )
 
         result = bootstrap_correlation(d1.values[:n], d2.values[:n])
-        if result is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
 
         h = self._h(f" Bootstrap — Correlacion")
         h += "<table style='font-size:12px;'>"
@@ -1208,8 +1225,8 @@ class AnalysisMethodsMixin:
         if len(d1) < 2 or len(d2) < 2:
             return "<b>Error:</b> Minimo 2 obs por grupo."
         r = mannwhitneyu(d1.values, d2.values)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Mann-Whitney U", "U = n1*n2 + n1*(n1+1)/2 - R1\nDonde R1 = suma de rangos del grupo 1", f"U = {r['u']:.1f}\np = {r['p']:.6f}\nn1={r['n1']}, n2={r['n2']}")
         h = self._h(f" Mann-Whitney U — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -1226,8 +1243,8 @@ class AnalysisMethodsMixin:
         d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
         n = min(len(d1), len(d2))
         r = wilcoxon_signed_rank(d1.values[:n], d2.values[:n])
-        if r is None:
-            return "<b>Error:</b> Minimo 5 pares con diferencias != 0."
+        if _sin_resultado(r):
+            return _msg_error(r, "Minimo 5 pares con diferencias != 0.")
         self._set_formula("Formula: Wilcoxon Signed-Rank", "W = suma de rangos de |diferencias| con signo", f"W = {r['w']:.1f}\np = {r['p']:.6f}\nn = {r['n']}")
         h = self._h(f" Wilcoxon — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -1257,8 +1274,8 @@ class AnalysisMethodsMixin:
         if np.any(matrix < 0):
             return "<b>Error:</b> Tabla con valores negativos."
         r = chi_square_test(matrix)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Chi-cuadrado", "X2 = Sum((O-E)^2 / E)\nE = (fila_total * col_total) / n_total", f"X2 = {r['chi2']:.4f}\np = {r['p']:.6f}\ndf = {r['df']}")
         h = self._h(f" Chi-cuadrado")
         h += "<table style='font-size:12px;'>"
@@ -1307,8 +1324,8 @@ class AnalysisMethodsMixin:
         if len(groups) < 3:
             return "<b>Error:</b> Minimo 3 grupos."
         r = kruskal_wallis(groups)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Kruskal-Wallis", "H = (12/n(n+1)) * Sum(Ri^2/ni) - 3(n+1)", f"H = {r['h']:.4f}\np = {r['p']:.6f}")
         h = self._h(f" Kruskal-Wallis")
         h += "<table style='font-size:12px;'>"
@@ -1323,8 +1340,8 @@ class AnalysisMethodsMixin:
         if len(groups) < 3:
             return "<b>Error:</b> Minimo 3 condiciones."
         r = friedman_test(*groups)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Friedman", "X2r = (12/nk(k+1)) * Sum(Rj^2) - 3n(k+1)", f"X2 = {r['chi2']:.4f}\np = {r['p']:.6f}")
         h = self._h(f" Friedman")
         h += "<table style='font-size:12px;'>"
@@ -1340,8 +1357,8 @@ class AnalysisMethodsMixin:
         if len(d1) < 3 or len(d2) < 3:
             return "<b>Error:</b> Minimo 3 obs por grupo."
         r = f_test_variances(d1.values, d2.values)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: F-test", "F = s1^2 / s2^2 (mayor/menor)", f"F = {r['f']:.4f}\np = {r['p']:.6f}")
         h = self._h(f" F-test — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -1365,8 +1382,8 @@ class AnalysisMethodsMixin:
         for row in table:
             matrix[int(row[0]), int(row[1])] += 1
         r = cohens_kappa(matrix)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Kappa de Cohen", "K = (Po - Pe) / (1 - Pe)", f"Kappa = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
         h = self._h(f" Kappa de Cohen")
         h += "<table style='font-size:12px;'>"
@@ -1384,8 +1401,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 pares."
         data = np.column_stack([d1.values[:n], d2.values[:n]])
         r = intraclass_correlation(data)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: ICC", "ICC = (MS_rows - MS_error) / (MS_rows + (k-1)*MS_error)", f"ICC = {r['icc']:.4f}\nF = {r['f']:.4f}\np = {r['p']:.6f}")
         h = self._h(f" ICC — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -1400,8 +1417,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 items."
         data = self.data[nums].dropna().values
         r = cronbach_alpha(data)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Alfa de Cronbach", "a = (k/(k-1)) * (1 - Sum(var_i)/var_total)", f"Alfa = {r['alpha']:.4f}\nk = {r['n_items']}")
         h = self._h(f" Alfa de Cronbach")
         h += "<table style='font-size:12px;'>"
@@ -1417,8 +1434,8 @@ class AnalysisMethodsMixin:
         x, y = self.data[c1].dropna(), self.data[c2].dropna()
         n = min(len(x), len(y))
         r = linear_regression(x.values[:n], y.values[:n])
-        if r is None:
-            return "<b>Error:</b> Minimo 3 datos."
+        if _sin_resultado(r):
+            return _msg_error(r, "Minimo 3 datos.")
         self._set_formula("Formula: Regresion Lineal", "y = b0 + b1*x\nb1 = S(x-xbar)(y-ybar) / S(x-xbar)^2", f"y = {r['intercept']:.4f} + {r['slope']:.4f}*x\nR2 = {r['r2']:.4f}\np = {r['p_slope']:.6f}")
         h = self._h(f" Regresion Lineal — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
@@ -1446,8 +1463,8 @@ class AnalysisMethodsMixin:
         common = X.index.intersection(y.index)
         X, y = X.loc[common].values, y.loc[common].values
         r = multiple_regression(X, y)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Regresion Multiple", "y = b0 + b1*x1 + b2*x2 + ...\nBeta = (X'X)^-1 X'Y", f"R2 = {r['r2']:.4f}\nR2 adj = {r['r2_adj']:.4f}\nF = {r['f']:.4f}")
         h = self._h(f" Regresion Multiple — {target}")
         h += "<table style='font-size:12px;'>"
@@ -1477,8 +1494,8 @@ class AnalysisMethodsMixin:
         common = X.index.intersection(y.index)
         X, y = X.loc[common].values, y.loc[common].values
         r = logistic_regression(X, y)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Regresion Logistica", "ln(p/(1-p)) = b0 + b1*x1 + ...\nOR = exp(b)", f"Accuracy = {r['accuracy']:.4f}\nAIC = {r['aic']:.2f}")
         h = self._h(f" Regresion Logistica — {target}")
         h += "<table style='font-size:12px;'>"
@@ -1518,8 +1535,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Tabla 2x2."
         a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
         r = relative_risk(a, b, c, d)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Riesgo Relativo", "RR = (a/(a+b)) / (c/(c+d))\nNNT = 1/ARR", f"RR = {r['rr']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\nNNT = {r['nnt']:.1f}")
         h = self._h(f" Riesgo Relativo")
         h += "<table style='font-size:12px;'>"
@@ -1552,8 +1569,8 @@ class AnalysisMethodsMixin:
             return f"<b>Error:</b> '{col}' no encontrada."
         d = self.data[col].dropna()
         r = grubbs_test(d.values)
-        if r is None:
-            return "<b>Error:</b> Minimo 5 datos."
+        if _sin_resultado(r):
+            return _msg_error(r, "Minimo 5 datos.")
         self._set_formula("Formula: Grubbs", "G = |xi - xbar| / s", f"G = {r['g']:.4f}\nG critico = {r['g_crit']:.4f}\nOutlier: {r['outlier_value']:.4f}")
         h = self._h(f" Outliers — Grubbs ({col})")
         h += "<table style='font-size:12px;'>"
@@ -1568,8 +1585,8 @@ class AnalysisMethodsMixin:
             return f"<b>Error:</b> '{col}' no encontrada."
         d = self.data[col].dropna()
         r = tukey_outliers(d.values)
-        if r is None:
-            return "<b>Error:</b> Minimo 4 datos."
+        if _sin_resultado(r):
+            return _msg_error(r, "Minimo 4 datos.")
         self._set_formula("Formula: Tukey", "Lim interno: Q1-1.5*IQR, Q3+1.5*IQR\nLim externo: Q1-3*IQR, Q3+3*IQR", f"IQR = {r['iqr']:.4f}\nSuaves: {r['n_mild']}\nExtremos: {r['n_extreme']}")
         h = self._h(f" Outliers — Tukey ({col})")
         h += "<table style='font-size:12px;'>"
@@ -1624,8 +1641,8 @@ class AnalysisMethodsMixin:
             return f"<b>Error:</b> '{col}' no encontrada."
         d = self.data[col].dropna()
         r = trimmed_mean(d.values, 0.1)
-        if r is None:
-            return "<b>Error:</b> Minimo 5 datos."
+        if _sin_resultado(r):
+            return _msg_error(r, "Minimo 5 datos.")
         self._set_formula("Formula: Media Recortada", "Recortar 10% superior e inferior", f"Media original = {np.mean(d.values):.4f}\nMedia recortada = {r['mean']:.4f}\nSE = {r['se']:.4f}")
         h = self._h(f" Media Recortada (10%) — {col}")
         h += "<table style='font-size:12px;'>"
@@ -1645,8 +1662,8 @@ class AnalysisMethodsMixin:
         if len(df) < 4:
             return "<b>Error:</b> Minimo 4 datos."
         r = partial_correlation(df[c1].values, df[c2].values, df[c3].values)
-        if r is None:
-            return "<b>Error:</b> No se pudo calcular."
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Correlacion Parcial", "r_xy.z = (r_xy - r_xz*r_yz) / sqrt((1-r_xz^2)(1-r_yz^2))", f"r = {r['r_partial']:.4f}\np = {r['p']:.6f}")
         h = self._h(f" Correlacion Parcial — {c1}, {c2} | {c3}")
         h += "<table style='font-size:12px;'>"
@@ -1984,8 +2001,8 @@ class AnalysisMethodsMixin:
         try:
             sub = self.data[[c1, c2, c3]].dropna()
             result = two_way_anova(sub[c1].values, sub[c2].values, sub[c3].values)
-            if result is None:
-                return "<b>Error:</b> Datos insuficientes o sin réplicas por celda para estimar el error."
+            if _sin_resultado(result):
+                return _msg_error(result, "Datos insuficientes o sin réplicas por celda para estimar el error.")
             self._set_formula("Formula: ANOVA Dos Vías", "y ~ C(A) + C(B) + C(A):C(B) (suma de cuadrados tipo II)")
             h = self._h(f" ANOVA Dos Vías — {c1} por {c2} × {c3}")
             h += "<table style='font-size:12px;'>"
@@ -2139,8 +2156,8 @@ class AnalysisMethodsMixin:
             y_score = self.data[score_col].dropna().values
             n = min(len(y_true), len(y_score))
             result = youden_data(y_true[:n], y_score[:n])
-            if result is None:
-                return "<b>Error:</b> No se pudo calcular."
+            if _sin_resultado(result):
+                return _msg_error(result, "No se pudo calcular.")
             
             self._set_formula("Formula: Youden's J", "J = Sensibilidad + Especificidad - 1")
             
@@ -2246,8 +2263,8 @@ class AnalysisMethodsMixin:
         try:
             data = self.data[col].dropna().values
             result = mountain_plot_data(data)
-            if result is None:
-                return "<b>Error:</b> Se necesitan al menos 5 datos."
+            if _sin_resultado(result):
+                return _msg_error(result, "Se necesitan al menos 5 datos.")
             
             self._set_formula("Formula: Mountain Plot", "Distribución plegada (folded normal)")
             

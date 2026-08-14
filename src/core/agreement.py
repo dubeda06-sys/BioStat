@@ -4,6 +4,8 @@ import pandas as pd
 import pingouin as pg
 from scipy import stats
 
+from src.core.guards import finite_pair
+
 
 def cohens_kappa(matrix):
     """Kappa de Cohen para concordancia interevaluadores."""
@@ -137,18 +139,17 @@ def deming_regression(x, y, lambda_ratio=1.0):
 
     Devuelve slope, intercept, ci_slope, ci_intercept, r2, n, lambda.
     """
-    x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
-    valid = ~(np.isnan(x) | np.isnan(y))
-    x, y = x[valid], y[valid]
+    x, y, motivo = finite_pair(x, y, min_n=3, need_variance="both",
+                               nombre_metodo="la regresion de Deming")
+    if motivo:
+        return {"error": motivo}
     n = len(x)
-    if n < 3:
-        return None
     lam = float(lambda_ratio) if lambda_ratio and lambda_ratio > 0 else 1.0
 
     fit = _deming_fit(x, y, lam)
     if fit is None:
-        return None
+        return {"error": "La covarianza entre los dos metodos es cero: no hay "
+                         "relacion que ajustar por Deming."}
     slope, intercept = fit
 
     # Jackknife leave-one-out para IC de pendiente e intercepto (Linnet).
@@ -182,15 +183,16 @@ def deming_regression(x, y, lambda_ratio=1.0):
 
 def cv_from_duplicates(d1, d2):
     """CV desde mediciones duplicadas."""
-    d1 = np.asarray(d1, dtype=float)
-    d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
-    d1, d2 = d1[valid], d2[valid]
+    d1, d2, motivo = finite_pair(d1, d2, min_n=3,
+                                 nombre_metodo="el CV a partir de duplicados")
+    if motivo:
+        return {"error": motivo}
     n = len(d1)
-    if n < 3:
-        return None
     means = (d1 + d2) / 2
     diffs = d1 - d2
+    if np.mean(means) == 0:
+        return {"error": "La media de los duplicados es cero: el CV es un "
+                         "cociente y no esta definido."}
     cv_dup = np.std(diffs, ddof=1) / (np.sqrt(2) * np.mean(means)) * 100
     return {"cv_dup": cv_dup, "cv_dup_pct": f"{cv_dup:.2f}%",
             "mean_cv": np.mean(means), "n": n}

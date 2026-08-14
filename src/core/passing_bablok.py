@@ -2,6 +2,14 @@
 import numpy as np
 from scipy import stats
 
+from src.core.guards import finite_pair
+
+# El manual de MedCalc recomienda n>=30 (Bablok & Passing, 1985), con tablas de
+# n sugeridos entre 30 y 90 (Passing & Bablok, 1984) y n>=50 (Ludbrook, 2010).
+# Por debajo de eso el IC es demasiado ancho para discriminar: se calcula igual,
+# pero se avisa.
+N_RECOMENDADO = 30
+
 
 def passing_bablok(method1, method2):
     """Regresion de Passing-Bablok.
@@ -16,15 +24,18 @@ def passing_bablok(method1, method2):
     Returns:
         dict con pendiente, intercepto, IC, etc.
     """
-    m1 = np.asarray(method1, dtype=float)
-    m2 = np.asarray(method2, dtype=float)
-
-    valid = ~(np.isnan(m1) | np.isnan(m2))
-    m1, m2 = m1[valid], m2[valid]
+    m1, m2, motivo = finite_pair(method1, method2, min_n=3, need_variance="x",
+                                 nombre_metodo="la regresion de Passing-Bablok")
+    if motivo:
+        return {"error": motivo}
     n = len(m1)
 
-    if n < 3:
-        return None
+    avisos = []
+    if n < N_RECOMENDADO:
+        avisos.append(
+            f"n={n}: por debajo del minimo recomendado de {N_RECOMENDADO} "
+            f"(Bablok & Passing, 1985; Ludbrook, 2010 sugiere n>=50). El "
+            f"intervalo de confianza sera demasiado ancho para descartar sesgo.")
 
     sorted_idx = np.argsort(m1)
     m1_sorted = m1[sorted_idx]
@@ -39,7 +50,8 @@ def passing_bablok(method1, method2):
                 slopes.append(slope)
 
     if not slopes:
-        return None
+        return {"error": "Todos los valores del metodo de referencia son "
+                         "iguales: no hay pendientes que estimar."}
 
     slopes = np.array(slopes)
     k = len(slopes)
@@ -66,9 +78,14 @@ def passing_bablok(method1, method2):
     residuals = m2 - (slope * m1 + intercept)
     se_residuals = np.std(residuals, ddof=1)
 
-    r, p = stats.pearsonr(m1, m2)
+    if np.ptp(m2) > 0:
+        r, p = stats.pearsonr(m1, m2)
+    else:
+        r, p = np.nan, np.nan
+        avisos.append("El segundo metodo es constante: la correlacion no esta definida.")
 
     return {
+        "avisos": avisos,
         "n": n,
         "slope": slope,
         "intercept": intercept,

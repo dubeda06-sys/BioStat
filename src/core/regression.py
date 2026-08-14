@@ -3,16 +3,18 @@ import numpy as np
 from scipy import stats
 import statsmodels.api as sm
 
+from src.core.guards import finite_pair
+
 
 def linear_regression(x, y):
     """Regresion lineal simple."""
-    x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
-    valid = ~(np.isnan(x) | np.isnan(y))
-    x, y = x[valid], y[valid]
+    # `need_variance="x"` evita el ValueError de scipy cuando todos los x son
+    # iguales: antes eso subia como excepcion no controlada y crasheaba la UI.
+    x, y, motivo = finite_pair(x, y, min_n=3, need_variance="x",
+                               nombre_metodo="la regresion lineal")
+    if motivo:
+        return {"error": motivo}
     n = len(x)
-    if n < 3:
-        return None
     slope, intercept, r, p, se = stats.linregress(x, y)
     y_pred = slope * x + intercept
     ss_res = np.sum((y - y_pred)**2)
