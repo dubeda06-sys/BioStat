@@ -352,7 +352,19 @@ class OmniPanel(QWidget):
                           f"<td>{s['sesgo_pct'] if s['sesgo_pct'] is not None else '—'}</td></tr>")
                 h += "</table></div>"
             if "ccc" in res:
-                h += f"<div class='result'><b>CCC (Lin):</b> {res['ccc']}</div>"
+                ic = res.get("ccc_ic95")
+                ic_txt = f" &nbsp;IC 95%: {ic[0]} a {ic[1]}" if ic else ""
+                fuerza = res.get("ccc_fuerza")
+                h += (f"<div class='result'><b>CCC (Lin):</b> {res['ccc']}{ic_txt}"
+                      + (f" &nbsp;<i>({fuerza}, McBride 2005)</i>" if fuerza else "") + "</div>")
+                if "ccc_rho" in res and "ccc_cb" in res:
+                    h += ("<div class='result'><b>Descomposición CCC = rho &times; Cb:</b>"
+                          "<table><tr><th>Componente</th><th>Valor</th><th>Qué mide</th></tr>"
+                          f"<tr><td>rho</td><td>{res['ccc_rho']}</td>"
+                          "<td>Precisión — dispersión frente al comparador</td></tr>"
+                          f"<tr><td>Cb</td><td>{res['ccc_cb']}</td>"
+                          "<td>Veracidad — componente de sesgo</td></tr>"
+                          "</table></div>")
             if "posthoc" in res:
                 ph = res["posthoc"]
                 h += f"<div class='result'><b>Post-hoc {ph.get('metodo','')}:</b> "
