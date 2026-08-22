@@ -1,17 +1,44 @@
-"""Ventana de carga del ejecutable (PyInstaller splash).
+"""Ventana de carga del ejecutable (PyInstaller splash), con barra de progreso.
 
-En el .exe onefile el arranque tarda porque hay que descomprimir ~150 MB antes
-de que corra una sola linea de Python. El splash de PyInstaller aparece durante
-esa descompresion, asi que es lo unico que se ve en ese hueco.
+En el .exe onefile el arranque tiene dos tramos bien distintos:
 
-Fuera del .exe (`python main.py`) el modulo `pyi_splash` no existe: las tres
-funciones no hacen nada y nadie tiene que envolverlas en try/except.
+1. **Descompresion (~10 s).** El bootloader de PyInstaller saca ~150 MB a una
+   carpeta temporal. Todavia no corre una sola linea de Python, asi que esta
+   parte no es nuestra: el propio bootloader escribe en la linea de estado el
+   nombre del archivo que esta extrayendo.
+2. **Arranque de Python (~6 s).** Importar numpy/scipy/pandas/statsmodels/
+   sklearn y construir los paneles de Qt. Este tramo si es nuestro, y es el que
+   dibuja la barra.
+
+La barra se arma con caracteres de bloque en la unica linea de texto que expone
+el splash de PyInstaller — no hay widget de progreso disponible. Un hilo de
+fondo la hace avanzar de a poco hacia el proximo hito, para que se mueva sola
+mientras un import largo tiene tomado el hilo principal.
+
+Fuera del .exe (`python main.py`) el modulo `pyi_splash` no existe: todo esto
+queda en nada y nadie tiene que envolver las llamadas en try/except.
 """
+import threading
+import time
 
 try:  # pragma: no cover - solo existe dentro del ejecutable
     import pyi_splash as _splash
 except ImportError:  # corriendo desde el codigo fuente
     _splash = None
+
+# Ancho de la barra en caracteres. Cada bloque ocupa ~15 px con la fuente por
+# defecto de Tk, asi que 14 bloques son ~210 px de los 440 utiles de
+# assets/splash.png: el resto queda para el porcentaje y el mensaje. Con 24
+# bloques el mensaje se cortaba contra el borde derecho.
+ANCHO = 14
+
+# Largo maximo del mensaje, por la misma razon: lo que no entra se recorta aca
+# y no contra el borde de la ventana.
+MAX_MENSAJE = 20
+LLENO = "█"   # bloque solido
+VACIO = "░"   # bloque punteado
+
+_lock = threading.Lock()
 
 
 def activo():
@@ -20,14 +47,92 @@ def activo():
 
 
 def texto(mensaje):
-    """Cambia la linea de estado del splash. No falla si no hay splash."""
+    """Escribe una linea suelta en el splash. No falla si no hay splash."""
     if not activo():
         return
     try:
-        _splash.update_text(mensaje)
+        with _lock:
+            _splash.update_text(mensaje)
     except Exception:
         # Un splash que se rompe no puede impedir que arranque la aplicacion.
         pass
+
+
+def dibujar(fraccion, mensaje=""):
+    """Devuelve la barra ya renderizada. Pura: se puede probar sin GUI."""
+    fraccion = min(1.0, max(0.0, float(fraccion)))
+    if len(mensaje) > MAX_MENSAJE:
+        mensaje = mensaje[:MAX_MENSAJE - 1] + "…"
+    llenos = int(round(ANCHO * fraccion))
+    barra = LLENO * llenos + VACIO * (ANCHO - llenos)
+    pct = f"{int(round(fraccion * 100)):3d} %"
+    return f"{barra}  {pct}  {mensaje}".rstrip()
+
+
+def siguiente(actual, objetivo, cierre=0.15, paso_minimo=0.004):
+    """Proximo valor de la barra: cierra una fraccion de lo que falta.
+
+    Con paso fijo la barra no alcanzaba al hito antes de que la etapa
+    terminara —quedaba en 46 % y saltaba a 100 %—. Cerrando un porcentaje de
+    la distancia restante llega en algo mas de un segundo y despues se queda
+    quieta, que es justo lo que se quiere: moverse mientras se espera, sin
+    prometer un avance que no ocurrio.
+    """
+    if actual >= objetivo:
+        return objetivo
+    return min(objetivo, actual + max(paso_minimo, (objetivo - actual) * cierre))
+
+
+class Progreso:
+    """Barra que avanza sola hacia el proximo hito.
+
+    Los hitos reales son pocos y los tramos entre ellos son largos (importar
+    scipy son varios segundos con el hilo principal bloqueado). Sin el hilo de
+    fondo la barra quedaria congelada justo cuando mas importa que se vea viva.
+    """
+
+    def __init__(self, cierre=0.15, paso_minimo=0.004, intervalo=0.08):
+        self.actual = 0.0
+        self.objetivo = 0.0
+        self.mensaje = ""
+        self._cierre = cierre
+        self._paso_minimo = paso_minimo
+        self._intervalo = intervalo
+        self._fin = threading.Event()
+        self._hilo = None
+
+    def arrancar(self):
+        if not activo() or self._hilo is not None:
+            return self
+        self._hilo = threading.Thread(target=self._correr, daemon=True)
+        self._hilo.start()
+        return self
+
+    def _correr(self):
+        while not self._fin.is_set():
+            if self.actual < self.objetivo:
+                self.actual = siguiente(self.actual, self.objetivo,
+                                        self._cierre, self._paso_minimo)
+                texto(dibujar(self.actual, self.mensaje))
+            self._fin.wait(self._intervalo)
+
+    def hito(self, objetivo, mensaje):
+        """Marca un avance real. El hilo se encarga de llegar caminando."""
+        self.mensaje = mensaje
+        self.objetivo = max(self.objetivo, min(1.0, objetivo))
+        if not activo():
+            return
+        # Un primer refresco inmediato para que el mensaje cambie ya.
+        texto(dibujar(self.actual, self.mensaje))
+
+    def terminar(self, mensaje="Listo"):
+        """Completa la barra, la deja ver un instante y cierra el splash."""
+        self._fin.set()
+        if activo():
+            self.actual = self.objetivo = 1.0
+            texto(dibujar(1.0, mensaje))
+            time.sleep(0.25)
+        cerrar()
 
 
 def cerrar():
@@ -35,6 +140,7 @@ def cerrar():
     if not activo():
         return
     try:
-        _splash.close()
+        with _lock:
+            _splash.close()
     except Exception:
         pass
