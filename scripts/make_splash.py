@@ -1,0 +1,80 @@
+"""Genera assets/splash.png, la ventana de carga del ejecutable.
+
+Uso:
+    python scripts/make_splash.py
+
+El PNG se versiona en el repo; este script solo hace falta si se quiere
+cambiar el diseno. Paleta tomada de src/ui/styles.py.
+"""
+import os
+import sys
+
+from PIL import Image, ImageDraw, ImageFont
+
+W, H = 520, 300
+
+SURFACE = "#ffffff"
+BORDER = "#e2e8f0"
+INK = "#1e293b"
+MUTED = "#64748b"
+PRIMARY = "#0e7490"
+PRIMARY_SOFT = "#e0f2f1"
+
+
+def _font(name, size):
+    """Carga una fuente de Windows; si no esta, cae a la por defecto."""
+    for candidate in (name, os.path.join(r"C:\Windows\Fonts", name)):
+        try:
+            return ImageFont.truetype(candidate, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def build():
+    img = Image.new("RGB", (W, H), SURFACE)
+    d = ImageDraw.Draw(img)
+
+    # Marco y franja de acento superior.
+    d.rectangle([0, 0, W - 1, H - 1], outline=BORDER, width=1)
+    d.rectangle([0, 0, W, 5], fill=PRIMARY)
+
+    # Glifo: barras tipo grafico de control con su linea de media.
+    gx, gy, gw, gh = 40, 60, 92, 72
+    d.rectangle([gx, gy, gx + gw, gy + gh], fill=PRIMARY_SOFT)
+    alturas = [0.45, 0.70, 0.35, 0.85, 0.55]
+    ancho_barra = 12
+    sep = (gw - len(alturas) * ancho_barra) // (len(alturas) + 1)
+    for i, frac in enumerate(alturas):
+        x0 = gx + sep + i * (ancho_barra + sep)
+        alto = int(gh * frac)
+        d.rectangle([x0, gy + gh - alto, x0 + ancho_barra, gy + gh], fill=PRIMARY)
+    d.line([gx, gy + int(gh * 0.42), gx + gw, gy + int(gh * 0.42)],
+           fill=INK, width=1)
+
+    # Titulo y bajada.
+    d.text((154, 62), "BioStat", font=_font("segoeuib.ttf", 46), fill=INK)
+    d.text((156, 122), "Software estadistico para laboratorio clinico",
+           font=_font("segoeui.ttf", 14), fill=MUTED)
+
+    # Separador sobre la zona de estado.
+    d.line([40, 196, W - 40, 196], fill=BORDER, width=1)
+
+    # Nota al pie: explica por que la primera apertura tarda.
+    d.text((40, 246),
+           "La primera apertura descomprime la aplicacion (~150 MB).",
+           font=_font("segoeui.ttf", 12), fill=MUTED)
+    d.text((40, 264),
+           "Puede tardar unos segundos.",
+           font=_font("segoeui.ttf", 12), fill=MUTED)
+
+    out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+    os.makedirs(out_dir, exist_ok=True)
+    out = os.path.join(out_dir, "splash.png")
+    img.save(out)
+    print(f"Escrito: {out}  ({W}x{H})")
+    return out
+
+
+if __name__ == "__main__":
+    sys.exit(0 if build() else 1)

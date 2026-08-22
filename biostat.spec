@@ -1,22 +1,35 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
-from PyInstaller.utils.hooks import collect_submodules
-from PyInstaller.utils.hooks import collect_all
+"""Receta de PyInstaller para BioStat (onefile, con ventana de carga).
+
+Se construye con `python build_exe.py`, que llama a `pyinstaller biostat.spec`.
+Las rutas salen de SPECPATH, asi que el spec funciona en cualquier maquina.
+"""
+import os
+
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
+
+PROJECT_DIR = SPECPATH  # noqa: F821 - lo inyecta PyInstaller
+SPLASH_IMAGE = os.path.join(PROJECT_DIR, 'assets', 'splash.png')
 
 datas = []
 binaries = []
 hiddenimports = ['qtawesome', 'scipy.stats', 'scipy.optimize', 'openpyxl', 'reportlab', 'qtpy']
+
+# Paquetes cientificos que necesitan submodulos o datos completos.
+# pingouin (ICC/Cronbach) arrastra pandas_flavor/outdated y datos propios.
 datas += collect_data_files('statsmodels')
 hiddenimports += collect_submodules('statsmodels')
 hiddenimports += collect_submodules('sklearn')
 hiddenimports += collect_submodules('lifelines')
-tmp_ret = collect_all('pingouin')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+pingouin_datas, pingouin_binaries, pingouin_hidden = collect_all('pingouin')
+datas += pingouin_datas
+binaries += pingouin_binaries
+hiddenimports += pingouin_hidden
 
 
 a = Analysis(
-    ['C:\\Users\\Laboratorio2\\.claude\\jobs\\668df842\\BioStat\\main.py'],
-    pathex=[],
+    [os.path.join(PROJECT_DIR, 'main.py')],
+    pathex=[PROJECT_DIR],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -29,9 +42,26 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# Ventana de carga: aparece mientras el onefile se descomprime, antes de que
+# corra Python. La linea de estado se actualiza desde src/utils/splash.py.
+splash = Splash(
+    SPLASH_IMAGE,
+    binaries=a.binaries,
+    datas=a.datas,
+    text_pos=(40, 214),
+    text_size=11,
+    text_font='Segoe UI',
+    text_color='#0e7490',
+    text_default='Iniciando BioStat...',
+    minify_script=True,
+    always_on_top=True,
+)
+
 exe = EXE(
     pyz,
     a.scripts,
+    splash,
+    splash.binaries,
     a.binaries,
     a.datas,
     [],

@@ -15,33 +15,36 @@ def main():
     """Ejecuta PyInstaller y copia el ejecutable al escritorio."""
     project_dir = os.path.dirname(os.path.abspath(__file__))
     main_py = os.path.join(project_dir, "main.py")
+    spec = os.path.join(project_dir, "biostat.spec")
+    splash_png = os.path.join(project_dir, "assets", "splash.png")
 
     if not os.path.exists(main_py):
         print("ERROR: No se encontro main.py en el directorio del proyecto.")
         sys.exit(1)
 
-    # Ejecutar PyInstaller
+    if not os.path.exists(spec):
+        print(f"ERROR: No se encontro la receta {spec}")
+        sys.exit(1)
+
+    # La imagen de la ventana de carga se versiona en el repo; si falta, se
+    # regenera antes de compilar (el spec la exige).
+    if not os.path.exists(splash_png):
+        print("Falta assets/splash.png; regenerandola...")
+        gen = subprocess.run(
+            [sys.executable, os.path.join(project_dir, "scripts", "make_splash.py")],
+            cwd=project_dir,
+        )
+        if gen.returncode != 0 or not os.path.exists(splash_png):
+            print("ERROR: No se pudo generar la imagen de la ventana de carga.")
+            sys.exit(1)
+
+    # Compilar desde el spec: ahi viven los hidden imports, los collect_all de
+    # los paquetes cientificos y la configuracion del splash.
     cmd = [
         sys.executable, "-m", "PyInstaller",
-        "--onefile",
-        "--windowed",
         "--noconfirm",
         "--clean",
-        "--name=BioStat",
-        "--hidden-import=qtawesome",
-        "--hidden-import=scipy.stats",
-        "--hidden-import=scipy.optimize",
-        "--hidden-import=openpyxl",
-        "--hidden-import=reportlab",
-        "--hidden-import=qtpy",
-        # Paquetes científicos que necesitan submódulos/datos completos.
-        # pingouin (ICC/Cronbach) arrastra pandas_flavor/outdated y datos propios.
-        "--collect-all=pingouin",
-        "--collect-submodules=statsmodels",
-        "--collect-submodules=sklearn",
-        "--collect-submodules=lifelines",
-        "--collect-data=statsmodels",
-        main_py,
+        spec,
     ]
 
     print("Compilando BioStat...")
