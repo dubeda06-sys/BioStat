@@ -67,9 +67,10 @@ Decidido el 21 de agosto. Tres definiciones que acotan todo lo demás:
    resultado tiene que ser una lección auditable: qué prueba, por qué esa, la
    fórmula, la norma citada y la interpretación.
 3. **Primer ciclo: validación de métodos, a fondo.** EP09, veracidad,
-   Bland-Altman, Passing-Bablok, Deming, CCC, repetibilidad (EP15) y control de
-   calidad (Westgard). Pocas rutinas, impecables. Es donde el core ya está
-   corregido y verificado contra MedCalc.
+   Bland-Altman, Passing-Bablok, Deming, CCC y repetibilidad (EP15). Pocas
+   rutinas, impecables. Es donde el core ya está corregido y verificado contra
+   MedCalc. (El control de calidad diario —Westgard— se sacó el 22 de agosto;
+   ver Deudas.)
 
 ### Arquitectura propuesta (falta aprobar el detalle)
 
@@ -102,10 +103,13 @@ calidad. Ver el `LEEME.md` de esa carpeta.
 ## Deudas conocidas
 
 1. **`src/ui/analysis_methods.py`, 2329 líneas.** Lo resuelve la envoltura de A.
-2. **El QC no es testeable.** Levey-Jennings, Westgard y tendencias existen pero
-   están **dentro de `src/ui/qc_panel.py`** (`_wj_rules`, `_lj`, `_tr`), y
-   `src/core/qc/__init__.py` está **vacío**. La parte que decide si un lote
-   analítico se acepta o se rechaza es la única sin tests de referencia.
+2. **Levey-Jennings y Westgard: eliminados el 22 de agosto.** Estaban dentro de
+   `src/ui/qc_panel.py` (`_lj`, `_wj`, `_wj_rules`), sin core ni tests — la parte
+   que decide si un lote analítico se acepta o se rechaza era la única sin
+   verificación de referencia, y se sacó en vez de dejarla dando veredictos sin
+   respaldo. La pestaña QC queda con **Estadísticas** y **Tendencias**.
+   `src/core/qc/__init__.py` sigue **vacío**. Si el QC vuelve, entra por el core
+   con tests contra un caso publicado, no dentro del panel.
 3. **`passing_bablok` omite la corrección de desplazamiento K** (conteo de
    pendientes < −1). Inocuo con pendientes positivas normales, pero no es la
    definición completa. Cambiarlo altera resultados: **validar contra un caso

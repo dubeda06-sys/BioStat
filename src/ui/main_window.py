@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
             am.addAction(act)
 
         qm = mb.addMenu("Control de Calidad")
-        for n in ["Levey-Jennings", "Westgard", "Validacion"]:
+        for n in ["Estadisticas", "Tendencias"]:
             act = QAction(n, self)
             act.triggered.connect(lambda _checked, t=n: self._goto_qc(t))
             qm.addAction(act)

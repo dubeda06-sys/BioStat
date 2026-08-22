@@ -23,10 +23,8 @@ plt.rcParams.update({
 })
 
 QC_HELP = {
-    "Levey-Jennings": "Genera el gráfico clásico de control estadístico de la calidad. Muestra cada medición del material de control (eje Y) a lo largo del tiempo (eje X) frente a su media esperada y las desviaciones estándar (±1SD, ±2SD, ±3SD). Úselo diariamente para monitorear visualmente si el método analítico se mantiene estable o si hay desplazamientos repentinos (shifts) que sugieran un problema.",
-    "Westgard": "Aplica automáticamente las reglas múltiples de Westgard (ej. 1-3s, 2-2s, 4-1s, 10x) para detectar errores aleatorios o sistemáticos en el control de calidad interno. Úselo para decidir objetivamente si un lote analítico debe ser aceptado o rechazado antes de reportar resultados de pacientes.",
     "Estadisticas": "Proporciona el resumen numérico del control interno: media observada, desviación estándar (DE), coeficiente de variación (CV%) y Z-scores. Úselo mensualmente para verificar la precisión a largo plazo; idealmente, el CV% debe ser menor al límite aceptable para el analito.",
-    "Tendencias": "Realiza un análisis de regresión lineal sobre los datos del control para detectar tendencias significativas (drifts) a lo largo del tiempo. Úselo para anticipar problemas de calibración, degradación de reactivos o envejecimiento de la lámpara antes de que las reglas de Westgard fallen.",
+    "Tendencias": "Realiza un análisis de regresión lineal sobre los datos del control para detectar tendencias significativas (drifts) a lo largo del tiempo. Úselo para anticipar problemas de calibración, degradación de reactivos o envejecimiento de la lámpara antes de que el control se salga de límites.",
 }
 
 
@@ -60,7 +58,7 @@ class QCPanel(QWidget):
         self.combo_qc.currentTextChanged.connect(self._on_qc_changed)
         cl.addRow("Analisis:", self.combo_qc)
 
-        self.lbl_help = QLabel(QC_HELP["Levey-Jennings"])
+        self.lbl_help = QLabel(QC_HELP["Estadisticas"])
         self.lbl_help.setObjectName("subtitle")
         self.lbl_help.setWordWrap(True)
         self.lbl_help.setStyleSheet("color: #6b7280; font-style: italic; padding: 2px 0; font-size: 11px;")
@@ -166,73 +164,15 @@ class QCPanel(QWidget):
             return
         a = self.combo_analyte.currentText()
         t = self.combo_qc.currentText()
-        {"Levey-Jennings": self._lj, "Westgard": self._wj,
-         "Estadisticas": self._st, "Tendencias": self._tr}.get(t, lambda x: None)(a)
+        {"Estadisticas": self._st, "Tendencias": self._tr}.get(t, lambda x: None)(a)
 
     def _r(self, label, v):
         return f"<tr><td style='padding:2px 12px 2px 0;color:#8892a4;'>{label}</td><td style='padding:2px 0;font-weight:600;'>{v}</td></tr>"
-
-    def _wj_rules(self, data, m, s):
-        if s == 0:
-            return []
-        z = (data - m) / s
-        v = []
-        for i in range(len(z)):
-            if abs(z[i]) > 3:
-                v.append(f"1-3s en punto #{i+1} (z={z[i]:.2f})")
-        for i in range(len(z)-1):
-            if abs(z[i]) > 2 and abs(z[i+1]) > 2 and np.sign(z[i]) == np.sign(z[i+1]):
-                v.append(f"2-2s en puntos #{i+1}-#{i+2}")
-        for i in range(len(z)-3):
-            if all(abs(z[i:i+4]) > 1):
-                v.append(f"4-1s en puntos #{i+1}-#{i+4}")
-        for i in range(len(z)-9):
-            if all(z[i:i+10] > 0) or all(z[i:i+10] < 0):
-                v.append(f"10x en puntos #{i+1}-#{i+10}")
-        return v
 
     def _show(self, fig):
         self.canvas = FigureCanvas(fig)
         self.scroll.setWidget(self.canvas)
         plt.close(fig)
-
-    def _lj(self, a):
-        if a not in self.data.columns:
-            return
-        d, m, s = self._params(a)
-        if len(d) < 2:
-            return
-        fig, ax = plt.subplots(figsize=(11, 5))
-        x = range(1, len(d)+1)
-        ax.plot(x, d.values, color=COLORS[0], marker='o', ms=3, lw=1.5)
-        ax.axhline(m, color=COLORS[1], lw=2, label=f'Media {m:.2f}')
-        for i, c in [(1, COLORS[2]), (2, COLORS[2]), (3, COLORS[3])]:
-            ax.axhline(m+i*s, color=c, ls='--', alpha=0.6, label=f'±{i}SD')
-            ax.axhline(m-i*s, color=c, ls='--', alpha=0.6)
-        ax.fill_between(x, m-2*s, m+2*s, alpha=0.08, color=COLORS[1])
-        ax.set_title(f'Levey-Jennings — {a}', fontweight='bold')
-        ax.legend(loc='upper right', fontsize=8, framealpha=0.9)
-        fig.tight_layout()
-        self._show(fig)
-
-        v = self._wj_rules(d.values, m, s)
-        o2 = int(np.sum(np.abs(d.values - m) > 2*s))
-        o3 = int(np.sum(np.abs(d.values - m) > 3*s))
-        cv = (s/m)*100 if m != 0 else 0
-
-        h = f"<b> Levey-Jennings — {a}</b><table style='font-size:12px;'>"
-        for label, v2 in [("Media del control", f"{m:.4f}"), ("SD", f"{s:.4f}"), ("CV%", f"{cv:.2f}%"),
-                           ("Mediciones (n)", len(d)), (">2SD (alerta)", o2), (">3SD (rechazo)", o3)]:
-            h += self._r(label, v2)
-        h += "</table>"
-        if v:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'> Violaciones detectadas:</b><br>" + "<br>".join(v) + "<br><br><i>Se recomienda repetir el analisis.</i></div>"
-        else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Sin violaciones</b> — El control esta dentro de los limites aceptables.</div>"
-        self.txt.setHtml(h)
-
-    def _wj(self, a):
-        self._lj(a)
 
     def _st(self, a):
         if a not in self.data.columns:

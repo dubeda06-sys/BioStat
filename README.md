@@ -78,8 +78,6 @@ El ejecutable `BioStat.exe` se copiará automáticamente al Escritorio.
 - Bootstrap (media, mediana, diferencia, correlación, regresión)
 
 ### Control de Calidad
-- Levey-Jennings
-- Reglas de Westgard (1-3s, 2-2s, 4-1s, 10x)
 - Estadísticas de control (media, DE, CV%, z-scores)
 - Análisis de tendencias
 
