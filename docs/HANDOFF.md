@@ -1,31 +1,56 @@
 # BioStat — Handoff / Dónde seguir
 
-> Última actualización: **2026-08-21**. Leé esto primero para retomar.
+> Última actualización: **2026-08-22**. Leé esto primero para retomar.
 > Rama de verdad: **`develop`**. `master` está 17 commits atrás — ver más abajo.
 
-## ⚠ Lo primero: el `.exe` del Escritorio está viejo
+## El `.exe` del Escritorio ya está al día
 
-El `BioStat.exe` que usa el laboratorio es del **1 de julio**. Las correcciones de
-cálculo son del **13 de agosto**. Ese binario **no las tiene**:
+Recompilado el **22 de agosto** desde `develop`. El binario anterior era del 1 de
+julio y **no tenía ninguna corrección de cálculo de este año** — sobre todo el IC de
+los límites de acuerdo, que con `1.96` en vez de `t(n−1)` sale **8,6 % más angosto**
+a n=15. Si alguien validó un método con ese exe entre julio y agosto, los IC que
+imprimió están mal. Quedó una copia como `BioStat_2026-07-01_VIEJO.exe` en el
+Escritorio, solo para comparar; conviene borrarla para que nadie la abra por error.
 
-| | 1 jul (el exe) | hoy en `develop` |
-|---|---|---|
-| IC de los límites de acuerdo | `1.96 * se_loa` | `t(n-1) * se_loa` |
-| `src/core/guards.py` | no existía | existe |
-| tests | 6 archivos | 8 archivos, 253 tests |
-
-A n=15 ese intervalo sale **8,6 % más angosto** de lo que corresponde. Si alguien
-validó un método con ese exe desde julio, los IC que imprimió están mal.
-
-**Recompilar antes que cualquier otra cosa:**
+**Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 253 verdes
+python -m pytest tests/ -q        # esperar 292 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 En Windows, para Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## Lo que entró el 22 de agosto
+
+- **Levey-Jennings y Westgard: eliminados.** Ver Deudas.
+- **Barra de menús por familia estadística, al estilo MedCalc.** Los 76 análisis
+  estaban en un combo plano; ahora se agrupan en 15 submenús bajo `Estadísticas`,
+  más `Gráficos`, `Pruebas diagnósticas`, `Control de Calidad`, `Herramientas` y
+  `Ver` (Ctrl+1..5). La tabla vive en `src/ui/menus.py`, separada de los widgets, y
+  `tests/test_menus.py` la verifica en las dos direcciones. Hace falta porque el
+  menú elige por texto (`findText`): **un acento de diferencia deja la entrada
+  muerta en silencio**, sin excepción ni mensaje.
+- **PyQt6 mataba la aplicación cuando una excepción salía de un slot.** Un análisis
+  que fallaba por la forma de los datos no mostraba error: cerraba la app de golpe.
+  `src/utils/errores.py` instala un `sys.excepthook` propio — PyQt solo aborta si es
+  el de fábrica — y la sesión sobrevive. **No reemplaza a `src/core/guards.py`**: es
+  el último colchón, el contrato sigue siendo del core.
+- **Ventana de carga con barra de progreso** en el `.exe` (`src/utils/splash.py`,
+  `assets/splash.png`, `scripts/make_splash.py`). Cubre el arranque de Python
+  (~6 s); los ~10 s previos son la descompresión del onefile, donde manda el
+  bootloader y no corre Python.
+
+> [!bug] Dos trampas encontradas, por si vuelven
+> `Splash(..., text_font='Segoe UI')` rompe el splash entero: PyInstaller pega el
+> nombre de la fuente en el script Tcl sin comillas y el espacio parte el comando.
+> No hay error visible — queda una ventana Tk vacía de 216×239 en vez del splash.
+> Y verificar mirando la clase de ventana **no alcanza**: `TkTopLevel` existe igual
+> estando rota; hay que fotografiar la ventana.
+>
+> `biostat.spec` es ahora la receta real (`build_exe.py` compila desde el spec).
+> Antes apuntaba a una ruta muerta de otra máquina y no lo usaba nadie.
 
 ## Estado actual de `develop` (`0a60ea5`)
 
@@ -122,7 +147,7 @@ calidad. Ver el `LEEME.md` de esa carpeta.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 253 tests
+python -m pytest tests/ -q                       # 292 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
