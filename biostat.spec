@@ -50,7 +50,10 @@ splash = Splash(
     datas=a.datas,
     text_pos=(40, 214),
     text_size=11,
-    text_font='Segoe UI',
+    # Sin text_font a proposito: PyInstaller pega el nombre de la fuente en el
+    # script Tcl del splash sin comillas, asi que uno con espacio ("Segoe UI")
+    # rompe el script entero. Cuando eso pasa no hay error visible — queda una
+    # ventana Tk vacia de 216x239 con barra de titulo en vez del splash.
     text_color='#0e7490',
     text_default='Iniciando BioStat...',
     minify_script=True,
