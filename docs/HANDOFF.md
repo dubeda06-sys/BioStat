@@ -15,7 +15,7 @@ Escritorio, solo para comparar; conviene borrarla para que nadie la abra por err
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 292 verdes
+python -m pytest tests/ -q        # esperar 305 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -41,6 +41,21 @@ En Windows, para Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
   `assets/splash.png`, `scripts/make_splash.py`). Cubre el arranque de Python
   (~6 s); los ~10 s previos son la descompresión del onefile, donde manda el
   bootloader y no corre Python.
+- **Flujo y aspecto al modo MedCalc.** El menu abre un dialogo con las variables
+  del analisis (`src/ui/dialogs.py`, ficha en `src/ui/analysis_specs.py`) y el
+  resultado sale en una ventana propia que queda abierta
+  (`src/ui/report_window.py`, menu `Ventana`). Tema `Clinico Clasico` en
+  `src/ui/styles.py`: gris de sistema, bordes de 1 px, tipografia chica. La hoja
+  de datos lleva letras de columna ("A  EBV_A") y se renombra la variable con
+  doble clic en el encabezado. El panel Analisis con su combo sigue existiendo.
+
+> [!info] La ficha de variables se valida sola
+> `analysis_specs.VARIABLES` salio de leer el `dispatch` de
+> `AnalysisPanel._run`. `tests/test_analysis_specs.py` vuelve a leerlo y
+> compara: si cambian los argumentos de un analisis y no se toca la ficha, el
+> dialogo pediria variables que la rutina ignora y el informe saldria sobre
+> otra cosa **sin avisar**.
+
 
 > [!bug] Dos trampas encontradas, por si vuelven
 > `Splash(..., text_font='Segoe UI')` rompe el splash entero: PyInstaller pega el
@@ -51,6 +66,11 @@ En Windows, para Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
 >
 > `biostat.spec` es ahora la receta real (`build_exe.py` compila desde el spec).
 > Antes apuntaba a una ruta muerta de otra máquina y no lo usaba nadie.
+>
+> `QScrollArea.setWidget` se queda con la propiedad del widget y **destruye el
+> anterior**: poner un gráfico borraba el cartel de "el gráfico aparecerá aquí"
+> y el siguiente `_clear` reventaba con *wrapped C/C++ object of type QLabel has
+> been deleted*. Los tres paneles con gráfico usan `takeWidget` primero.
 
 ## Estado actual de `develop` (`0a60ea5`)
 
@@ -147,7 +167,7 @@ calidad. Ver el `LEEME.md` de esa carpeta.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 292 tests
+python -m pytest tests/ -q                       # 305 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
