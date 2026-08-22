@@ -619,14 +619,38 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         if fn:
             self.txt_results.setHtml(fn())
 
+    def _vaciar_grafico(self):
+        """Saca lo que haya en el area de grafico y lo devuelve.
+
+        `QScrollArea.setWidget` se queda con la propiedad del widget y destruye
+        el anterior: poner un grafico borraba el cartel de "aparecera aqui", y
+        el siguiente `_clear` reventaba con "wrapped C/C++ object of type QLabel
+        has been deleted". `takeWidget` devuelve la propiedad primero.
+        """
+        actual = self.graph_scroll.takeWidget()
+        return None if actual is self.graph_ph else actual
+
     def _show_fig(self, fig):
+        anterior = self._vaciar_grafico()
+        if anterior is not None:
+            anterior.deleteLater()
         self.canvas = FigureCanvas(fig)
         self.graph_scroll.setWidget(self.canvas)
         plt.close(fig)
 
+    def tomar_grafico(self):
+        """Entrega el grafico actual (para la ventana de informe) y repone el cartel."""
+        canvas = self._vaciar_grafico()
+        self.canvas = None
+        self.graph_scroll.setWidget(self.graph_ph)
+        return canvas
+
     def _clear(self):
         self.txt_results.clear()
         self.txt_formula.clear()
+        anterior = self._vaciar_grafico()
+        if anterior is not None:
+            anterior.deleteLater()
         self.graph_scroll.setWidget(self.graph_ph)
 
     def _h(self, t):

@@ -142,6 +142,11 @@ class GraphsPanel(QWidget):
         if fig:
             result = fig(c1, c2)
             if result:
+                # takeWidget antes de setWidget: QScrollArea destruye el widget
+                # anterior, y con el se iba el cartel de "selecciona tipo...".
+                anterior = self.scroll.takeWidget()
+                if anterior is not None and anterior is not self.ph:
+                    anterior.deleteLater()
                 self.canvas = FigureCanvas(result)
                 self.scroll.setWidget(self.canvas)
                 plt.close(result)

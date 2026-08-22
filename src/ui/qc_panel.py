@@ -170,6 +170,11 @@ class QCPanel(QWidget):
         return f"<tr><td style='padding:2px 12px 2px 0;color:#8892a4;'>{label}</td><td style='padding:2px 0;font-weight:600;'>{v}</td></tr>"
 
     def _show(self, fig):
+        # takeWidget antes de setWidget: si no, QScrollArea destruye el cartel
+        # y el proximo intento de reponerlo revienta.
+        anterior = self.scroll.takeWidget()
+        if anterior is not None and anterior is not self.ph:
+            anterior.deleteLater()
         self.canvas = FigureCanvas(fig)
         self.scroll.setWidget(self.canvas)
         plt.close(fig)

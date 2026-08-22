@@ -17,6 +17,8 @@ from src.ui.omni_panel import OmniPanel
 from src.ui.menus import (
     MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS, MENU_QC,
 )
+from src.ui.dialogs import DialogoAnalisis
+from src.ui import report_window
 
 
 class MainWindow(QMainWindow):
@@ -120,6 +122,10 @@ class MainWindow(QMainWindow):
         act.triggered.connect(lambda: self.tabs.setCurrentIndex(4))
         om.addAction(act)
 
+        # Menu "Ventana": se arma cada vez que se abre, con los informes vivos.
+        self.menu_ventana = mb.addMenu("Ventana")
+        self.menu_ventana.aboutToShow.connect(self._armar_menu_ventana)
+
         hm = mb.addMenu("Ayuda")
         about = QAction("Acerca de", self)
         about.triggered.connect(self._show_about)
@@ -128,17 +134,8 @@ class MainWindow(QMainWindow):
     def _create_toolbar(self):
         tb = QToolBar()
         tb.setMovable(False)
-        tb.setIconSize(QSize(18, 18))
+        tb.setIconSize(QSize(16, 16))
         self.addToolBar(tb)
-
-        # Marca de la app a la izquierda de la toolbar
-        brand = QLabel("  BioStat ")
-        brand.setStyleSheet("font-size:15px; font-weight:800; color:#0e7490; padding:0 8px;")
-        tb.addWidget(brand)
-        tag = QLabel("Lab Statistics ")
-        tag.setStyleSheet("font-size:11px; color:#94a3b8; padding-top:3px;")
-        tb.addWidget(tag)
-        tb.addSeparator()
 
         # Open button with SVG icon
         a = QAction(Icons.OPEN(), "Abrir", self)
@@ -249,18 +246,70 @@ class MainWindow(QMainWindow):
         self.analysis_panel._run()
 
     def _goto_analysis(self, combo_text):
-        """Va al panel Análisis, selecciona el análisis y lo ejecuta."""
+        """Abre el dialogo del analisis y, al aceptar, su ventana de informe.
+
+        Es el flujo de MedCalc: menu -> dialogo con las variables -> informe en
+        ventana propia. El calculo lo sigue haciendo `AnalysisPanel`; aca solo
+        se le cargan las elecciones del dialogo y se le saca el resultado.
+        """
         data = self.data_panel.get_data()
         if data is None:
             QMessageBox.warning(self, "Sin datos", "Importa o ingresa datos antes de analizar.")
             self.tabs.setCurrentIndex(0)
             return
+
         self.analysis_panel.set_data(data)
-        self.tabs.setCurrentIndex(1)
         idx = self.analysis_panel.combo_analysis.findText(combo_text)
         if idx >= 0:
             self.analysis_panel.combo_analysis.setCurrentIndex(idx)
+
+        dialogo = DialogoAnalisis(combo_text, list(data.columns), self,
+                                  alpha=self.analysis_panel.input_alpha.text())
+        if dialogo.exec() != DialogoAnalisis.DialogCode.Accepted:
+            return
+
+        eleccion = dialogo.seleccion()
+        self._aplicar_eleccion(eleccion)
+        self.analysis_panel._clear()
         self.analysis_panel._run()
+
+        html = self.analysis_panel.txt_results.toHtml()
+        # El grafico se muda a la ventana de informe; el panel repone su cartel.
+        canvas = self.analysis_panel.tomar_grafico()
+        report_window.abrir(combo_text, html, canvas, self)
+        self.statusBar().showMessage(f"{combo_text} — informe abierto en su ventana")
+
+    def _armar_menu_ventana(self):
+        """Rehace el menu Ventana con los informes abiertos en este momento."""
+        self.menu_ventana.clear()
+        ventanas = report_window.abiertas()
+        if not ventanas:
+            vacio = QAction("(no hay informes abiertos)", self)
+            vacio.setEnabled(False)
+            self.menu_ventana.addAction(vacio)
+            return
+        for ventana in ventanas:
+            act = QAction(ventana.windowTitle().replace(" — BioStat", ""), self)
+            act.triggered.connect(lambda _checked, v=ventana: (v.raise_(), v.activateWindow()))
+            self.menu_ventana.addAction(act)
+        self.menu_ventana.addSeparator()
+        cerrar = QAction("Cerrar todos los informes", self)
+        cerrar.triggered.connect(report_window.cerrar_todas)
+        self.menu_ventana.addAction(cerrar)
+
+    def _aplicar_eleccion(self, eleccion):
+        """Vuelca lo elegido en el dialogo sobre los controles del panel."""
+        panel = self.analysis_panel
+        for clave, combo in (("c1", panel.combo_col1), ("c2", panel.combo_col2),
+                             ("c3", panel.combo_col3)):
+            valor = eleccion.get(clave)
+            if not valor:
+                continue
+            idx = combo.findText(valor)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+        if eleccion.get("alpha"):
+            panel.input_alpha.setText(eleccion["alpha"])
 
     def _goto_graph(self, combo_text):
         """Va al panel Graficos y selecciona el tipo de grafico."""

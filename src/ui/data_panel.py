@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
     QTableWidgetItem, QPushButton, QLabel, QFileDialog,
-    QHeaderView, QGroupBox, QMessageBox
+    QHeaderView, QGroupBox, QMessageBox, QInputDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import pandas as pd
@@ -11,6 +11,21 @@ import numpy as np
 from src.ui.icons import Icons
 
 MAX_VISIBLE_ROWS = 500
+
+
+def letra_columna(indice):
+    """A, B, ... Z, AA, AB... como en una planilla."""
+    letras = ""
+    indice += 1
+    while indice:
+        indice, resto = divmod(indice - 1, 26)
+        letras = chr(65 + resto) + letras
+    return letras
+
+
+def encabezado(indice, nombre):
+    """Texto del encabezado: la letra de columna y el nombre de la variable."""
+    return f"{letra_columna(indice)}  {nombre}"
 
 
 class DataPanel(QWidget):
@@ -83,20 +98,24 @@ class DataPanel(QWidget):
 
         layout.addLayout(btn_layout)
 
+        # Planilla: filas bajas, columnas de ancho fijo y encabezado con la
+        # letra de columna delante del nombre, como en MedCalc.
         self.table = QTableWidget()
         self.table.setMinimumHeight(280)
         self.table.setAlternatingRowColors(True)
-        # Filas más altas y fuente mayor para que el editor de celda sea legible.
-        self.table.verticalHeader().setDefaultSectionSize(34)
-        _f = self.table.font()
-        _f.setPointSize(11)
-        self.table.setFont(_f)
-        self.table.setRowCount(20)
+        self.table.verticalHeader().setDefaultSectionSize(20)
+        self.table.verticalHeader().setMinimumWidth(34)
+        self.table.setRowCount(30)
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Columna 1", "Columna 2", "Columna 3", "Columna 4", "Columna 5"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setDefaultSectionSize(110)
+        self.table.horizontalHeader().sectionDoubleClicked.connect(self._renombrar_columna)
         self.table.cellChanged.connect(self._on_cell_changed)
-        self.table.setToolTip("Escribe directamente aqui o importa un archivo. Las columnas numericas se usan para analisis.")
+        self.table.setToolTip(
+            "Escribe directamente aqui o importa un archivo. Doble clic en el "
+            "encabezado para renombrar la variable."
+        )
+        self._nombres_por_defecto()
         layout.addWidget(self.table)
 
         stats_group = QGroupBox(f"    Estadisticas automaticas")
@@ -109,6 +128,40 @@ class DataPanel(QWidget):
         stats_group.setLayout(stats_layout)
         stats_group.setMaximumHeight(110)
         layout.addWidget(stats_group)
+
+    def _nombres_por_defecto(self):
+        self._poner_encabezados([f"Var{i + 1}" for i in range(self.table.columnCount())])
+
+    def _poner_encabezados(self, nombres):
+        """Escribe los encabezados con su letra de columna delante."""
+        self.table.setHorizontalHeaderLabels(
+            [encabezado(i, n) for i, n in enumerate(nombres)])
+
+    def nombres_de_columna(self):
+        """Nombres de variable actuales, sin la letra de columna."""
+        nombres = []
+        for i in range(self.table.columnCount()):
+            item = self.table.horizontalHeaderItem(i)
+            texto = item.text() if item else ""
+            prefijo = letra_columna(i) + "  "
+            nombres.append(texto[len(prefijo):] if texto.startswith(prefijo) else texto)
+        return nombres
+
+    def _renombrar_columna(self, indice):
+        """Doble clic en el encabezado: renombra la variable."""
+        actual = self.nombres_de_columna()[indice]
+        nuevo, ok = QInputDialog.getText(
+            self, "Nombre de la variable",
+            f"Columna {letra_columna(indice)}:", text=actual)
+        nuevo = nuevo.strip()
+        if not ok or not nuevo or nuevo == actual:
+            return
+        nombres = self.nombres_de_columna()
+        nombres[indice] = nuevo
+        self._poner_encabezados(nombres)
+        if self.data is not None and indice < len(self.data.columns):
+            self.data.rename(columns={self.data.columns[indice]: nuevo}, inplace=True)
+            self.dataChanged.emit(self.data)
 
     def _import_csv(self):
         path, _ = QFileDialog.getOpenFileName(self, "CSV", "", "CSV (*.csv);;Todos (*)")
@@ -142,13 +195,18 @@ class DataPanel(QWidget):
         show = self.data.head(MAX_VISIBLE_ROWS)
         self.table.setRowCount(len(show))
         self.table.setColumnCount(len(self.data.columns))
-        self.table.setHorizontalHeaderLabels(self.data.columns.tolist())
+        self._poner_encabezados(self.data.columns.tolist())
         # Indexar por POSICION (i), no por la etiqueta del indice del DataFrame,
         # que puede no ser contigua tras limpiar filas.
         for i, (_, row) in enumerate(show.iterrows()):
             for j, val in enumerate(row):
                 self.table.setItem(i, j, QTableWidgetItem("" if pd.isna(val) else str(val)))
         self.table.blockSignals(False)
+        # Ancho por contenido, pero sin columnas mezquinas: el encabezado lleva
+        # la letra delante y los nombres largos quedaban cortados.
+        self.table.resizeColumnsToContents()
+        for c in range(self.table.columnCount()):
+            self.table.setColumnWidth(c, max(80, min(220, self.table.columnWidth(c) + 12)))
         total = len(self.data)
         self.lbl_info.setText(
             f"{total} filas × {len(self.data.columns)} cols"
@@ -169,9 +227,9 @@ class DataPanel(QWidget):
     def _add_column(self):
         c = self.table.columnCount()
         self.table.setColumnCount(c + 1)
-        self.table.setHorizontalHeaderItem(c, QTableWidgetItem(f"Col {c+1}"))
+        self.table.setHorizontalHeaderItem(c, QTableWidgetItem(encabezado(c, f"Var{c + 1}")))
         if self.data is not None:
-            self.data[f"Col {c+1}"] = ""
+            self.data[f"Var{c + 1}"] = ""
 
     def _add_row(self):
         self.table.setRowCount(self.table.rowCount() + 1)
@@ -186,7 +244,7 @@ class DataPanel(QWidget):
             self.table.clearContents()
             self.table.setRowCount(20)
             self.table.setColumnCount(5)
-            self.table.setHorizontalHeaderLabels(["Columna 1", "Columna 2", "Columna 3", "Columna 4", "Columna 5"])
+            self._nombres_por_defecto()
             self.table.blockSignals(False)
             self.lbl_info.setText("")
             self.lbl_stats.setText("Al cargar datos numericos aqui apareceran estadisticas automaticas.")
@@ -214,7 +272,8 @@ class DataPanel(QWidget):
         return self._build_from_table()
 
     def _build_from_table(self):
-        headers = [self.table.horizontalHeaderItem(c).text() if self.table.horizontalHeaderItem(c) else f"C{c+1}" for c in range(self.table.columnCount())]
+        # Sin la letra de columna: el DataFrame lleva el nombre de la variable.
+        headers = self.nombres_de_columna()
         rows = []
         for r in range(self.table.rowCount()):
             rd, has = [], False
