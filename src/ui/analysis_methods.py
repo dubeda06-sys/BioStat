@@ -17,6 +17,30 @@ from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 
 
+def _bins(valores, maximo=50):
+    """Numero de barras seguro para un histograma.
+
+    matplotlib revienta con "Too many bins for data range" cuando todos los
+    valores son iguales (por ejemplo, el bootstrap de la correlacion de una
+    columna consigo misma: siempre 1,0). Con rango cero, una sola barra.
+    """
+    import numpy as _np
+    v = _np.asarray(valores, dtype=float)
+    v = v[_np.isfinite(v)]
+    if v.size == 0:
+        return 1
+    rango = float(_np.ptp(v))
+    if rango == 0:
+        return 1
+    # numpy tambien falla cuando el rango existe pero es tan chico que el ancho
+    # de barra no se puede representar en punto flotante (p.ej. remuestreos de
+    # una correlacion de 0,9999999 que solo difieren en el ultimo bit).
+    minimo_representable = float(_np.spacing(float(_np.max(_np.abs(v))))) * 4
+    n = min(maximo, max(1, v.size))
+    while n > 1 and rango / n <= minimo_representable:
+        n //= 2
+    return max(1, n)
+
 def _sin_resultado(res):
     """True si el core no pudo calcular: None, o dict de rechazo con motivo."""
     return res is None or (isinstance(res, dict) and res.get("error"))
@@ -978,12 +1002,12 @@ class AnalysisMethodsMixin:
         h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> Bootstrap no asume distribucion normal. El IC se obtiene directamente de la distribucion de medias remuestreadas.</div>"
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
-        ax1.hist(d.values, bins=30, edgecolor='white', alpha=0.7, color='#4f6ef7')
+        ax1.hist(d.values, bins=_bins(d.values, 30), edgecolor='white', alpha=0.7, color='#4f6ef7')
         ax1.axvline(result['original_mean'], color='#ef4444', ls='--', lw=2, label=f'Media={result["original_mean"]:.2f}')
         ax1.set_title('Datos originales', fontweight='bold')
         ax1.legend(framealpha=0.9)
 
-        ax2.hist(result['bootstrap_distribution'], bins=50, edgecolor='white', alpha=0.7, color='#22c55e')
+        ax2.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#22c55e')
         ax2.axvline(result['ci_lower'], color='#ef4444', ls='--', lw=1.5, label=f'IC bajo={result["ci_lower"]:.2f}')
         ax2.axvline(result['ci_upper'], color='#ef4444', ls='--', lw=1.5, label=f'IC alto={result["ci_upper"]:.2f}')
         ax2.set_title('Distribucion bootstrap', fontweight='bold')
@@ -1028,7 +1052,7 @@ class AnalysisMethodsMixin:
             h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> IC NO incluye 0 — Diferencia significativa</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, 4))
-        ax.hist(result['bootstrap_distribution'], bins=50, edgecolor='white', alpha=0.7, color='#4f6ef7')
+        ax.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#4f6ef7')
         ax.axvline(result['ci_lower'], color='#ef4444', ls='--', lw=1.5)
         ax.axvline(result['ci_upper'], color='#ef4444', ls='--', lw=1.5)
         ax.axvline(0, color='#d1d5e0', ls='--', lw=1.5, label='0')
@@ -1075,7 +1099,7 @@ class AnalysisMethodsMixin:
             h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> IC NO incluye 0 — Correlacion significativa</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, 4))
-        ax.hist(result['bootstrap_distribution'], bins=50, edgecolor='white', alpha=0.7, color='#8b5cf6')
+        ax.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#8b5cf6')
         ax.axvline(result['ci_lower'], color='#ef4444', ls='--', lw=1.5)
         ax.axvline(result['ci_upper'], color='#ef4444', ls='--', lw=1.5)
         ax.axvline(0, color='#d1d5e0', ls='--', lw=1.5, label='0')

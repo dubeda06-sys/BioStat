@@ -1,7 +1,7 @@
 """Aplicacion principal de BioStat."""
 from PyQt6.QtWidgets import QApplication
 from src.ui.main_window import MainWindow
-from src.utils import splash
+from src.utils import errores, splash
 
 
 class BioStatApp:
@@ -9,6 +9,9 @@ class BioStatApp:
         self.app = QApplication(argv)
         self.app.setApplicationName("BioStat")
         self.app.setOrganizationName("BioStat")
+        # PyQt aborta el proceso si una excepcion sale de un slot; con esto la
+        # aplicacion avisa y sigue viva. Ver src/utils/errores.py.
+        errores.instalar()
         self.main_window = None
 
     def run(self):

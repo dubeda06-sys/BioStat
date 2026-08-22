@@ -14,6 +14,9 @@ from src.ui.analysis_panel import AnalysisPanel
 from src.ui.graphs_panel import GraphsPanel
 from src.ui.qc_panel import QCPanel
 from src.ui.omni_panel import OmniPanel
+from src.ui.menus import (
+    MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS, MENU_QC,
+)
 
 
 class MainWindow(QMainWindow):
@@ -68,23 +71,54 @@ class MainWindow(QMainWindow):
         copy.triggered.connect(self._copy_results)
         em.addAction(copy)
 
-        am = mb.addMenu("Analisis")
-        analisis_map = {
-            "Descriptivas": "Estadisticas descriptivas",
-            "ROC": "Curva ROC",
-            "Bland-Altman": "Bland-Altman",
-            "Supervivencia": "Kaplan-Meier",
-        }
-        for label, combo_text in analisis_map.items():
+        vm = mb.addMenu("Ver")
+        for i, (nombre, atajo) in enumerate([
+            ("Datos", "Ctrl+1"), ("Analisis", "Ctrl+2"), ("Graficos", "Ctrl+3"),
+            ("Control de Calidad", "Ctrl+4"), ("Omnianálisis", "Ctrl+5"),
+        ]):
+            act = QAction(nombre, self)
+            act.setShortcut(atajo)
+            act.triggered.connect(lambda _checked, idx=i: self.tabs.setCurrentIndex(idx))
+            vm.addAction(act)
+
+        # Menu "Estadisticas": los 76 analisis agrupados por familia, como en
+        # MedCalc. La tabla vive en src/ui/menus.py y tests/test_menus.py
+        # comprueba que cada entrada apunte a un analisis que existe.
+        sm = mb.addMenu("Estadisticas")
+        for grupo, items in MENU_ESTADISTICAS:
+            sub = sm.addMenu(grupo)
+            for label, combo_text in items:
+                act = QAction(label, self)
+                act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
+                sub.addAction(act)
+        sm.addSeparator()
+        for label, combo_text in ESTADISTICAS_SUELTAS:
             act = QAction(label, self)
             act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
-            am.addAction(act)
+            sm.addAction(act)
+
+        gm = mb.addMenu("Graficos")
+        for label, combo_text in MENU_GRAFICOS:
+            act = QAction(label, self)
+            act.triggered.connect(lambda _checked, t=combo_text: self._goto_graph(t))
+            gm.addAction(act)
+
+        pm = mb.addMenu("Pruebas diagnosticas")
+        for label, combo_text in MENU_PRUEBAS:
+            act = QAction(label, self)
+            act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
+            pm.addAction(act)
 
         qm = mb.addMenu("Control de Calidad")
-        for n in ["Estadisticas", "Tendencias"]:
-            act = QAction(n, self)
-            act.triggered.connect(lambda _checked, t=n: self._goto_qc(t))
+        for label, combo_text in MENU_QC:
+            act = QAction(label, self)
+            act.triggered.connect(lambda _checked, t=combo_text: self._goto_qc(t))
             qm.addAction(act)
+
+        om = mb.addMenu("Herramientas")
+        act = QAction("Omnianálisis (elegir la prueba por mi)", self)
+        act.triggered.connect(lambda: self.tabs.setCurrentIndex(4))
+        om.addAction(act)
 
         hm = mb.addMenu("Ayuda")
         about = QAction("Acerca de", self)
@@ -227,6 +261,16 @@ class MainWindow(QMainWindow):
         if idx >= 0:
             self.analysis_panel.combo_analysis.setCurrentIndex(idx)
         self.analysis_panel._run()
+
+    def _goto_graph(self, combo_text):
+        """Va al panel Graficos y selecciona el tipo de grafico."""
+        data = self.data_panel.get_data()
+        if data is not None:
+            self.graphs_panel.set_data(data)
+        self.tabs.setCurrentIndex(2)
+        idx = self.graphs_panel.combo_graph.findText(combo_text)
+        if idx >= 0:
+            self.graphs_panel.combo_graph.setCurrentIndex(idx)
 
     def _goto_qc(self, combo_text):
         """Va al panel Control de Calidad y selecciona el análisis QC."""
