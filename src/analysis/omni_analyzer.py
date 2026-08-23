@@ -345,6 +345,14 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
         norm1 = _normality(a, cfg)
         norm2 = _normality(b, cfg)
         both_normal = norm1["normal"] and norm2["normal"]
+        # Los supuestos quedan estructurados, no solo narrados en la traza:
+        # `omni_caso` los relee para contar el caso en castellano. Parsear la
+        # prosa de vuelta seria fragil — la prosa cambia, un dict no.
+        block["resultados"]["supuestos"] = {
+            "normalidad": {c1: norm1, c2: norm2},
+            "ambas_normales": both_normal,
+            "n_pares": int(len(a)),
+        }
         block["traza"].append(
             f"Normalidad {c1}: {'sí' if norm1['normal'] else 'no'} | "
             f"{c2}: {'sí' if norm2['normal'] else 'no'} → "
@@ -422,6 +430,14 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
     )
     _marcar(block, "levene", f"{_p(lev['p'])} → varianzas "
                              f"{'iguales' if lev['equal_var'] else 'distintas'}")
+    block["resultados"]["supuestos"] = {
+        "k_grupos": k,
+        "etiquetas": labels,
+        "tamanos": [int(len(g)) for g in groups],
+        "normalidad_por_grupo": {lab: nn for lab, nn in zip(labels, norms)},
+        "todas_normales": all_normal,
+        "levene": lev,
+    }
 
     if k == 2:
         # Los de 3+ grupos no compiten aca: no aplican, no fueron descartados.
@@ -547,6 +563,12 @@ def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:
     expected = np.asarray(chi["expected"])
     min_exp = float(np.min(expected))
     use_fisher = ct.shape == (2, 2) and min_exp < cfg.FISHER_MIN_FREQ
+    block["resultados"]["supuestos"] = {
+        "esperada_minima": round(min_exp, 2),
+        "umbral": cfg.FISHER_MIN_FREQ,
+        "forma": (int(ct.shape[0]), int(ct.shape[1])),
+        "n_total": int(ct.values.sum()),
+    }
     block["traza"].append(
         f"Frecuencia esperada mínima={round(min_exp,2)} "
         f"({'<' if min_exp < cfg.FISHER_MIN_FREQ else '≥'} {cfg.FISHER_MIN_FREQ}) → "
@@ -687,6 +709,13 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
     _marcar(block, "normalidad_diferencias",
             f"{norm_diff['test']}, {_p(norm_diff['p'])} → "
             f"{'normales' if norm_diff['normal'] else 'NO normales'}")
+    block["resultados"]["supuestos"] = {
+        "n_pares": int(len(a)),
+        "pendiente_diff_mean": round(float(slope), 4),
+        "p_pendiente": round(float(p_slope), 4),
+        "proporcional": bool(proporcional),
+        "normalidad_diferencias": norm_diff,
+    }
     ba = bland_altman_analysis(a, b)
     if not _ok(ba):
         block["resultados"]["bland_altman"] = {"error": ba.get("error") if isinstance(ba, dict)

@@ -196,4 +196,19 @@ def leyenda_arbol() -> str:
     )
 
 
+def leyenda_caso() -> str:
+    """Texto corto que acompaña a la vista de un caso concreto."""
+    return (
+        "<div style=\"font-family:'Segoe UI',sans-serif;font-size:12px;color:#334155;\">"
+        "<b>Cómo leerlo.</b> Cada paso es una pregunta, con qué se la contestó, "
+        "qué número dio, y qué se decidió por eso. "
+        "<span style='color:#15803d;font-weight:bold;'>Verde</span> = el supuesto "
+        "se cumplió; <span style='color:#b45309;font-weight:bold;'>ámbar</span> = "
+        "no se cumplió y el motor se corrió a la rama alternativa — eso es "
+        "correcto, no es un error. El recuadro final dice la conclusión y, sobre "
+        "todo, <b>qué NO se puede concluir</b>."
+        "</div>"
+    )
+
+
 ESTADOS_ORDEN = (EJECUTADO, DESCARTADO, NO_APLICA)

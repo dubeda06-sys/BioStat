@@ -313,6 +313,123 @@ def figura_etapa(etapa: str, auditoria: dict | None = None):
     return fig
 
 
+# ---- Un caso concreto, paso por paso -----------------------------------
+_PASO_OK = {"fondo": "#dcfce7", "borde": "#15803d", "texto": "#14532d"}
+_PASO_OJO = {"fondo": "#fef3c7", "borde": "#d97706", "texto": "#78350f"}
+_VEREDICTO = {"fondo": "#e0f2fe", "borde": "#0e7490", "texto": "#0c4a6e"}
+
+
+def figura_caso(caso, ancho_pulgadas=9.6):
+    """Dibuja UN análisis: sus preguntas, sus números y su veredicto.
+
+    El árbol general contesta "¿qué corrió?". Este contesta "¿qué dio, y por
+    qué se decidió así?" — que es lo que hace falta para confiar sin saber
+    estadística. Cada paso lleva la pregunta en castellano, la medición con el
+    número, y qué se decidió por esa respuesta.
+
+    El color NO significa "bueno" o "malo": significa si el supuesto se cumplió
+    (verde) o si obligó a desviarse a la rama alternativa (ámbar). Desviarse es
+    correcto; por eso no es rojo.
+    """
+    pasos = list(caso.pasos)
+    # Alto por caja segun cuanto texto lleva: si se fija, el texto se sale.
+    alturas = []
+    for p in pasos:
+        lineas = (len(textwrap.wrap(p.pregunta, 78)) +
+                  len(textwrap.wrap(p.medicion, 88)) +
+                  len(textwrap.wrap(p.consecuencia, 88)) +
+                  (len(textwrap.wrap(p.alternativa, 88)) if p.alternativa else 0))
+        alturas.append(max(0.86, 0.20 * lineas + 0.30))
+    lineas_ver = len(textwrap.wrap(caso.veredicto or "", 84)) + \
+        len(textwrap.wrap(caso.matiz or "", 84))
+    alto_ver = max(0.86, 0.20 * lineas_ver + 0.42)
+
+    separacion = 0.26
+    alto_total = sum(alturas) + alto_ver + separacion * (len(pasos) + 1) + 0.95
+
+    fig, ax = plt.subplots(figsize=(ancho_pulgadas, alto_total))
+    ax.set_axis_off()
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, alto_total)
+
+    y = alto_total - 0.30
+    ax.text(0.12, y, caso.titulo, fontsize=11, fontweight="bold", color="#0c4a6e",
+            va="top", ha="left")
+    y -= 0.30
+    ax.text(0.12, y, caso.pregunta, fontsize=8.8, color="#475569", va="top",
+            ha="left", style="italic")
+    y -= 0.38
+
+    for i, (p, alto) in enumerate(zip(pasos, alturas), start=1):
+        est = _PASO_OK if p.ok else _PASO_OJO
+        caja = FancyBboxPatch(
+            (0.12, y - alto), 9.76, alto,
+            boxstyle="round,pad=0.02,rounding_size=0.06",
+            facecolor=est["fondo"], edgecolor=est["borde"], linewidth=1.3, zorder=2,
+        )
+        ax.add_patch(caja)
+
+        # Numero del paso, en un circulo a la izquierda.
+        ax.text(0.42, y - 0.26, str(i), fontsize=10, fontweight="bold",
+                color="white", ha="center", va="center", zorder=4,
+                bbox=dict(boxstyle="circle,pad=0.30", facecolor=est["borde"],
+                          edgecolor="none"))
+
+        ty = y - 0.17
+        ax.text(0.80, ty, "\n".join(textwrap.wrap(p.pregunta, 78)),
+                fontsize=8.6, fontweight="bold", color=est["texto"],
+                va="top", ha="left", zorder=4)
+        ty -= 0.20 * len(textwrap.wrap(p.pregunta, 78))
+
+        ax.text(0.80, ty, "\n".join(textwrap.wrap(p.medicion, 88)),
+                fontsize=7.9, color="#334155", va="top", ha="left",
+                family="DejaVu Sans Mono", zorder=4)
+        ty -= 0.20 * len(textwrap.wrap(p.medicion, 88))
+
+        ax.text(0.80, ty, "\n".join(textwrap.wrap("→ " + p.consecuencia, 88)),
+                fontsize=8.0, color=est["texto"], va="top", ha="left", zorder=4)
+        ty -= 0.20 * len(textwrap.wrap("→ " + p.consecuencia, 88))
+
+        if p.alternativa:
+            ax.text(0.80, ty, "\n".join(textwrap.wrap("Si hubiera dado al revés: "
+                                                      + p.alternativa, 88)),
+                    fontsize=7.4, color="#64748b", va="top", ha="left",
+                    style="italic", zorder=4)
+
+        # La respuesta, grande, contra el borde derecho.
+        ax.text(9.72, y - alto / 2, p.respuesta, fontsize=9.2, fontweight="bold",
+                color=est["borde"], va="center", ha="right", zorder=4)
+
+        y -= alto
+        if i <= len(pasos):
+            ax.annotate("", xy=(0.55, y - separacion + 0.03), xytext=(0.55, y),
+                        arrowprops=dict(arrowstyle="-|>", color="#94a3b8", lw=1.3))
+        y -= separacion
+
+    caja = FancyBboxPatch(
+        (0.12, y - alto_ver), 9.76, alto_ver,
+        boxstyle="round,pad=0.02,rounding_size=0.06",
+        facecolor=_VEREDICTO["fondo"], edgecolor=_VEREDICTO["borde"],
+        linewidth=1.8, zorder=2,
+    )
+    ax.add_patch(caja)
+    ty = y - 0.18
+    ax.text(0.42, ty, "EN RESUMEN", fontsize=7.6, fontweight="bold",
+            color=_VEREDICTO["borde"], va="top", ha="left", zorder=4)
+    ty -= 0.22
+    ax.text(0.42, ty, "\n".join(textwrap.wrap(caso.veredicto or "—", 84)),
+            fontsize=9.0, fontweight="bold", color=_VEREDICTO["texto"],
+            va="top", ha="left", zorder=4)
+    ty -= 0.20 * len(textwrap.wrap(caso.veredicto or "—", 84)) + 0.06
+    if caso.matiz:
+        ax.text(0.42, ty, "\n".join(textwrap.wrap("Lo que esto NO dice: " + caso.matiz, 84)),
+                fontsize=7.6, color="#475569", va="top", ha="left",
+                style="italic", zorder=4)
+
+    fig.tight_layout(pad=0.4)
+    return fig
+
+
 def figuras(auditoria: dict | None = None):
     """[(etapa, Figure), ...] en orden de ejecucion del arbol."""
     return [(etapa, figura_etapa(etapa, auditoria)) for etapa in ETAPAS]

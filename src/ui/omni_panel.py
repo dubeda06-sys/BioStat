@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 from src.analysis.omni_analyzer import run_omnianalysis
 from src.analysis.omni_plots import comparison_figures
 from src.analysis import omni_arbol
+from src.analysis.omni_caso import casos as construir_casos
 from src.analysis.omni_auditoria import (
     DESCARTADO, EJECUTADO, NO_APLICA, auditar, resumen_en_una_linea,
 )
@@ -108,6 +109,7 @@ class OmniPanel(QWidget):
         self._df: pd.DataFrame | None = None
         self._manual_pairs: list[tuple[str, str]] = []
         self._auditoria: dict = {}
+        self._casos: list = []
         self._build_ui()
 
     def _build_ui(self):
@@ -206,10 +208,22 @@ class OmniPanel(QWidget):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(4)
 
-        leyenda = QLabel(omni_render.leyenda_arbol())
-        leyenda.setWordWrap(True)
-        leyenda.setStyleSheet("padding:6px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0;")
-        v.addWidget(leyenda)
+        # Selector de vista. La vista por caso es la que sirve para confiar sin
+        # saber estadistica: la general dice que corrio, la de caso dice que dio.
+        barra = QHBoxLayout()
+        barra.setContentsMargins(8, 6, 8, 0)
+        barra.addWidget(QLabel("Ver:"))
+        self.cmb_vista = QComboBox()
+        self.cmb_vista.setMinimumWidth(340)
+        self.cmb_vista.currentIndexChanged.connect(self._cambiar_vista)
+        barra.addWidget(self.cmb_vista, stretch=1)
+        v.addLayout(barra)
+
+        self.lbl_leyenda = QLabel(omni_render.leyenda_arbol())
+        self.lbl_leyenda.setWordWrap(True)
+        self.lbl_leyenda.setStyleSheet(
+            "padding:6px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0;")
+        v.addWidget(self.lbl_leyenda)
 
         self.arbol_scroll = QScrollArea()
         self.arbol_scroll.setWidgetResizable(True)
@@ -340,6 +354,8 @@ class OmniPanel(QWidget):
         self.tbl_auditoria.setRowCount(0)
         self.lbl_auditoria.setText("Sin corrida que auditar.")
         self._auditoria = {}
+        self._casos = []
+        self.cmb_vista.clear()
         self._poner_arbol([QLabel("El árbol se dibuja al ejecutar el Omnianálisis.")])
 
     def _run(self):
@@ -367,20 +383,56 @@ class OmniPanel(QWidget):
                                       target=self._target())
 
         self._auditoria = auditar(report)
+        self._casos = construir_casos(report)
         self.txt_resumen.setHtml(omni_render.resumen_html(report, self._auditoria))
         self.txt_report.setHtml(self._render(report))
+        self._poblar_vistas()
         self._render_arbol()
         self._render_auditoria()
         self._render_plots(report)
         self.tabs.setCurrentIndex(0)
 
     # ---------- Árbol ----------
+    VISTA_GENERAL = "Vista general — qué ensayos corrió el motor"
+    VISTA_TODOS = "Todos los casos, uno tras otro"
+
+    def _poblar_vistas(self):
+        """Llena el selector: la general, todos, y después uno por caso."""
+        self.cmb_vista.blockSignals(True)
+        self.cmb_vista.clear()
+        self.cmb_vista.addItem(self.VISTA_GENERAL)
+        if self._casos:
+            self.cmb_vista.addItem(self.VISTA_TODOS)
+            for c in self._casos:
+                self.cmb_vista.addItem(f"{c.titulo}  ·  {c.tipo}")
+        self.cmb_vista.setCurrentIndex(0)
+        self.cmb_vista.blockSignals(False)
+
+    def _cambiar_vista(self, indice):
+        if not self._auditoria:
+            return
+        if indice <= 0:
+            self._render_arbol()
+        elif indice == 1 and self._casos:
+            self._render_casos(self._casos)
+        else:
+            self._render_casos([self._casos[indice - 2]])
+
     def _render_arbol(self):
+        self.lbl_leyenda.setText(omni_render.leyenda_arbol())
         widgets = []
         resumen = QLabel(resumen_en_una_linea(self._auditoria))
         resumen.setWordWrap(True)
         resumen.setStyleSheet("font-size:12px; color:#0c4a6e; font-weight:bold;")
         widgets.append(resumen)
+
+        pista = QLabel(
+            "Para ver qué dio cada análisis y por qué se decidió así, elegí un "
+            "caso en el selector de arriba."
+        )
+        pista.setWordWrap(True)
+        pista.setStyleSheet("font-size:11px; color:#64748b;")
+        widgets.append(pista)
 
         fig = omni_arbol.figura_resumen(self._auditoria)
         widgets.append(self._lienzo(fig, alto=int(46 * 5 + 90)))
@@ -390,6 +442,21 @@ class OmniPanel(QWidget):
             # dibujado, y el rotulo duplicado quedaba dos veces seguidas.
             # El alto de la figura ya viene proporcionado al layout de la etapa.
             widgets.append(self._lienzo(f, alto=int(f.get_size_inches()[1] * 96)))
+        self._poner_arbol(widgets)
+
+    def _render_casos(self, casos_a_dibujar):
+        self.lbl_leyenda.setText(omni_render.leyenda_caso())
+        widgets = []
+        for c in casos_a_dibujar:
+            f = omni_arbol.figura_caso(c)
+            widgets.append(self._lienzo(f, alto=int(f.get_size_inches()[1] * 96)))
+            for a in c.advertencias:
+                aviso = QLabel("⚠ " + a)
+                aviso.setWordWrap(True)
+                aviso.setStyleSheet(
+                    "background:#fef3c7; border-left:4px solid #d97706; "
+                    "padding:6px 10px; color:#78350f; font-size:11px;")
+                widgets.append(aviso)
         self._poner_arbol(widgets)
 
     @staticmethod

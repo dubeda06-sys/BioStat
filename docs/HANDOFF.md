@@ -14,7 +14,7 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 353 verdes
+python -m pytest tests/ -q        # esperar 372 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -41,6 +41,29 @@ decisión. Ahora sí.
   automático mueve los nodos entre corridas y deja de servir para comparar.
 - **Panel en 5 pestañas**: Resumen (castellano llano), Árbol de decisión,
   Auditoría (tabla filtrable + exportar CSV), Informe, Gráficos.
+- **Vista caso por caso** (`src/analysis/omni_caso.py`): el árbol general dice
+  *qué corrió*; esta dice **qué dio y por qué se decidió así**, sobre columnas
+  concretas. Cada paso lleva la pregunta en castellano, el número, la
+  consecuencia, y **qué habría pasado si el número daba al revés** — sin eso la
+  decisión parece un veredicto en vez de una regla, y una regla es lo único
+  auditable. Cierra con la conclusión y con **qué NO se puede concluir**.
+  Selector de vista en la pestaña Árbol de decisión.
+
+> [!warning] Dos trampas de interpretación que la vista por caso desactiva
+> **1. Un IC que incluye el 1 no prueba que no haya sesgo.** El IC de pendiente
+> de Passing-Bablok puede ir de −3 a 5: incluye el 1, así que la regla mecánica
+> dice "sin sesgo proporcional". Es falso — con ese ancho no puede descartar
+> nada. `_regresion_concluyente()` marca el paso como **no concluyente** cuando
+> el IC es más ancho que 0,5, y lo dice con todas las letras.
+>
+> **2. Dos pasos pueden contradecirse.** El nodo `diff~mean` detecta desvío
+> proporcional y la regresión no, porque tienen sensibilidad distinta. Una
+> contradicción sin explicar destruye la confianza del lector, así que cuando
+> discrepan el caso lo señala y dice cuál vale.
+>
+> Los textos evitan la palabra **«significativo»** (se lee como «importante») y
+> traducen el p a frecuencia: *"aparecería 59 de cada 100 veces solo por azar"*.
+> `tests/test_omni_caso.py` lo verifica.
 
 > [!warning] Dos números que se confunden
 > **Tipos de ensayo** (40 en el catálogo) no es **ejecuciones**: el univariado
@@ -200,7 +223,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 353 tests
+python -m pytest tests/ -q                       # 372 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
