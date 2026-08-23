@@ -121,6 +121,19 @@ exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
 > (el nombre del archivo que extrae) y Python todavía no corre: ahí no se puede
 > dibujar nada. Rotando cada 1,6 s entran unas cuatro frases. Si se quisiera
 > cubrir los 16 s enteros habría que pasar a `onedir`.
+>
+> **Verificado con foto** (23 ago): 40 cuadros del splash durante el arranque,
+> con `PrintWindow` sobre su propio `hWnd`. Los ~29 primeros son el bootloader;
+> del 30 en adelante, barra + porcentaje + frases rotando, acentos correctos.
+> La clase de ventana **no** sirve como verificación: un splash roto sigue
+> siendo `TkTopLevel`.
+
+> [!todo] La barra se planta en 55 % casi toda la espera
+> `main.py` marca el hito 0,55 y después importa `src.app`, que es **una sola
+> sentencia** y el tramo más largo. Sin nada medible en el medio, la barra llega
+> a 55 % y se queda. Es honesto —no promete avance que no ocurrió— y las frases
+> rotando evitan que parezca colgada. Para que acompañe de verdad habría que
+> partir esa importación en etapas con hitos intermedios.
 
 > [!info] La ficha de variables se valida sola
 > `analysis_specs.VARIABLES` salió de leer el `dispatch` de `AnalysisPanel._run`.
