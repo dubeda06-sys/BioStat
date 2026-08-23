@@ -205,6 +205,11 @@ QScrollArea { border: 1px solid #a0a0a0; background-color: #ffffff; }
 QLabel#subtitle { color: #606060; }
 QLabel#tituloDialogo { font-size: 13px; font-weight: 700; color: #0e7490; }
 QLabel#ayudaDialogo { color: #505050; }
+QLabel#vistaPrevia {
+    border: 1px solid #d4d0c8;
+    background-color: #ffffff;
+}
+QLabel#pieVistaPrevia { color: #606060; font-size: 11px; }
 QLabel#avisoDialogo {
     color: #7a5300;
     background-color: #fdf6e3;

@@ -10,10 +10,11 @@ hoja en vez de sobre columnas sueltas.
 """
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QLabel,
-    QLineEdit, QVBoxLayout,
+    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout,
+    QLabel, QLineEdit, QVBoxLayout,
 )
 
+from src.ui import previews
 from src.ui.analysis_specs import sobre_toda_la_hoja, variables
 from src.ui.help_text import ANALYSIS_HELP
 
@@ -29,7 +30,7 @@ class DialogoAnalisis(QDialog):
         self.columnas = list(columnas)
         self.setWindowTitle(analisis)
         self.setModal(True)
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(620)
         self._construir(alpha)
 
     def _construir(self, alpha):
@@ -37,14 +38,40 @@ class DialogoAnalisis(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
+        encabezado = QHBoxLayout()
+        encabezado.setSpacing(10)
+
+        texto = QVBoxLayout()
+        texto.setSpacing(4)
         titulo = QLabel(self.analisis)
         titulo.setObjectName("tituloDialogo")
-        layout.addWidget(titulo)
+        texto.addWidget(titulo)
 
         ayuda = QLabel(ANALYSIS_HELP.get(self.analisis, ""))
         ayuda.setWordWrap(True)
+        ayuda.setMinimumWidth(240)
         ayuda.setObjectName("ayudaDialogo")
-        layout.addWidget(ayuda)
+        texto.addWidget(ayuda)
+        texto.addStretch()
+        encabezado.addLayout(texto, stretch=1)
+
+        # Vista previa: la forma tipica de la salida, con datos de ejemplo.
+        vista = QVBoxLayout()
+        vista.setSpacing(2)
+        imagen = QLabel()
+        imagen.setPixmap(previews.pixmap(self.analisis))
+        imagen.setObjectName("vistaPrevia")
+        imagen.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vista.addWidget(imagen)
+
+        pie = QLabel(previews.descripcion(self.analisis) + "\nDatos de ejemplo.")
+        pie.setWordWrap(True)
+        pie.setMaximumWidth(300)
+        pie.setObjectName("pieVistaPrevia")
+        vista.addWidget(pie)
+        encabezado.addLayout(vista)
+
+        layout.addLayout(encabezado)
 
         linea = QFrame()
         linea.setFrameShape(QFrame.Shape.HLine)

@@ -18,6 +18,8 @@ from src.ui.menus import (
     MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS, MENU_QC,
 )
 from src.ui.dialogs import DialogoAnalisis
+from src.ui import previews
+from src.ui.help_text import ANALYSIS_HELP
 from src.ui import report_window
 
 
@@ -87,17 +89,15 @@ class MainWindow(QMainWindow):
         # MedCalc. La tabla vive en src/ui/menus.py y tests/test_menus.py
         # comprueba que cada entrada apunte a un analisis que existe.
         sm = mb.addMenu("Estadisticas")
+        sm.setToolTipsVisible(True)
         for grupo, items in MENU_ESTADISTICAS:
             sub = sm.addMenu(grupo)
+            sub.setToolTipsVisible(True)
             for label, combo_text in items:
-                act = QAction(label, self)
-                act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
-                sub.addAction(act)
+                sub.addAction(self._accion_analisis(label, combo_text))
         sm.addSeparator()
         for label, combo_text in ESTADISTICAS_SUELTAS:
-            act = QAction(label, self)
-            act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
-            sm.addAction(act)
+            sm.addAction(self._accion_analisis(label, combo_text))
 
         gm = mb.addMenu("Graficos")
         for label, combo_text in MENU_GRAFICOS:
@@ -106,10 +106,9 @@ class MainWindow(QMainWindow):
             gm.addAction(act)
 
         pm = mb.addMenu("Pruebas diagnosticas")
+        pm.setToolTipsVisible(True)
         for label, combo_text in MENU_PRUEBAS:
-            act = QAction(label, self)
-            act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
-            pm.addAction(act)
+            pm.addAction(self._accion_analisis(label, combo_text))
 
         qm = mb.addMenu("Control de Calidad")
         for label, combo_text in MENU_QC:
@@ -130,6 +129,17 @@ class MainWindow(QMainWindow):
         about = QAction("Acerca de", self)
         about.triggered.connect(self._show_about)
         hm.addAction(about)
+
+    def _accion_analisis(self, label, combo_text):
+        """Entrada de menu con vista previa en el tooltip.
+
+        Al pasar el mouse se ve la forma tipica del resultado antes de abrir
+        nada: entre 76 rutinas, el nombre solo no alcanza para elegir.
+        """
+        act = QAction(label, self)
+        act.setToolTip(previews.tooltip(combo_text, ANALYSIS_HELP.get(combo_text, "")))
+        act.triggered.connect(lambda _checked, t=combo_text: self._goto_analysis(t))
+        return act
 
     def _create_toolbar(self):
         tb = QToolBar()
