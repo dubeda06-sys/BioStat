@@ -107,10 +107,11 @@ exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
 > *wrapped C/C++ object of type QLabel has been deleted*. Los tres paneles con
 > gráfico usan `takeWidget` primero.
 
-## Estado actual de `develop` (`1e44e82`)
+## Correcciones de cálculo ya verificadas
 
 Del 13 de agosto, verificado contra MedCalc 23.6.5 con datos reales de un panel
-CAP de EBV (n=15):
+CAP de EBV (n=15). (El encabezado llevaba el hash de `develop`: quedaba viejo en
+cada commit, incluido el que lo actualizaba. Para el estado, `git log`.)
 
 - **IC de los LoA con el multiplicador correcto.** La varianza ya estaba bien
   (`var(LoA) = s²(1/n + z²/(2(n−1)))`); fallaba el multiplicador: `t(n−1)`, no
