@@ -21,22 +21,36 @@ queda en nada y nadie tiene que envolver las llamadas en try/except.
 import threading
 import time
 
+from src.utils import frases
+
 try:  # pragma: no cover - solo existe dentro del ejecutable
     import pyi_splash as _splash
 except ImportError:  # corriendo desde el codigo fuente
     _splash = None
 
-# Ancho de la barra en caracteres. Cada bloque ocupa ~15 px con la fuente por
-# defecto de Tk, asi que 14 bloques son ~210 px de los 440 utiles de
-# assets/splash.png: el resto queda para el porcentaje y el mensaje. Con 24
-# bloques el mensaje se cortaba contra el borde derecho.
-ANCHO = 14
+# Ancho de la barra en caracteres. Medido, no estimado: con la fuente por
+# defecto del splash (Arial 11, porque el spec no fija text_font) cada bloque
+# ocupa 11 px, asi que 12 bloques son 132 px. La linea entera con la frase mas
+# larga mide 582 px contra los 646 utiles de assets/splash.png (700 px menos el
+# margen). Con 24 bloques el texto se cortaba contra el borde derecho.
+ANCHO = 12
 
-# Largo maximo del mensaje, por la misma razon: lo que no entra se recorta aca
-# y no contra el borde de la ventana.
-MAX_MENSAJE = 20
+# Largo maximo del texto que acompana a la barra. Lo que no entra se recorta
+# aca y no contra el borde de la ventana. Ligado a frases.LARGO_MAXIMO por
+# tests/test_frases.py: si una crece sin la otra, las frases salen con "…".
+MAX_MENSAJE = 62
 LLENO = "█"   # bloque solido
 VACIO = "░"   # bloque punteado
+
+# Cuanto se muestra el nombre de la etapa despues de un hito, antes de volver a
+# las frases. Sin esto las frases tapan la unica pista de donde se colgo el
+# arranque si algo falla.
+MOSTRAR_ETAPA = 0.9
+
+# Cada cuanto cambia la frase. El tramo que dibujamos dura ~6 s, asi que con
+# 1,6 s entran unas cuatro: suficiente para que se note que rota, sin que
+# parpadee.
+ROTACION = 1.6
 
 _lock = threading.Lock()
 
@@ -91,7 +105,8 @@ class Progreso:
     fondo la barra quedaria congelada justo cuando mas importa que se vea viva.
     """
 
-    def __init__(self, cierre=0.15, paso_minimo=0.004, intervalo=0.08):
+    def __init__(self, cierre=0.15, paso_minimo=0.004, intervalo=0.08,
+                 semilla_frases=None):
         self.actual = 0.0
         self.objetivo = 0.0
         self.mensaje = ""
@@ -100,6 +115,32 @@ class Progreso:
         self._intervalo = intervalo
         self._fin = threading.Event()
         self._hilo = None
+        # Frases barajadas al arrancar: la semilla queda expuesta para que el
+        # test pueda fijar el orden.
+        self._frases = frases.secuencia(semilla=semilla_frases)
+        self._i_frase = 0
+        self._t_frase = 0.0
+        self._t_hito = 0.0
+
+    def frase_actual(self):
+        return self._frases[self._i_frase % len(self._frases)] if self._frases else ""
+
+    def acompanamiento(self, ahora=None):
+        """Que va al lado de la barra: la etapa recien marcada, o una frase.
+
+        Justo despues de un hito manda el nombre de la etapa —es la pista de
+        donde quedo si el arranque se cuelga—; pasados MOSTRAR_ETAPA segundos
+        entran las frases y van rotando.
+        """
+        ahora = time.monotonic() if ahora is None else ahora
+        if self._t_hito and ahora - self._t_hito < MOSTRAR_ETAPA:
+            return self.mensaje
+        if not self._frases:
+            return self.mensaje
+        if ahora - self._t_frase >= ROTACION:
+            self._t_frase = ahora
+            self._i_frase += 1
+        return self.frase_actual()
 
     def arrancar(self):
         if not activo() or self._hilo is not None:
@@ -110,16 +151,20 @@ class Progreso:
 
     def _correr(self):
         while not self._fin.is_set():
+            # Redibuja aunque la barra no se mueva: las frases rotan solas, y
+            # si solo se refrescara al avanzar, un import largo dejaria la
+            # misma frase congelada varios segundos.
             if self.actual < self.objetivo:
                 self.actual = siguiente(self.actual, self.objetivo,
                                         self._cierre, self._paso_minimo)
-                texto(dibujar(self.actual, self.mensaje))
+            texto(dibujar(self.actual, self.acompanamiento()))
             self._fin.wait(self._intervalo)
 
     def hito(self, objetivo, mensaje):
         """Marca un avance real. El hilo se encarga de llegar caminando."""
         self.mensaje = mensaje
         self.objetivo = max(self.objetivo, min(1.0, objetivo))
+        self._t_hito = time.monotonic()
         if not activo():
             return
         # Un primer refresco inmediato para que el mensaje cambie ya.

@@ -48,7 +48,7 @@ splash = Splash(
     SPLASH_IMAGE,
     binaries=a.binaries,
     datas=a.datas,
-    text_pos=(40, 214),
+    text_pos=(34, 246),
     text_size=11,
     # Sin text_font a proposito: PyInstaller pega el nombre de la fuente en el
     # script Tcl del splash sin comillas, asi que uno con espacio ("Segoe UI")

@@ -14,7 +14,7 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 372 verdes
+python -m pytest tests/ -q        # esperar 386 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -109,6 +109,18 @@ exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
   `assets/splash.png`, `scripts/make_splash.py`). Cubre el arranque de Python
   (~6 s); los ~10 s previos son descompresión del onefile: manda el bootloader, no
   corre Python.
+- **Frases que rotan en la espera** (`src/utils/frases.py`): 34 líneas entre
+  ingenio estadístico y oficio de laboratorio. Splash 520×300 → **700×330** para
+  que entren; barra de 14 a 12 bloques. Justo después de cada hito se muestra
+  **0,9 s el nombre de la etapa** y recién ahí entran las frases: si el arranque
+  se cuelga, la etapa es la única pista de dónde quedó, y taparla con una
+  humorada sería cambiar diagnóstico por decoración.
+
+> [!warning] Las frases solo se ven ~6 s, no los ~16 s
+> Durante la descompresión el bootloader escribe **él** en la línea de estado
+> (el nombre del archivo que extrae) y Python todavía no corre: ahí no se puede
+> dibujar nada. Rotando cada 1,6 s entran unas cuatro frases. Si se quisiera
+> cubrir los 16 s enteros habría que pasar a `onedir`.
 
 > [!info] La ficha de variables se valida sola
 > `analysis_specs.VARIABLES` salió de leer el `dispatch` de `AnalysisPanel._run`.
@@ -223,7 +235,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 372 tests
+python -m pytest tests/ -q                       # 386 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
