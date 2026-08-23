@@ -984,6 +984,18 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
     _marcar(block, "ccc", f"CCC={round(ccc['ccc'], 4)} ({ccc['strength']})")
     if np.isfinite(ccc["ci_low"]):
         block["resultados"]["ccc_ic95"] = (round(ccc["ci_low"], 4), round(ccc["ci_high"], 4))
+
+    # El grafico de la descomposicion necesita rho y Cb, y `_plot` se arma mas
+    # arriba, antes de que el CCC exista. Se completa aca en vez de mover el
+    # bloque: los datos de Bland-Altman de `_plot` dependen de decisiones que se
+    # toman antes, y moverlas por un grafico seria al reves.
+    plot_data = block["resultados"].get("_plot")
+    if plot_data is not None:
+        plot_data["ccc"] = float(ccc["ccc"])
+        plot_data["ccc_rho"] = float(ccc["rho"])
+        plot_data["ccc_cb"] = float(ccc["cb"])
+        plot_data["ccc_fuerza"] = ccc["strength"]
+        plot_data["ccc_ic95"] = block["resultados"].get("ccc_ic95")
     block["advertencias"].append(
         "NO usar Pearson como medida de acuerdo: correlación alta ≠ concordancia. "
         f"CCC (Lin) = {round(ccc['ccc'],4)}."
