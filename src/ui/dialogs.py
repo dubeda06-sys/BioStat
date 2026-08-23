@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.ui import previews
-from src.ui.analysis_specs import sobre_toda_la_hoja, variables
+from src.ui.analysis_specs import opciones, sobre_toda_la_hoja, variables
 from src.ui.help_text import ANALYSIS_HELP
 
 SIN_COLUMNA = "(ninguna)"
@@ -99,6 +99,21 @@ class DialogoAnalisis(QDialog):
             self.input_alpha.setMaximumWidth(80)
             form.addRow("Alfa:", self.input_alpha)
 
+        # Opciones de metodo: no son variables, son decisiones sobre COMO se
+        # calcula. Van despues de las columnas porque se eligen despues.
+        self.combos_opcion = {}
+        for opcion in opciones(self.analisis):
+            combo = QComboBox()
+            for valor, texto in opcion.valores:
+                combo.addItem(texto, valor)
+            self.combos_opcion[opcion.clave] = combo
+            form.addRow(f"{opcion.etiqueta}:", combo)
+            if opcion.ayuda:
+                pie = QLabel(opcion.ayuda)
+                pie.setWordWrap(True)
+                pie.setObjectName("ayudaOpcion")
+                form.addRow("", pie)
+
         if sobre_toda_la_hoja(self.analisis):
             aviso = QLabel(
                 "Este analisis toma la hoja completa: usa todas las columnas "
@@ -139,4 +154,8 @@ class DialogoAnalisis(QDialog):
             "c2": texto(self.combo_col2),
             "c3": texto(self.combo_col3, SIN_COLUMNA),
             "alpha": self.input_alpha.text() if self.input_alpha else None,
+            # currentData(), no currentText(): el texto es para leer, el valor
+            # es el que entiende el analisis.
+            "opciones": {clave: combo.currentData()
+                         for clave, combo in self.combos_opcion.items()},
         }

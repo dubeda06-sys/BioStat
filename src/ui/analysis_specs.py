@@ -109,3 +109,70 @@ def usa(analisis, variable):
 def sobre_toda_la_hoja(analisis):
     """True si el analisis no toma columnas sueltas."""
     return not [v for v in VARIABLES.get(analisis, ()) if v != "alpha"]
+
+
+# ============================================================
+#  Opciones de metodo (mas alla de que columnas usa)
+# ============================================================
+# Algunos analisis no solo piden variables: piden decidir COMO se calculan.
+# Bland-Altman es el caso claro — el mismo par de columnas admite limites
+# parametricos o no parametricos, y el eje X puede ser el promedio o el metodo
+# de referencia. Esas decisiones no las puede tomar el programa solo: cual de
+# los dos metodos es el de referencia es contexto que solo tiene la persona.
+#
+# La tabla es declarativa por la misma razon que VARIABLES: el dialogo la lee
+# para armar los selectores, y `tests/test_analysis_specs.py` verifica que no
+# se desincronice.
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Opcion:
+    """Una decision de metodo que el usuario toma antes de correr el analisis.
+
+    clave:    como llega al panel (`self._opciones[clave]`).
+    etiqueta: rotulo del selector.
+    valores:  [(valor, texto)] — el primero es el que viene por defecto.
+    ayuda:    una linea que explica que cambia, para el pie del selector.
+    """
+    clave: str
+    etiqueta: str
+    valores: tuple
+    ayuda: str = ""
+
+    @property
+    def defecto(self):
+        return self.valores[0][0]
+
+
+OPCIONES = {
+    'Bland-Altman': (
+        Opcion(
+            "limites", "Límites de acuerdo",
+            (("auto", "Automático — según normalidad de las diferencias"),
+             ("parametrico", "Paramétrico — sesgo ± 1,96·DE"),
+             ("no_parametrico", "No paramétrico — percentiles 2,5 y 97,5")),
+            "Los paramétricos exigen que las diferencias sean normales. "
+            "En automático se verifica con Shapiro-Wilk y se elige solo.",
+        ),
+        Opcion(
+            "referencia", "Eje X del gráfico",
+            (("promedio", "Promedio de ambos métodos — Bland-Altman clásico"),
+             ("x", "Variable 1 es el método de referencia — Krouwer"),
+             ("y", "Variable 2 es el método de referencia — Krouwer")),
+            "Si uno de los dos es método de referencia o valor asignado, "
+            "graficar contra el promedio atenúa el sesgo proporcional "
+            "(Krouwer 2008; recogido en CLSI EP09).",
+        ),
+    ),
+}
+
+
+def opciones(analisis):
+    """Opciones de metodo de un analisis. Tupla vacia si no tiene."""
+    return OPCIONES.get(analisis, ())
+
+
+def opciones_por_defecto(analisis):
+    """El dict que usa el panel cuando nadie eligio nada."""
+    return {o.clave: o.defecto for o in OPCIONES.get(analisis, ())}

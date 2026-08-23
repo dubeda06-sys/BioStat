@@ -320,6 +320,9 @@ class MainWindow(QMainWindow):
                 combo.setCurrentIndex(idx)
         if eleccion.get("alpha"):
             panel.input_alpha.setText(eleccion["alpha"])
+        # Las opciones de metodo no tienen control en el panel viejo: viajan
+        # aparte, en un diccionario que el dispatch le pasa al analisis.
+        panel.opciones_metodo = eleccion.get("opciones") or {}
 
     def _goto_graph(self, combo_text):
         """Va al panel Graficos y selecciona el tipo de grafico."""

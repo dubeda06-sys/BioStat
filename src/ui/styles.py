@@ -210,6 +210,8 @@ QLabel#vistaPrevia {
     background-color: #ffffff;
 }
 QLabel#pieVistaPrevia { color: #606060; font-size: 11px; }
+/* Pie de un selector de opcion de metodo: explica que cambia al elegir. */
+QLabel#ayudaOpcion { color: #606060; font-size: 11px; padding: 0 0 4px 0; }
 QLabel#avisoDialogo {
     color: #7a5300;
     background-color: #fdf6e3;

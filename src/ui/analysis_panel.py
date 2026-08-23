@@ -523,6 +523,10 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             self.combo_col2.addItems(cols)
             self.combo_col3.addItems(["(ninguna)"] + cols)
 
+    # Decisiones de metodo que deja el dialogo (ver analysis_specs.OPCIONES).
+    # Vacio = cada analisis usa sus valores por defecto.
+    opciones_metodo: dict = {}
+
     def _run(self):
         if self.data is None:
             self.txt_results.setHtml(f"<div style='color:#d97706;padding:12px;'> <b>Sin datos.</b> Importa un archivo en la pestaña Datos.</div>")
@@ -546,7 +550,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Correlacion de Spearman": lambda: self._corr_s(c1, c2),
             "Shapiro-Wilk": lambda: self._shapiro(c1),
             "Curva ROC": lambda: self._roc(c1, c3),
-            "Bland-Altman": lambda: self._bland(c1, c2),
+            "Bland-Altman": lambda: self._bland(c1, c2, self.opciones_metodo),
             "Passing-Bablok": lambda: self._passing(c1, c2),
             "Kaplan-Meier": lambda: self._kaplan_meier(c1, c2),
             "Log-rank test": lambda: self._log_rank(c1, c2, c3),

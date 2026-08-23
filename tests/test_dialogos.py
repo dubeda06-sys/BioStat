@@ -61,9 +61,42 @@ def test_la_tercera_variable_es_opcional(app):
     assert d.combo_col3.currentText() == SIN_COLUMNA
 
 
-def test_seleccion_devuelve_siempre_las_cuatro_claves(app):
+def test_seleccion_devuelve_siempre_las_mismas_claves(app):
+    """El panel lee estas claves siempre; si alguna falta, revienta al indexar."""
     d = DialogoAnalisis("Chi-cuadrado", COLUMNAS)
-    assert set(d.seleccion()) == {"c1", "c2", "c3", "alpha"}
+    assert set(d.seleccion()) == {"c1", "c2", "c3", "alpha", "opciones"}
+
+
+def test_un_analisis_sin_opciones_devuelve_el_diccionario_vacio(app):
+    d = DialogoAnalisis("Chi-cuadrado", COLUMNAS)
+    assert d.seleccion()["opciones"] == {}
+
+
+def test_bland_altman_ofrece_limites_y_eje(app):
+    """Las tres variantes del metodo tienen que estar al alcance del usuario."""
+    d = DialogoAnalisis("Bland-Altman", COLUMNAS)
+    assert set(d.combos_opcion) == {"limites", "referencia"}
+    limites = d.combos_opcion["limites"]
+    valores = [limites.itemData(i) for i in range(limites.count())]
+    assert valores == ["auto", "parametrico", "no_parametrico"]
+    ejes = d.combos_opcion["referencia"]
+    assert [ejes.itemData(i) for i in range(ejes.count())] == ["promedio", "x", "y"]
+
+
+def test_las_opciones_devuelven_el_valor_y_no_el_texto(app):
+    """El combo muestra prosa y devuelve la clave: si devolviera el texto, el
+    analisis recibiria 'No paramétrico — percentiles 2,5 y 97,5' y no lo
+    entenderia."""
+    d = DialogoAnalisis("Bland-Altman", COLUMNAS)
+    d.combos_opcion["limites"].setCurrentIndex(2)
+    d.combos_opcion["referencia"].setCurrentIndex(1)
+    assert d.seleccion()["opciones"] == {"limites": "no_parametrico", "referencia": "x"}
+
+
+def test_por_defecto_sale_lo_mismo_que_declara_la_ficha(app):
+    from src.ui.analysis_specs import opciones_por_defecto
+    d = DialogoAnalisis("Bland-Altman", COLUMNAS)
+    assert d.seleccion()["opciones"] == opciones_por_defecto("Bland-Altman")
 
 
 def test_ventana_de_informe_se_registra_y_se_cierra(app):

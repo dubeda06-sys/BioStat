@@ -14,7 +14,7 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 386 verdes
+python -m pytest tests/ -q        # esperar 404 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -79,6 +79,47 @@ decisión. Ahora sí.
 
 También: `p` redondeado a 4 decimales salía `p=0.0`, que se lee como *p
 exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
+
+## Bland-Altman: las tres variantes, a elección
+
+El core ya calculaba las tres. Lo que faltaba era **poder elegir**: el panel
+llamaba `bland_altman_analysis(d1, d2)` sin `reference` y mostraba solo los LoA
+paramétricos, aunque los no paramétricos estuvieran calculados al lado.
+
+- **`analysis_specs.OPCIONES`** — tabla declarativa de decisiones *de método*
+  (distintas de las variables). Bland-Altman expone `limites`
+  (`auto` / `parametrico` / `no_parametrico`) y `referencia`
+  (`promedio` / `x` / `y`). `DialogoAnalisis` arma los selectores leyendo esa
+  tabla; el valor viaja por `currentData()`, no por el texto.
+- **`seleccion()` ahora devuelve 5 claves**, con `opciones`. `_aplicar_eleccion`
+  la vuelca en `panel.opciones_metodo`, que el dispatch pasa al análisis.
+- **El informe dice en qué se apoyó**: Shapiro-Wilk sobre las diferencias, con
+  su p, y si el modo salió del automático o se forzó a mano. Forzar paramétrico
+  sobre diferencias no normales avisa en vez de obedecer callado.
+
+> [!warning] Por qué el eje X no es cosmético — Krouwer
+> Con un método de **referencia** (o un valor asignado: consenso, material de
+> control), graficar y regresar contra el promedio mete la referencia en los dos
+> ejes y **atenúa el sesgo proporcional**: se ve menos desvío del que hay.
+> Krouwer JS, 2008, *Stat Med* 27:778-780; recogido en CLSI EP09.
+>
+> `tests/test_bland_variantes.py::test_el_promedio_atenua_el_sesgo_proporcional`
+> lo deja en un assert: sobre un método que lee 8 % alto, la pendiente contra el
+> promedio sale **más chica en magnitud** que contra la referencia. Ese
+> achicamiento es el que hace parecer un método mejor calibrado de lo que está.
+>
+> Cuando hay referencia se informan **las dos pendientes**, para poder
+> contrastarlas; si se mostrara una sola, la atenuación sería invisible.
+
+> [!bug] Veredicto inventado, eliminado
+> `_bland` dictaminaba «sesgo < 5 % → **los métodos son concordantes**». Ese 5 %
+> no salía de ninguna norma. Ahora informa el margen —dónde cae el 95 % de las
+> diferencias— y dice explícitamente que el límite tolerable lo fija el
+> requisito de calidad del analito, no el programa.
+
+**Deuda:** el Omnianálisis sigue llamando a Bland-Altman sin `reference`. Ahí el
+motor no puede saber cuál de los dos es el de referencia — es contexto humano.
+La ventana de confirmación de pares sería el lugar natural para preguntarlo.
 
 ## Lo que entró el 22 de agosto
 
@@ -248,7 +289,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 386 tests
+python -m pytest tests/ -q                       # 404 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
