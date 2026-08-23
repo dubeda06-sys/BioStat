@@ -85,7 +85,28 @@ class ComparisonConfirmDialog(QDialog):
             chk = QCheckBox("Sí, son mediciones comparables")
             chk.setChecked(True)
             bl.addWidget(chk)
-            self._checks.append((cand, chk))
+
+            pregunta = QLabel(
+                "¿Alguna de las dos es el <b>método de referencia</b>? "
+                "(valor asignado, consenso, material de control)"
+            )
+            pregunta.setStyleSheet("font-weight:normal; color:#555; font-size:12px;")
+            pregunta.setWordWrap(True)
+            bl.addWidget(pregunta)
+
+            ref = QComboBox()
+            ref.addItem("Ninguna — los dos son métodos pares (Bland-Altman clásico)", None)
+            ref.addItem(f"{cand['col1']} es el método de referencia", cand["col1"])
+            ref.addItem(f"{cand['col2']} es el método de referencia", cand["col2"])
+            ref.setToolTip(
+                "Con una referencia, graficar contra el promedio la mete en los dos ejes "
+                "y atenúa el sesgo proporcional: el método parece mejor calibrado de lo "
+                "que está (Krouwer 2008). Declarándola, el eje X pasa a ser la referencia "
+                "y el informe muestra las dos pendientes para que se vea la diferencia."
+            )
+            bl.addWidget(ref)
+
+            self._checks.append((cand, chk, ref))
             inner_layout.addWidget(box)
 
         inner_layout.addStretch()
@@ -100,7 +121,22 @@ class ComparisonConfirmDialog(QDialog):
         layout.addWidget(buttons)
 
     def confirmed_pairs(self) -> list[tuple[str, str]]:
-        return [(c["col1"], c["col2"]) for c, chk in self._checks if chk.isChecked()]
+        return [(c["col1"], c["col2"]) for c, chk, _ in self._checks if chk.isChecked()]
+
+    def referencias(self) -> dict[tuple[str, str], str]:
+        """{par ordenado -> columna de referencia} solo para los pares confirmados.
+
+        La clave va ordenada porque el analizador ordena el par; el valor es el
+        nombre de la columna, no "x"/"y", para que el orden no la mueva de lugar.
+        """
+        elegidas = {}
+        for cand, chk, ref in self._checks:
+            if not chk.isChecked():
+                continue
+            elegida = ref.currentData()
+            if elegida:
+                elegidas[tuple(sorted((cand["col1"], cand["col2"])))] = elegida
+        return elegidas
 
 
 class OmniPanel(QWidget):
@@ -374,13 +410,15 @@ class OmniPanel(QWidget):
         # Ventana de confirmación si hay candidatos
         candidates = report.get("comparison_candidates", [])
         confirmed = list(self._manual_pairs)
+        referencias = {}
         if candidates:
             dlg = ComparisonConfirmDialog(candidates, self)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 confirmed += dlg.confirmed_pairs()
+                referencias = dlg.referencias()
             # re-correr con confirmados (aunque se cancele, corre sin concordancia)
             report = run_omnianalysis(self._df, selected, confirmed_comparisons=confirmed,
-                                      target=self._target())
+                                      target=self._target(), referencias=referencias)
 
         self._auditoria = auditar(report)
         self._casos = construir_casos(report)

@@ -1,6 +1,6 @@
 # BioStat — Handoff / Dónde seguir
 
-> **2026-08-22**. Leé esto primero.
+> **2026-08-23**. Leé esto primero.
 > Rama de verdad: **`develop`**. `master` 17 commits atrás.
 
 ## El `.exe` del Escritorio ya está al día
@@ -14,7 +14,7 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 404 verdes
+python -m pytest tests/ -q        # esperar 430 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -26,7 +26,7 @@ Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
 El motor decide bien pero no rendía cuentas: se veía el resultado, no la
 decisión. Ahora sí.
 
-- **Catálogo de ensayos** (`src/analysis/omni_catalogo.py`): los **40** ensayos
+- **Catálogo de ensayos** (`src/analysis/omni_catalogo.py`): los **41** ensayos
   que el motor puede correr, cada uno con su gatillo, su explicación y su norma.
 - **Marcas en el motor.** `_marcar` / `_descartar` en `omni_analyzer` anotan
   **en el punto donde el ensayo ocurre**. No se reconstruye desde el texto de la
@@ -66,7 +66,7 @@ decisión. Ahora sí.
 > `tests/test_omni_caso.py` lo verifica.
 
 > [!warning] Dos números que se confunden
-> **Tipos de ensayo** (40 en el catálogo) no es **ejecuciones**: el univariado
+> **Tipos de ensayo** (41 en el catálogo) no es **ejecuciones**: el univariado
 > corre una vez por columna y el bivariado una por par. Con 10 columnas son
 > ~106 ejecuciones de ~24 tipos. La pestaña Auditoría informa los dos.
 
@@ -75,7 +75,7 @@ decisión. Ahora sí.
 > `_marcar(...)` contra el catálogo **en las dos direcciones**. Sin eso, agregar
 > un ensayo al motor lo deja invisible en la auditoría, y sacarlo lo deja
 > figurando como "no aplica" para siempre. Ninguna de las dos tira excepción.
-> `tests/test_omni_arbol.py` exige además que los 40 estén dibujados.
+> `tests/test_omni_arbol.py` exige además que los 41 estén dibujados.
 
 También: `p` redondeado a 4 decimales salía `p=0.0`, que se lee como *p
 exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
@@ -117,9 +117,78 @@ paramétricos, aunque los no paramétricos estuvieran calculados al lado.
 > diferencias— y dice explícitamente que el límite tolerable lo fija el
 > requisito de calidad del analito, no el programa.
 
-**Deuda:** el Omnianálisis sigue llamando a Bland-Altman sin `reference`. Ahí el
-motor no puede saber cuál de los dos es el de referencia — es contexto humano.
-La ventana de confirmación de pares sería el lugar natural para preguntarlo.
+## El Omnianálisis también pregunta por la referencia
+
+Esta era la deuda del bloque anterior, y era una incoherencia visible: el
+análisis manual dejaba elegir Krouwer, pero el Omnianálisis corría siempre el
+clásico contra el promedio. El mismo par de columnas daba dos números distintos
+según por dónde se entrara, y nada lo explicaba.
+
+- **La ventana de confirmación de pares** (`ComparisonConfirmDialog`) ahora
+  pregunta, por cada par confirmado, si alguna de las dos columnas es el método
+  de referencia. Es contexto humano: el motor no lo puede deducir.
+- **`referencias()` devuelve `{par ordenado → nombre de columna}`**, no
+  `"x"`/`"y"`. El par viaja ordenado alfabéticamente hacia el analizador, así
+  que guardar la posición dejaría la referencia colgada de la columna
+  equivocada cuando el orden del DataFrame no coincide con el alfabético.
+  `tests/test_omni_referencia.py::test_la_referencia_no_se_muda_si_el_par_llega_al_reves`
+  lo fija.
+- **Ensayo nuevo en el catálogo: `ba_eje_referencia`** (41 en total). Sin
+  referencia declarada queda **descartado con motivo**, no ausente — que es
+  toda la diferencia entre «no correspondía» y «me lo olvidé».
+
+> [!warning] El promedio distorsiona en las **dos** direcciones
+> La lectura habitual de Krouwer es que el promedio *atenúa* el sesgo
+> proporcional. Es cierto, pero el efecto es de centésimas y casi nunca alcanza
+> para cambiar una conclusión.
+>
+> El artefacto grande va al revés. Con `ref` sin error y `prueba = ref + ε`:
+> `diff = ε` y `promedio = ref + ε/2`, así que el ruido del método en prueba
+> queda **de los dos lados de la cuenta** y la regresión contra el promedio
+> **inventa** una pendiente que contra la referencia no existe. Una búsqueda
+> sobre 4 800 combinaciones (`n`, ruido, semilla) encontró **1 109** casos de
+> pendiente espuria contra **34** de atenuación que cambiara la conclusión.
+>
+> Por eso el aviso no se dispara por magnitud sino cuando **los dos ejes no
+> concluyen lo mismo** (uno detecta sesgo proporcional y el otro no). Avisar por
+> atenuación sería avisar siempre, y una advertencia que aparece siempre enseña
+> a saltearla.
+
+> [!bug] `linregress` desempaquetado por posición — bug de cálculo, corregido
+> En `concordance_analysis` estaba así:
+>
+> ```python
+> slope, intercept, _, _, p_slope = stats.linregress(means, diffs)
+> ```
+>
+> `linregress` devuelve `(slope, intercept, rvalue, pvalue, stderr)`. Ese
+> desempaquetado guardaba el **error estándar** en `p_slope`. O sea que
+> `proporcional = p_slope < 0.05` venía comparando un error estándar contra un
+> nivel de significancia.
+>
+> No era cosmético. De ahí salen: la estructura de la diferencia
+> (proporcional/constante), la elección entre **Deming y Passing-Bablok**
+> (`resid_homoced = not proporcional`), la traza, el detalle de auditoría y el
+> paso 1 del caso. En el juego de datos de prueba el stderr daba 0,0860 y el p
+> real 0,0405 — a lados opuestos de 0,05, o sea conclusión invertida.
+>
+> **Los informes de concordancia del Omnianálisis anteriores a este arreglo
+> pueden haber elegido la regresión equivocada.** El análisis manual no estaba
+> afectado. Fijado en `test_el_p_de_la_estructura_es_un_p_y_no_el_error_estandar`.
+>
+> Efecto colateral: dos tests de `test_omni_caso.py` pasaban solo por el bug —
+> el motor entraba en la rama de Passing-Bablok y producía un IC ancho. Ahora
+> tienen fixture propio (`caso_rango_angosto`: 12 pares entre 90 y 110), que es
+> un defecto de diseño real de EP09 y produce la condición de verdad.
+
+> [!note] La estructura de la diferencia también cambió de eje
+> Con referencia declarada, la regresión del nodo «estructura» va contra la
+> referencia, no contra el promedio. Dejarla contra el promedio hacía que el
+> informe **se contradijera consigo mismo**: el paso 1 afirmaba justo el desvío
+> que el nodo del eje X señalaba como artefacto del promedio, las dos cosas con
+> el mismo aplomo. En `supuestos` las claves ahora son `eje_estructura` y
+> `pendiente_estructura` (antes `pendiente_diff_mean`, nombre que mentía en
+> cuanto había una referencia).
 
 ## Lo que entró el 22 de agosto
 
@@ -289,7 +358,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 404 tests
+python -m pytest tests/ -q                       # 430 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

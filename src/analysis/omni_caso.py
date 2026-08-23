@@ -511,8 +511,9 @@ def _caso_concordancia(b: dict) -> Caso:
     if sup.get("p_pendiente") is not None:
         caso.pasos.append(Paso(
             pregunta="¿El desacuerdo entre los métodos crece cuando sube la concentración?",
-            medicion=(f"Pendiente de la diferencia contra el promedio = "
-                      f"{sup.get('pendiente_diff_mean')}, {_p(sup.get('p_pendiente'))}"),
+            medicion=(f"Pendiente de la diferencia contra "
+                      f"{sup.get('eje_estructura', 'el promedio')} = "
+                      f"{sup.get('pendiente_estructura')}, {_p(sup.get('p_pendiente'))}"),
             respuesta=_si_no(proporcional),
             consecuencia=(
                 "El desacuerdo se agranda en los valores altos: hay que mirarlo "
@@ -564,6 +565,54 @@ def _caso_concordancia(b: dict) -> Caso:
                 "margen te cambia una conducta clínica, los métodos no son "
                 "intercambiables — por más chico que sea el sesgo promedio."
             ),
+        ))
+
+    # Solo cuando se declaro una referencia. Sin declararla el eje es el
+    # promedio y no hay nada que contrastar: eso queda en la auditoria como
+    # descartado con su motivo, no hace falta un paso en cada caso.
+    if ba.get("pendiente_vs_referencia") is not None:
+        p_ref = ba.get("pendiente_vs_referencia")
+        p_prom = ba.get("pendiente_vs_promedio")
+        nombre_ref = str(ba.get("eje_x", "")).replace(" (método de referencia)", "")
+        cambia = bool(ba.get("cambia_la_conclusion"))
+        # El promedio falla en las dos direcciones y hay que decir cual, porque
+        # el numero esta a la vista: si achica, tapa un desvio real; si agranda,
+        # inventa uno. Describir siempre la primera contradice la medicion que
+        # el propio paso muestra al lado.
+        achica = bool(ba.get("promedio_atenua"))
+        desvio_por_el_promedio = (
+            (f"Contra el promedio el desvío queda más cerca de cero "
+             f"({_num(p_prom)} en vez de {_num(p_ref)}) y la lectura se da "
+             f"vuelta: por ese camino el problema no aparecía. Pasa porque el "
+             f"promedio lleva adentro a la referencia, y eso le saca fuerza al "
+             f"desvío.")
+            if achica else
+            (f"Contra el promedio aparece un desvío más grande ({_num(p_prom)} "
+             f"en vez de {_num(p_ref)}) que contra la referencia no está: la "
+             f"lectura se da vuelta, y hacia un problema inventado. Pasa porque "
+             f"el promedio lleva adentro al método que estás probando, así que "
+             f"su ruido queda de los dos lados de la cuenta y se hace pasar por "
+             f"un desvío.")
+        )
+        caso.pasos.append(Paso(
+            pregunta="¿Contra qué se midió el desvío: contra el promedio de los dos o contra el método bueno?",
+            medicion=(f"Pendiente contra {nombre_ref} = {_num(p_ref)}; "
+                      f"contra el promedio de ambos = {_num(p_prom)}"),
+            respuesta=f"Contra {nombre_ref}",
+            consecuencia=(
+                (f"Dijiste que {nombre_ref} es el método de referencia, así que el "
+                 f"desvío se midió contra ella — y menos mal. "
+                 + desvio_por_el_promedio)
+                if cambia else
+                (f"Dijiste que {nombre_ref} es el método de referencia, así que el "
+                 f"desvío se midió contra ella, que es lo que corresponde. Acá las "
+                 f"dos formas llevan a la misma lectura, así que en este caso la "
+                 f"elección del eje no te cambia nada.")
+            ),
+            alternativa=("Si ninguno de los dos fuera referencia — dos métodos "
+                         "nuevos, sin uno que valga como verdad — correspondería "
+                         "el promedio, que es el Bland-Altman clásico."),
+            ok=not cambia,
         ))
 
     if reg:

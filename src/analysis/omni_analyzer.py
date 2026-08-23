@@ -75,6 +75,18 @@ def _marcar(destino: dict, id_: str, detalle: str = ""):
     )
 
 
+def _detecta_pendiente(s: dict) -> bool:
+    """True si el IC 95% de la pendiente excluye el 0: sesgo proporcional detectado.
+
+    Se decide por el intervalo y no por el p para que un IC no finito cuente como
+    "no detectado" en vez de propagar una comparacion contra NaN en silencio.
+    """
+    lo, hi = s.get("ci", (np.nan, np.nan))
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        return False
+    return not (lo <= 0 <= hi)
+
+
 def _descartar(destino: dict, id_: str, motivo: str):
     """Anota que el ensayo `id_` NO se corrio, y por que.
 
@@ -674,7 +686,16 @@ def detect_comparison_candidates(df: pd.DataFrame, num_cols: list[str], cfg: Omn
 # ============================================================
 #  Sub-árbol de concordancia (comparación de métodos confirmada)
 # ============================================================
-def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: OmniConfig) -> dict:
+def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: OmniConfig,
+                         referencia: str | None = None) -> dict:
+    """Sub-arbol de concordancia para un par confirmado.
+
+    referencia: nombre de la columna que es el metodo de REFERENCIA (valor
+        asignado, consenso, material de control), o None si los dos metodos
+        son pares. Se recibe el NOMBRE y no "x"/"y" porque el par viaja
+        ordenado alfabeticamente desde `run_omnianalysis`, y con "x"/"y" la
+        referencia terminaria colgada de la columna equivocada.
+    """
     block = {"titulo": f"Concordancia de métodos — {c1} vs {c2}", "tipo": "concordancia",
              "traza": [], "advertencias": [], "resultados": {}, "conclusion": "", "pruebas": [],
              "ensayos": []}
@@ -685,19 +706,35 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
 
     diffs = a - b
     means = (a + b) / 2
+    ref_arg = "x" if referencia == c1 else ("y" if referencia == c2 else None)
 
-    # 1) NODO estructura de la diferencia (regresión diff vs mean)
-    slope, intercept, _, _, p_slope = stats.linregress(means, diffs)
+    # 1) NODO estructura de la diferencia (regresión de la diferencia contra el eje).
+    # El eje es el promedio solo cuando NO hay referencia declarada. Con una
+    # referencia hay que regresar contra ella: contra el promedio, el ruido del
+    # metodo en prueba entra en los dos lados de la cuenta y fabrica pendiente.
+    # Dejar este nodo contra el promedio y el de Bland-Altman contra la
+    # referencia hacia que el informe se contradijera consigo mismo.
+    eje_estructura = {"x": a, "y": b}.get(ref_arg, means)
+    eje_nombre = referencia if ref_arg else "el promedio"
+    # Por nombre y no por posicion: linregress devuelve
+    # (slope, intercept, rvalue, pvalue, stderr), y el desempaquetado posicional
+    # que habia aca metia el STDERR en p_slope. Toda la rama de "diferencia
+    # proporcional" — y con ella la eleccion entre Deming y Passing-Bablok —
+    # venia decidiendose comparando un error estandar contra 0,05.
+    lr_estructura = stats.linregress(eje_estructura, diffs)
+    slope, intercept, p_slope = (lr_estructura.slope, lr_estructura.intercept,
+                                 lr_estructura.pvalue)
     proporcional = p_slope < cfg.PROPORTIONAL_SLOPE_ALPHA
     block["traza"].append(
-        f"NODO estructura: pendiente(diff~mean)={round(slope,4)}, p={round(p_slope,4)} → "
-        f"diferencia {'PROPORCIONAL (usar % / log)' if proporcional else 'CONSTANTE (absolutas)'}."
+        f"NODO estructura: pendiente(diff~{eje_nombre})={round(slope,4)}, "
+        f"p={round(p_slope,4)} → diferencia "
+        f"{'PROPORCIONAL (usar % / log)' if proporcional else 'CONSTANTE (absolutas)'}."
     )
     block["resultados"]["estructura_diferencia"] = (
         "proporcional" if proporcional else "constante"
     )
     _marcar(block, "estructura_diferencia",
-            f"pendiente={round(slope, 4)}, {_p(p_slope)} → "
+            f"contra {eje_nombre}: pendiente={round(slope, 4)}, {_p(p_slope)} → "
             f"{'proporcional' if proporcional else 'constante'}")
 
     # 2) NODO normalidad de las DIFERENCIAS (no de datos crudos)
@@ -711,12 +748,14 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
             f"{'normales' if norm_diff['normal'] else 'NO normales'}")
     block["resultados"]["supuestos"] = {
         "n_pares": int(len(a)),
-        "pendiente_diff_mean": round(float(slope), 4),
+        # Nombre sin "mean": con una referencia declarada el eje NO es el promedio.
+        "eje_estructura": eje_nombre,
+        "pendiente_estructura": round(float(slope), 4),
         "p_pendiente": round(float(p_slope), 4),
         "proporcional": bool(proporcional),
         "normalidad_diferencias": norm_diff,
     }
-    ba = bland_altman_analysis(a, b)
+    ba = bland_altman_analysis(a, b, reference=ref_arg)
     if not _ok(ba):
         block["resultados"]["bland_altman"] = {"error": ba.get("error") if isinstance(ba, dict)
                                                else "No se pudo calcular Bland-Altman."}
@@ -756,6 +795,59 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         _descartar(block, "ba_parametrico",
                    f"las diferencias NO son normales ({_p(norm_diff['p'])}): los LoA "
                    "paramétricos serían incorrectos")
+
+    # 2b) NODO eje X: promedio (Bland-Altman clasico) o referencia (Krouwer).
+    # El promedio mete la referencia en los dos ejes y atenua la pendiente. Se
+    # informan las dos para que la atenuacion se vea, no se afirme.
+    ba_res = block["resultados"]["bland_altman"]
+    ba_res["eje_x"] = (f"{referencia} (método de referencia)" if ref_arg
+                       else "promedio de ambos métodos")
+    if not ref_arg:
+        _descartar(block, "ba_eje_referencia",
+                   "ninguna columna se declaró método de referencia: se grafica "
+                   "contra el promedio (Bland-Altman clásico)")
+    else:
+        p_prom = float(ba["slope_vs_mean"]["slope"])
+        p_ref = float(ba["slope_vs_reference"]["slope"])
+        if np.isfinite(p_prom) and np.isfinite(p_ref):
+            ba_res["pendiente_vs_promedio"] = round(p_prom, 4)
+            ba_res["pendiente_vs_referencia"] = round(p_ref, 4)
+            ba_res["promedio_atenua"] = bool(abs(p_prom) < abs(p_ref))
+            # La atenuacion casi siempre existe, pero suele ser minuscula. Avisar
+            # cada vez la vuelve ruido y entrena a ignorarla. El aviso se reserva
+            # para cuando los dos ejes NO llevan a la misma conclusion: ahi el
+            # promedio no achica un numero, cambia lo que se decide.
+            det_ref = _detecta_pendiente(ba["slope_vs_reference"])
+            det_prom = _detecta_pendiente(ba["slope_vs_mean"])
+            cambia = det_ref != det_prom
+            ba_res["cambia_la_conclusion"] = bool(cambia)
+            detalle = (f"pendiente contra {referencia}={round(p_ref, 4)}, "
+                       f"contra el promedio={round(p_prom, 4)}"
+                       + ("; el eje cambia la conclusión" if cambia else
+                          "; misma conclusión por los dos ejes"))
+            _marcar(block, "ba_eje_referencia", detalle)
+            block["traza"].append(
+                f"NODO eje X: {referencia} es el método de referencia → se grafica y "
+                f"regresa contra ella, no contra el promedio (Krouwer). {detalle}."
+            )
+            if cambia:
+                quien = (f"solo contra {referencia} se detecta sesgo proporcional"
+                         if det_ref else
+                         f"el sesgo proporcional aparece solo contra el promedio y "
+                         f"no contra {referencia}, o sea que el promedio lo inventa")
+                block["advertencias"].append(
+                    f"El eje X cambia la conclusión sobre el sesgo proporcional: "
+                    f"pendiente contra {referencia} = {round(p_ref, 4)}, contra el "
+                    f"promedio = {round(p_prom, 4)}, y {quien}. Se informa la de "
+                    f"{referencia}: el promedio contiene a los dos métodos y "
+                    f"distorsiona la pendiente en las dos direcciones — la achica "
+                    f"cuando el sesgo es real y la infla con el ruido del método en "
+                    f"prueba (Krouwer 2008, Stat Med 27:778-780)."
+                )
+        else:
+            _descartar(block, "ba_eje_referencia",
+                       "alguna de las dos pendientes no se pudo calcular: hay un eje "
+                       "sin variación")
 
     # 3) Regresión de comparación (CLSI EP09)
     # ~normal + homocedástico → Deming (con λ configurable); si no → Passing-Bablok.
@@ -1071,7 +1163,8 @@ def _multiple_regression(df, target, predictors, cfg: OmniConfig) -> dict:
 def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
                      confirmed_comparisons: list[tuple[str, str]] | None = None,
                      target: str | None = None,
-                     cfg: OmniConfig = DEFAULT_CONFIG) -> dict:
+                     cfg: OmniConfig = DEFAULT_CONFIG,
+                     referencias: dict | None = None) -> dict:
     """Punto de entrada. Devuelve informe estructurado + candidatos a confirmar.
 
     Args:
@@ -1080,6 +1173,11 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
         confirmed_comparisons: pares confirmados como comparación de métodos
         target: variable objetivo para regresión múltiple (Rama C)
         cfg: configuración (Anexo A)
+        referencias: {par ordenado -> nombre de la columna que es método de
+            referencia}. El par se ordena alfabéticamente igual que
+            `confirmed`, y el valor es el NOMBRE de la columna, así que no
+            depende del orden en que llegue el par. Sin entrada, ese par usa
+            Bland-Altman clásico contra el promedio.
     """
     if not selected_cols:
         return {"error": "Selecciona al menos una columna."}
@@ -1088,6 +1186,7 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
         return {"error": "Columnas no encontradas."}
 
     confirmed = set(tuple(sorted(p)) for p in (confirmed_comparisons or []))
+    refs = {tuple(sorted(k)): v for k, v in (referencias or {}).items() if v}
 
     profile = profile_dataset(df, cols, cfg)
     n = len(cols)
@@ -1142,7 +1241,8 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
         if key in confirmed:
             report["blocks"].append(
                 concordance_analysis(cand["col1"], df[cand["col1"]],
-                                     cand["col2"], df[cand["col2"]], cfg)
+                                     cand["col2"], df[cand["col2"]], cfg,
+                                     referencia=refs.get(key))
             )
         else:
             report["comparison_candidates"].append(cand)
@@ -1154,7 +1254,10 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
             already = any(cand for cand in candidates
                           if tuple(sorted((cand["col1"], cand["col2"]))) == key)
             if not already:
-                report["blocks"].append(concordance_analysis(c1, df[c1], c2, df[c2], cfg))
+                report["blocks"].append(
+                    concordance_analysis(c1, df[c1], c2, df[c2], cfg,
+                                         referencia=refs.get(key))
+                )
 
     # --- Rama C: matriz correlación + multiplicidad + regresión múltiple ---
     if branch == "C":

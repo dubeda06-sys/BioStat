@@ -115,21 +115,41 @@ def test_sin_ic_no_se_inventa_una_advertencia():
     assert _regresion_concluyente({})[0] is True
 
 
-def test_la_concordancia_avisa_cuando_la_regresion_no_concluye(todos):
-    conc = [c for c in todos if c.tipo.startswith("¿Los dos métodos")]
-    assert conc, "no se construyo el caso de concordancia"
-    paso = next((p for p in conc[0].pasos if "corrimiento parejo" in p.pregunta), None)
+@pytest.fixture(scope="module")
+def caso_rango_angosto():
+    """Doce pares en un rango de concentración angosto (90 a 110).
+
+    Es un defecto de diseño clásico de EP09: con poco recorrido en X, el IC de
+    la pendiente de la regresión de comparación se abre tanto que no puede ni
+    afirmar ni descartar un desvío. Este juego de datos dispara a la vez las dos
+    protecciones que se prueban abajo.
+
+    Antes las probaba el fixture general por accidente, porque un bug metía el
+    error estándar en lugar del p y el motor elegía mal la rama. Arreglado el
+    bug hacen falta datos que produzcan la condición de verdad.
+    """
+    rng = np.random.default_rng(5)
+    x = rng.uniform(90, 110, 12)
+    df = pd.DataFrame({"Metodo_A": x, "Metodo_B": x + rng.normal(0, 3, 12)})
+    informe = run_omnianalysis(df, list(df.columns),
+                               confirmed_comparisons=[("Metodo_A", "Metodo_B")])
+    return next(c for c in casos(informe) if c.tipo.startswith("¿Los dos métodos"))
+
+
+def test_la_concordancia_avisa_cuando_la_regresion_no_concluye(caso_rango_angosto):
+    paso = next((p for p in caso_rango_angosto.pasos
+                 if "corrimiento parejo" in p.pregunta), None)
     assert paso is not None
-    # Con estos datos el IC de Passing-Bablok es enorme: no puede concluir.
+    # IC de la pendiente enorme: el metodo no puede concluir, y hay que decirlo.
     assert paso.respuesta == "no concluyente"
     assert not paso.ok
 
 
-def test_si_dos_pasos_se_contradicen_se_explica(todos):
+def test_si_dos_pasos_se_contradicen_se_explica(caso_rango_angosto):
     """El paso 1 detecta desvío proporcional y la regresión no. Para el lector
     es una contradicción; sin explicarla, el informe pierde credibilidad."""
-    conc = [c for c in todos if c.tipo.startswith("¿Los dos métodos")][0]
-    paso = next(p for p in conc.pasos if "corrimiento parejo" in p.pregunta)
+    paso = next(p for p in caso_rango_angosto.pasos
+                if "corrimiento parejo" in p.pregunta)
     assert "paso 1" in paso.consecuencia
 
 

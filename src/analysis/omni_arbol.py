@@ -156,6 +156,7 @@ LAYOUT = {
             ("passing_bablok", 3, 1.0),
             ("ccc_descomposicion", 3, 0.2),
             ("sesgo_niveles", 4, 1.4),
+            ("ba_eje_referencia", 4, 3.2),
         ],
         "aristas": [
             ("score_comparacion", "?confirma", "score ≥ umbral"),
@@ -169,6 +170,8 @@ LAYOUT = {
             ("deming", "sesgo_niveles", ""),
             ("passing_bablok", "sesgo_niveles", ""),
             ("ccc", "ccc_descomposicion", ""),
+            ("ba_parametrico", "ba_eje_referencia", "hay referencia"),
+            ("ba_no_parametrico", "ba_eje_referencia", "hay referencia"),
         ],
     },
     MULTIVARIADO: {

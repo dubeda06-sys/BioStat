@@ -215,6 +215,16 @@ ENSAYOS: tuple[Ensayo, ...] = (
            "nodo que evita publicar LoA paramétricos sobre diferencias "
            "asimétricas.",
            alternativa="ba_parametrico", norma="CLSI EP09"),
+    Ensayo("ba_eje_referencia", "Eje X: promedio vs método de referencia (Krouwer)", CONCORDANCIA,
+           "Se declaró que una de las dos columnas es el método de referencia.",
+           "Bland-Altman clásico grafica la diferencia contra el promedio de "
+           "ambos métodos, porque ninguno de los dos es verdad. Pero si uno ES "
+           "la referencia (valor asignado, consenso, material de control), el "
+           "promedio la mete en los dos ejes y ATENÚA el sesgo proporcional: el "
+           "método parece mejor calibrado de lo que está. Cuando se declara una "
+           "referencia se contrastan las dos pendientes para dejar ver cuánto "
+           "se habría perdido usando el promedio.",
+           norma="Krouwer 2008 / CLSI EP09"),
     Ensayo("deming", "Regresión de Deming", CONCORDANCIA,
            "Diferencias normales y homocedásticas.",
            "Regresión con error en ambos ejes. A diferencia de OLS, no asume "
