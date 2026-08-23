@@ -1,10 +1,23 @@
-"""Panel de Omnianálisis — motor de decisión determinista + ventana de confirmación."""
+"""Panel de Omnianálisis — motor de decisión determinista + ventana de confirmación.
+
+El panel esta partido en pestanas porque el informe tecnico solo no alcanzaba:
+
+  Resumen            que se analizo, que decidio el motor, que encontro.
+  Arbol de decision  el arbol dibujado, con el camino que recorrio la corrida.
+  Auditoria          los 40 ensayos del catalogo, uno por uno, con su estado.
+  Informe            el informe tecnico completo (el de siempre).
+  Graficos           Bland-Altman y regresion de comparacion.
+"""
+import csv
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QListWidget, QListWidgetItem, QTextEdit,
     QGroupBox, QSplitter, QAbstractItemView, QComboBox,
     QDialog, QDialogButtonBox, QCheckBox, QScrollArea,
+    QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog,
 )
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 import pandas as pd
 import matplotlib
@@ -14,6 +27,24 @@ import matplotlib.pyplot as plt
 
 from src.analysis.omni_analyzer import run_omnianalysis
 from src.analysis.omni_plots import comparison_figures
+from src.analysis import omni_arbol
+from src.analysis.omni_auditoria import (
+    DESCARTADO, EJECUTADO, NO_APLICA, auditar, resumen_en_una_linea,
+)
+from src.ui import omni_render
+
+# Colores de fila por estado en la tabla de auditoria.
+_FONDO_ESTADO = {
+    EJECUTADO: QColor("#dcfce7"),
+    DESCARTADO: QColor("#f1f5f9"),
+    NO_APLICA: QColor("#ffffff"),
+}
+_FILTROS = ("Todos", "Solo ejecutados", "Solo descartados", "Solo no aplican")
+_ESTADO_DE_FILTRO = {
+    "Solo ejecutados": EJECUTADO,
+    "Solo descartados": DESCARTADO,
+    "Solo no aplican": NO_APLICA,
+}
 
 
 class ComparisonConfirmDialog(QDialog):
@@ -76,6 +107,7 @@ class OmniPanel(QWidget):
         super().__init__()
         self._df: pd.DataFrame | None = None
         self._manual_pairs: list[tuple[str, str]] = []
+        self._auditoria: dict = {}
         self._build_ui()
 
     def _build_ui(self):
@@ -135,18 +167,115 @@ class OmniPanel(QWidget):
         btn_clear = QPushButton("Limpiar informe")
         btn_clear.setMinimumHeight(32)
         btn_clear.setStyleSheet(self.btn_manual.styleSheet())
-        btn_clear.clicked.connect(lambda: self.txt_report.clear())
+        btn_clear.clicked.connect(self._clear)
         ll.addWidget(btn_clear)
 
         splitter.addWidget(left)
 
-        # --- Derecha: informe ---
-        right = QGroupBox("Informe de Omnianálisis")
-        right.setStyleSheet(
-            "QGroupBox { font-weight: bold; font-size: 13px; color: #2c3e50; border: 1px solid #d8dbe3; border-radius: 8px; margin-top: 6px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }"
+        # --- Derecha: pestañas ---
+        self.tabs = QTabWidget()
+        self.tabs.setStyleSheet(
+            "QTabBar::tab { padding: 6px 12px; font-size: 12px; }"
+            "QTabBar::tab:selected { color: #0e7490; font-weight: bold; }"
         )
-        rl = QVBoxLayout(right)
+        self.tabs.addTab(self._tab_resumen(), "Resumen")
+        self.tabs.addTab(self._tab_arbol(), "Árbol de decisión")
+        self.tabs.addTab(self._tab_auditoria(), "Auditoría")
+        self.tabs.addTab(self._tab_informe(), "Informe")
+        self.tabs.addTab(self._tab_graficos(), "Gráficos")
+        splitter.addWidget(self.tabs)
+
+        splitter.setSizes([260, 780])
+        main.addWidget(splitter)
+
+    # ---------- Construcción de pestañas ----------
+    def _tab_resumen(self):
+        self.txt_resumen = QTextEdit()
+        self.txt_resumen.setReadOnly(True)
+        self.txt_resumen.setStyleSheet(
+            "QTextEdit { background:#ffffff; border:none; padding:10px; }"
+        )
+        self.txt_resumen.setPlaceholderText(
+            "Cargá datos, elegí columnas y pulsá 'Ejecutar Omnianálisis'."
+        )
+        return self.txt_resumen
+
+    def _tab_arbol(self):
+        cont = QWidget()
+        v = QVBoxLayout(cont)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(4)
+
+        leyenda = QLabel(omni_render.leyenda_arbol())
+        leyenda.setWordWrap(True)
+        leyenda.setStyleSheet("padding:6px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0;")
+        v.addWidget(leyenda)
+
+        self.arbol_scroll = QScrollArea()
+        self.arbol_scroll.setWidgetResizable(True)
+        self.arbol_scroll.setStyleSheet("QScrollArea { border:none; background:#ffffff; }")
+        v.addWidget(self.arbol_scroll)
+        self._poner_arbol([QLabel("El árbol se dibuja al ejecutar el Omnianálisis.")])
+        return cont
+
+    def _tab_auditoria(self):
+        cont = QWidget()
+        v = QVBoxLayout(cont)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(4)
+
+        barra = QHBoxLayout()
+        barra.setContentsMargins(8, 6, 8, 0)
+        self.lbl_auditoria = QLabel("Sin corrida que auditar.")
+        self.lbl_auditoria.setWordWrap(True)
+        self.lbl_auditoria.setStyleSheet("font-size:12px; color:#334155;")
+        barra.addWidget(self.lbl_auditoria, stretch=1)
+
+        self.cmb_filtro = QComboBox()
+        self.cmb_filtro.addItems(_FILTROS)
+        self.cmb_filtro.currentTextChanged.connect(self._aplicar_filtro)
+        barra.addWidget(self.cmb_filtro)
+
+        btn_csv = QPushButton("Exportar CSV")
+        btn_csv.setStyleSheet(
+            "QPushButton { background:#f3f5f9; border:1px solid #d8dbe3; border-radius:5px; padding:4px 10px; font-size:12px; }"
+            "QPushButton:hover { background:#e8eef6; }"
+        )
+        btn_csv.clicked.connect(self._exportar_auditoria)
+        barra.addWidget(btn_csv)
+        v.addLayout(barra)
+
+        self.tbl_auditoria = QTableWidget(0, 6)
+        self.tbl_auditoria.setHorizontalHeaderLabels(
+            ["Ensayo", "Etapa", "Estado", "Veces", "Dónde / por qué", "Norma"]
+        )
+        self.tbl_auditoria.verticalHeader().setVisible(False)
+        self.tbl_auditoria.setAlternatingRowColors(False)
+        self.tbl_auditoria.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_auditoria.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        cab = self.tbl_auditoria.horizontalHeader()
+        cab.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        cab.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        cab.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        cab.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        cab.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.tbl_auditoria.setStyleSheet(
+            "QTableWidget { font-size:12px; gridline-color:#e2e8f0; }"
+            "QHeaderView::section { background:#e0f2fe; color:#0c4a6e; padding:4px; border:none; }"
+        )
+        v.addWidget(self.tbl_auditoria)
+
+        pie = QLabel(
+            "Pasá el cursor por el nombre de un ensayo para ver qué hace y cuándo "
+            "corresponde. Descartado = el motor lo evaluó y eligió la otra rama; "
+            "No aplica = los datos nunca abrieron esa rama."
+        )
+        pie.setWordWrap(True)
+        pie.setStyleSheet("font-size:11px; color:#64748b; padding:4px 8px;")
+        v.addWidget(pie)
+        return cont
+
+    def _tab_informe(self):
         self.txt_report = QTextEdit()
         self.txt_report.setReadOnly(True)
         self.txt_report.setStyleSheet(
@@ -155,23 +284,38 @@ class OmniPanel(QWidget):
         self.txt_report.setPlaceholderText(
             "Carga datos, selecciona columnas y pulsa 'Ejecutar Omnianálisis'."
         )
-        rl_split = QSplitter(Qt.Orientation.Vertical)
-        rl_split.addWidget(self.txt_report)
-        # Área de gráficos de comparación (Bland-Altman / Passing-Bablok / Deming)
+        return self.txt_report
+
+    def _tab_graficos(self):
         self.plot_scroll = QScrollArea()
         self.plot_scroll.setWidgetResizable(True)
+        self.plot_scroll.setStyleSheet("QScrollArea { border:none; background:#ffffff; }")
         self.plot_container = QWidget()
         self.plot_layout = QVBoxLayout(self.plot_container)
         self.plot_layout.setContentsMargins(4, 4, 4, 4)
         self.plot_scroll.setWidget(self.plot_container)
-        rl_split.addWidget(self.plot_scroll)
-        rl_split.setSizes([520, 360])
-        rl.addWidget(rl_split)
-        splitter.addWidget(right)
+        return self.plot_scroll
 
-        splitter.setSizes([280, 720])
-        main.addWidget(splitter)
+    def _poner_arbol(self, widgets):
+        """Reemplaza el contenido del scroll del árbol.
 
+        `QScrollArea.setWidget` toma la propiedad y DESTRUYE el widget anterior:
+        hay que sacarlo con `takeWidget` antes, o Qt revienta al tocar
+        referencias viejas.
+        """
+        viejo = self.arbol_scroll.takeWidget()
+        if viejo is not None:
+            viejo.deleteLater()
+        cont = QWidget()
+        v = QVBoxLayout(cont)
+        v.setContentsMargins(8, 8, 8, 8)
+        v.setSpacing(10)
+        for w in widgets:
+            v.addWidget(w)
+        v.addStretch()
+        self.arbol_scroll.setWidget(cont)
+
+    # ---------- Datos ----------
     def set_data(self, df: pd.DataFrame):
         self._df = df
         self._manual_pairs = []
@@ -190,12 +334,21 @@ class OmniPanel(QWidget):
         t = self.cmb_target.currentText()
         return None if t == "(ninguna)" else t
 
+    def _clear(self):
+        self.txt_report.clear()
+        self.txt_resumen.clear()
+        self.tbl_auditoria.setRowCount(0)
+        self.lbl_auditoria.setText("Sin corrida que auditar.")
+        self._auditoria = {}
+        self._poner_arbol([QLabel("El árbol se dibuja al ejecutar el Omnianálisis.")])
+
     def _run(self):
         if self._df is None:
             return
         selected = self._selected_cols()
         if not selected:
-            self.txt_report.setHtml("<p style='color:#c0392b;'>Selecciona al menos una variable.</p>")
+            self.txt_resumen.setHtml("<p style='color:#c0392b;'>Selecciona al menos una variable.</p>")
+            self.tabs.setCurrentIndex(0)
             return
 
         # Primera pasada: detectar candidatos (sin concordancia)
@@ -213,9 +366,98 @@ class OmniPanel(QWidget):
             report = run_omnianalysis(self._df, selected, confirmed_comparisons=confirmed,
                                       target=self._target())
 
+        self._auditoria = auditar(report)
+        self.txt_resumen.setHtml(omni_render.resumen_html(report, self._auditoria))
         self.txt_report.setHtml(self._render(report))
+        self._render_arbol()
+        self._render_auditoria()
         self._render_plots(report)
+        self.tabs.setCurrentIndex(0)
 
+    # ---------- Árbol ----------
+    def _render_arbol(self):
+        widgets = []
+        resumen = QLabel(resumen_en_una_linea(self._auditoria))
+        resumen.setWordWrap(True)
+        resumen.setStyleSheet("font-size:12px; color:#0c4a6e; font-weight:bold;")
+        widgets.append(resumen)
+
+        fig = omni_arbol.figura_resumen(self._auditoria)
+        widgets.append(self._lienzo(fig, alto=int(46 * 5 + 90)))
+
+        for _etapa, f in omni_arbol.figuras(self._auditoria):
+            # Sin QLabel de titulo: la figura ya lleva el nombre de la etapa
+            # dibujado, y el rotulo duplicado quedaba dos veces seguidas.
+            # El alto de la figura ya viene proporcionado al layout de la etapa.
+            widgets.append(self._lienzo(f, alto=int(f.get_size_inches()[1] * 96)))
+        self._poner_arbol(widgets)
+
+    @staticmethod
+    def _lienzo(fig, alto):
+        canvas = FigureCanvas(fig)
+        canvas.setMinimumHeight(max(160, alto))
+        plt.close(fig)
+        return canvas
+
+    # ---------- Auditoría ----------
+    def _render_auditoria(self):
+        self.lbl_auditoria.setText(resumen_en_una_linea(self._auditoria))
+        self._aplicar_filtro(self.cmb_filtro.currentText())
+
+    def _aplicar_filtro(self, texto):
+        filas = (self._auditoria or {}).get("filas", [])
+        estado = _ESTADO_DE_FILTRO.get(texto)
+        if estado:
+            filas = [f for f in filas if f["estado"] == estado]
+
+        self.tbl_auditoria.setRowCount(len(filas))
+        for i, f in enumerate(filas):
+            if f["estado"] == EJECUTADO:
+                donde = "; ".join(f["detalles"]) or "; ".join(f["ambitos"])
+            elif f["estado"] == DESCARTADO:
+                donde = "; ".join(f["motivos"])
+            else:
+                donde = f"Se corre cuando: {f['gatillo']}"
+
+            celdas = [
+                f["nombre"], f["etapa"], f["estado"],
+                str(f["veces"]) if f["veces"] else "—",
+                donde, f["norma"] or "—",
+            ]
+            for j, valor in enumerate(celdas):
+                item = QTableWidgetItem(valor)
+                item.setBackground(_FONDO_ESTADO.get(f["estado"], QColor("#ffffff")))
+                if j == 0:
+                    # La explicación didáctica vive en el tooltip del nombre.
+                    item.setToolTip(
+                        f"<b>{f['nombre']}</b><br>{f['porque']}<br><br>"
+                        f"<i>Se gatilla: {f['gatillo']}</i>"
+                        + (f"<br><i>Alternativa: {f['alternativa']}</i>" if f["alternativa"] else "")
+                    )
+                self.tbl_auditoria.setItem(i, j, item)
+
+    def _exportar_auditoria(self):
+        filas = (self._auditoria or {}).get("filas", [])
+        if not filas:
+            self.lbl_auditoria.setText("No hay auditoría para exportar: ejecutá el Omnianálisis primero.")
+            return
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Guardar auditoría", "auditoria_omnianalisis.csv", "CSV (*.csv)"
+        )
+        if not ruta:
+            return
+        # utf-8-sig para que Excel en Windows no rompa los acentos.
+        with open(ruta, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.writer(fh, delimiter=";")
+            w.writerow(["id", "ensayo", "etapa", "estado", "veces",
+                        "detalles", "motivos", "ambitos", "gatillo", "norma"])
+            for f in filas:
+                w.writerow([f["id"], f["nombre"], f["etapa"], f["estado"], f["veces"],
+                            " | ".join(f["detalles"]), " | ".join(f["motivos"]),
+                            " | ".join(f["ambitos"]), f["gatillo"], f["norma"]])
+        self.lbl_auditoria.setText(f"Auditoría exportada a {ruta}")
+
+    # ---------- Gráficos ----------
     def _render_plots(self, report):
         """Pinta los gráficos de comparación (Bland-Altman + regresión) por cada
         bloque de concordancia con datos de plot."""
@@ -252,17 +494,19 @@ class OmniPanel(QWidget):
         """Marca manualmente 2 columnas seleccionadas como comparables."""
         sel = self._selected_cols()
         if len(sel) != 2:
-            self.txt_report.setHtml(
+            self.txt_resumen.setHtml(
                 "<p style='color:#c0392b;'>Selecciona exactamente 2 columnas para marcarlas como comparables.</p>"
             )
+            self.tabs.setCurrentIndex(0)
             return
         pair = (sel[0], sel[1])
         if pair not in self._manual_pairs:
             self._manual_pairs.append(pair)
-        self.txt_report.setHtml(
+        self.txt_resumen.setHtml(
             f"<p style='color:#27ae60;'>Par marcado como comparable: "
             f"<b>{sel[0]} ↔ {sel[1]}</b>. Pulsa 'Ejecutar Omnianálisis'.</p>"
         )
+        self.tabs.setCurrentIndex(0)
 
     # ---------- Render HTML ----------
     def _render(self, report: dict) -> str:

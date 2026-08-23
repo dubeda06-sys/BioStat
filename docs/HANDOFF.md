@@ -14,12 +14,48 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 305 verdes
+python -m pytest tests/ -q        # esperar 353 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## El Omnianálisis ahora se puede auditar
+
+El motor decide bien pero no rendía cuentas: se veía el resultado, no la
+decisión. Ahora sí.
+
+- **Catálogo de ensayos** (`src/analysis/omni_catalogo.py`): los **40** ensayos
+  que el motor puede correr, cada uno con su gatillo, su explicación y su norma.
+- **Marcas en el motor.** `_marcar` / `_descartar` en `omni_analyzer` anotan
+  **en el punto donde el ensayo ocurre**. No se reconstruye desde el texto de la
+  traza: la traza es prosa, un id no.
+- **Auditoría** (`src/analysis/omni_auditoria.py`): tres estados, y la
+  distinción es todo el punto — **ejecutado**; **descartado** (el motor lo
+  evaluó y eligió la otra rama, con motivo); **no aplica** (los datos nunca
+  abrieron esa rama). "No corrí Fisher" no se audita; "no corrí Fisher porque la
+  esperada mínima fue 12,4" sí.
+- **Árbol dibujado** (`src/analysis/omni_arbol.py`): una figura por etapa, con
+  el camino recorrido en verde. Layout **a mano, no auto-ubicado**: un grafo
+  automático mueve los nodos entre corridas y deja de servir para comparar.
+- **Panel en 5 pestañas**: Resumen (castellano llano), Árbol de decisión,
+  Auditoría (tabla filtrable + exportar CSV), Informe, Gráficos.
+
+> [!warning] Dos números que se confunden
+> **Tipos de ensayo** (40 en el catálogo) no es **ejecuciones**: el univariado
+> corre una vez por columna y el bivariado una por par. Con 10 columnas son
+> ~106 ejecuciones de ~24 tipos. La pestaña Auditoría informa los dos.
+
+> [!info] El catálogo se valida contra el motor
+> `tests/test_omni_catalogo.py` lee `omni_analyzer.py` y compara los ids
+> `_marcar(...)` contra el catálogo **en las dos direcciones**. Sin eso, agregar
+> un ensayo al motor lo deja invisible en la auditoría, y sacarlo lo deja
+> figurando como "no aplica" para siempre. Ninguna de las dos tira excepción.
+> `tests/test_omni_arbol.py` exige además que los 40 estén dibujados.
+
+También: `p` redondeado a 4 decimales salía `p=0.0`, que se lee como *p
+exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
 
 ## Lo que entró el 22 de agosto
 
@@ -156,13 +192,14 @@ calidad. Ver su `LEEME.md`.
    altera resultados: **validar contra un caso publicado antes de tocarlo.**
 4. Omnianálisis (de julio, vigentes): calibrar los pesos del score de comparación
    con datos reales; `PESO_UNIDAD` y `PESO_PAREADO` sin cablear; series temporales
-   detectadas pero no analizadas.
+   detectadas pero no analizadas. **El score no se marca ensayo por ensayo**: la
+   auditoría dice cuántos pares se puntuaron, no el puntaje de cada uno.
 
 ## Cómo correr
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 305 tests
+python -m pytest tests/ -q                       # 353 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
