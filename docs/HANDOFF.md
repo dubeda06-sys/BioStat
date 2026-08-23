@@ -14,7 +14,7 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 430 verdes
+python -m pytest tests/ -q        # esperar 443 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -190,6 +190,49 @@ según por dónde se entrara, y nada lo explicaba.
 > `pendiente_estructura` (antes `pendiente_diff_mean`, nombre que mentía en
 > cuanto había una referencia).
 
+## El CCC de Lin, dibujado
+
+`ccc_decomposition_figure` en `src/analysis/omni_plots.py`. Entra en la pestaña
+**Gráficos** del Omnianálisis junto a Bland-Altman y la regresión. La
+descomposición ya se informaba como texto; lo que faltaba era verla.
+
+Dos paneles porque son dos preguntas:
+
+- **«Lo que se ve»** — identidad (y = x) contra el **eje mayor reducido**: la
+  recta de pendiente σ_y/σ_x que pasa por las medias. Sus dos desvíos respecto
+  de la identidad —corrimiento y cambio de escala— son exactamente los
+  ingredientes de Cb.
+- **«Cómo se reparte»** — barra apilada con el reparto **exacto**:
+
+  ```
+  1 − ρc = (1 − ρ) + ρ(1 − Cb)
+  ```
+
+  Lo que falta para el acuerdo perfecto se corta en un pedazo de dispersión y
+  uno de sesgo, sin residuo. El IC del CCC va como barra de error.
+
+> [!warning] Dos formas de que este gráfico mienta, tapadas a propósito
+> **1. Con ρ ≤ 0 los pedazos salen negativos** y la barra se dibujaría hacia
+> atrás. Se escribe el motivo en el panel en vez de dibujar un reparto falso.
+>
+> **2. La recta ámbar se inclina por el cociente de dispersiones**, no solo por
+> descalibración: con ruido grande se inclina sola. Un pie de figura que dijera
+> «ámbar lejos de la gris = mal calibrado» sería falso justo en el caso de
+> imprecisión pura, que es uno de los dos que el gráfico existe para
+> distinguir. El texto afirma solo lo que Cb mide.
+> `test_el_texto_no_afirma_descalibracion_por_la_inclinacion` lo fija.
+
+`_plot` se arma **antes** de que el CCC exista, así que se completa después con
+`ccc` / `ccc_rho` / `ccc_cb` / `ccc_ic95`. No se movió el bloque: los datos de
+Bland-Altman de `_plot` dependen de decisiones anteriores, y reordenarlas por un
+gráfico sería al revés.
+
+**Falta:** en el panel de análisis manual no entra. Ese panel muestra **una sola
+figura por análisis** (`_show_fig` reemplaza el canvas), y el CCC se calcula
+dentro de `_bland`, que ya usa ese lugar para el gráfico de diferencias.
+Meterlo pide un selector de figura o una figura combinada — cambio de UI, no de
+cálculo.
+
 ## Lo que entró el 22 de agosto
 
 - **Levey-Jennings y Westgard: eliminados.** Ver Deudas.
@@ -358,7 +401,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 430 tests
+python -m pytest tests/ -q                       # 443 tests
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
