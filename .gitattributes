@@ -1,0 +1,25 @@
+# Normalizacion de fin de linea.
+#
+# `text=auto` deja que git guarde LF en el repositorio y entregue al working
+# tree lo que corresponda al sistema. NO se fuerza `eol=lf`: eso reescribiria
+# el fin de linea de todos los archivos del working tree en el proximo
+# checkout, un cambio grande y sin ganancia real en Windows.
+* text=auto
+
+# Binarios: marcarlos evita que git intente normalizarlos o mostrarlos como
+# texto en un diff. Un PNG "normalizado" queda corrupto.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.exe binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
+
+# Estos si con LF siempre: los interpretan herramientas que no toleran CRLF.
+*.sh text eol=lf
+
+# No cuentan como codigo propio en las estadisticas de lenguaje de GitHub.
+docs/** linguist-documentation
+tests/** linguist-attributes

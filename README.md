@@ -2,6 +2,35 @@
 
 Software estadístico para laboratorio clínico. Inspirado en MedCalc.
 
+> [!warning] Usá 1.0.0 o posterior
+> Toda versión anterior a **1.0.0** tiene defectos de cálculo que pueden cambiar
+> una decisión clínica — ver [CHANGELOG.md](CHANGELOG.md). La pantalla de carga
+> dice qué build estás corriendo: versión, fecha, rama y commit.
+
+## Cómo está organizado el repositorio
+
+| Rama | Para qué |
+|---|---|
+| `develop` | **Donde se trabaja.** Siempre es la más nueva. |
+| `master` | Lo publicado. Se adelanta desde `develop` al sacar una versión, y se etiqueta ahí. |
+
+Las versiones publicadas llevan **etiqueta anotada** (`git tag -n`), así que
+`git describe` identifica cualquier build. La misma identidad va horneada en el
+ejecutable y se muestra en la pantalla de carga: si alguna vez aparece un
+`.exe` suelto, alcanza con abrirlo para saber de dónde salió.
+
+```bash
+git clone -b develop https://github.com/dubeda06-sys/BioStat.git   # para trabajar
+git tag -n                                                          # versiones publicadas
+```
+
+Antes de compilar, correr las pruebas:
+
+```bash
+python -m pytest tests/ -q     # 744
+python scripts/smoke_ui.py     # 76/76
+```
+
 ## Instalación
 
 ```bash
