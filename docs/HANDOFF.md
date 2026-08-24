@@ -5,11 +5,21 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado 22 ago desde `develop`. El anterior era del 1 jul, **sin ninguna
-corrección de cálculo de este año**: IC de LoA con `1.96` en vez de `t(n−1)`,
-**8,6 % más angosto** a n=15. Método validado con ese exe entre julio y agosto =
-IC impresos mal. Copia vieja: `BioStat_2026-07-01_VIEJO.exe` en el Escritorio;
-borrarla para que nadie la abra por error.
+Recompilado el 23 ago desde `develop`, y **la pantalla de carga ahora dice qué
+build es**: `v0.1.0 · fecha · rama · commit`, dibujado en `assets/splash.png`
+por `build_exe.py` en cada compilación. Ver `src/version.py`.
+
+Hizo falta porque había **tres** BioStat en la máquina y ninguno se
+identificaba: el del Escritorio, una copia del 1 de julio, y un build del 16 de
+junio detrás de un acceso directo que apuntaba a otro clon del repo bajo
+`source/repos/BioStat`. Con el del 1 de julio se validaron métodos durante dos
+meses con los IC de los límites de acuerdo impresos mal (`1.96` en vez de
+`t(n−1)`, 8,6 % más angostos a n=15).
+
+Los dos viejos se borraron y el acceso directo quedó reapuntado al actual. **En
+ese clon abandonado siguen `BioStat.bat` y `BioStat.vbs`**, que corren
+`python main.py` sobre el código de junio: no son ejecutables, pero abren la
+app igual.
 
 **Después de tocar el core, recompilar:**
 
