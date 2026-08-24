@@ -23,7 +23,7 @@ def validate_numeric_data(data, min_values=2, name="data"):
     except (ValueError, TypeError):
         return False, None, f"{name}: Data must be numeric"
 
-    arr = arr[~np.isnan(arr)]
+    arr = arr[np.isfinite(arr)]
 
     if len(arr) < min_values:
         return False, None, f"{name}: Need at least {min_values} values, got {len(arr)}"
@@ -53,7 +53,7 @@ def validate_paired_data(d1, d2, min_pairs=2):
         return False, None, None, "Data must be numeric"
 
     # Align and remove NaN pairs
-    valid = ~(np.isnan(arr1) | np.isnan(arr2))
+    valid = np.isfinite(arr1) & np.isfinite(arr2)
     arr1, arr2 = arr1[valid], arr2[valid]
 
     if len(arr1) < min_pairs:
@@ -81,7 +81,7 @@ def validate_groups(groups, min_groups=2, min_per_group=1):
     for i, g in enumerate(groups):
         try:
             arr = np.asarray(g, dtype=float)
-            arr = arr[~np.isnan(arr)]
+            arr = arr[np.isfinite(arr)]
             if len(arr) < min_per_group:
                 return False, None, f"Group {i+1}: Need at least {min_per_group} values"
             cleaned.append(arr)
@@ -110,7 +110,7 @@ def validate_binary_outcome(y, name="outcome"):
     except (ValueError, TypeError):
         return False, None, f"{name}: Data must be numeric"
 
-    arr = arr[~np.isnan(arr)]
+    arr = arr[np.isfinite(arr)]
 
     unique = np.unique(arr)
     if not all(u in [0, 1] for u in unique):
@@ -141,7 +141,7 @@ def validate_positive_values(data, name="data"):
     except (ValueError, TypeError):
         return False, None, f"{name}: Data must be numeric"
 
-    arr = arr[~np.isnan(arr)]
+    arr = arr[np.isfinite(arr)]
 
     if len(arr) == 0:
         return False, None, f"{name}: No valid values"
@@ -225,11 +225,15 @@ def get_validation_summary(data, name="data"):
 
     try:
         arr = np.asarray(data, dtype=float)
-    except:
+    except (ValueError, TypeError):
         return {'valid': False, 'error': 'Not numeric'}
 
     total = len(arr)
-    valid = np.sum(~np.isnan(arr))
+    # nanmin/nanmean saltean NaN pero NO los infinitos: con un inf adentro el
+    # maximo y la media salian inf y la sd NaN. Se resumen los finitos, que son
+    # los mismos que cuenta `valid`.
+    finitos = arr[np.isfinite(arr)]
+    valid = len(finitos)
     missing = total - valid
 
     return {
@@ -238,8 +242,8 @@ def get_validation_summary(data, name="data"):
         'valid_count': valid,
         'missing': missing,
         'missing_pct': (missing / total * 100) if total > 0 else 0,
-        'min': float(np.nanmin(arr)) if valid > 0 else None,
-        'max': float(np.nanmax(arr)) if valid > 0 else None,
-        'mean': float(np.nanmean(arr)) if valid > 0 else None,
-        'std': float(np.nanstd(arr, ddof=1)) if valid > 1 else None,
+        'min': float(np.min(finitos)) if valid > 0 else None,
+        'max': float(np.max(finitos)) if valid > 0 else None,
+        'mean': float(np.mean(finitos)) if valid > 0 else None,
+        'std': float(np.std(finitos, ddof=1)) if valid > 1 else None,
     }

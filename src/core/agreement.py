@@ -37,24 +37,36 @@ def cohens_kappa(matrix):
 
 
 def weighted_kappa(matrix, weights="linear"):
-    """Kappa ponderado."""
+    """Kappa ponderado (Cohen, 1968).
+
+    Pondera los desacuerdos por su distancia: confundir "leve" con "grave"
+    pesa mas que confundir "leve" con "moderado". Pesos lineales |i-j| o
+    cuadraticos (i-j)^2.
+
+    El factor de normalizacion de los pesos se cancela en el cociente
+    (kappa_w = 1 - d_obs/d_esp), asi que da igual dividir por (k-1) o no: el
+    resultado coincide con `sklearn.metrics.cohen_kappa_score(weights=...)`.
+    """
     m = np.asarray(matrix, dtype=float)
     n = np.sum(m)
     k = m.shape[0]
     if n == 0 or k < 2:
         return None
-    w = np.zeros((k, k))
-    for i in range(k):
-        for j in range(k):
-            if weights == "linear":
-                w[i, j] = abs(i - j) / (k - 1)
-            elif weights == "quadratic":
-                w[i, j] = (i - j)**2 / (k - 1)**2
+    if weights not in ("linear", "quadratic"):
+        return {"error": f"Pesos '{weights}' no reconocidos: usa 'linear' o "
+                         f"'quadratic'."}
+    i, j = np.indices((k, k))
+    w = (np.abs(i - j) / (k - 1) if weights == "linear"
+         else (i - j) ** 2 / (k - 1) ** 2)
+
     row_sums = np.sum(m, axis=1)
     col_sums = np.sum(m, axis=0)
+    # Frecuencias ESPERADAS en cuentas, no en proporciones: la division por n
+    # se hace una sola vez, igual que para las observadas. Dividir dos veces
+    # deja p_e ~ 1 y el cociente estalla contra un denominador ~0 (daba -55).
+    esperadas = np.outer(row_sums, col_sums) / n
     p_o = 1 - np.sum(w * m) / n
-    e = np.outer(row_sums, col_sums) / n**2
-    p_e = 1 - np.sum(w * e) / n
+    p_e = 1 - np.sum(w * esperadas) / n
     kappa = (p_o - p_e) / (1 - p_e) if (1 - p_e) != 0 else 0
     return {"kappa": kappa, "po": p_o, "pe": p_e, "weights": weights, "n": int(n)}
 

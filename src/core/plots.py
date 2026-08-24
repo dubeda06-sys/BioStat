@@ -120,7 +120,7 @@ def mountain_plot_data(data, n_bins=50):
         dict with x, y, and reference lines
     """
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
 
     if len(data) < 5:
         return None

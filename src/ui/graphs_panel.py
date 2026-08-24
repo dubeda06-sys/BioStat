@@ -193,11 +193,16 @@ class GraphsPanel(QWidget):
             return None
         fig, ax = plt.subplots(figsize=(9, 5))
         ax.scatter(d1[:n], d2[:n], alpha=0.5, c=COLORS[0], edgecolors='white', s=50)
-        z = np.polyfit(d1[:n], d2[:n], 1)
-        xl = np.linspace(d1[:n].min(), d1[:n].max(), 100)
-        ax.plot(xl, np.poly1d(z)(xl), color=COLORS[3], ls='--', lw=1.5)
-        r = np.corrcoef(d1[:n], d2[:n])[0, 1]
-        ax.text(0.02, 0.98, f'r = {r:.3f}', transform=ax.transAxes, va='top',
+        # Con una columna constante no hay recta que ajustar ni correlacion
+        # que informar: se dice, en vez de dibujar una etiqueta "r = nan".
+        if np.ptp(d1[:n]) > 0 and np.ptp(d2[:n]) > 0:
+            z = np.polyfit(d1[:n], d2[:n], 1)
+            xl = np.linspace(d1[:n].min(), d1[:n].max(), 100)
+            ax.plot(xl, np.poly1d(z)(xl), color=COLORS[3], ls='--', lw=1.5)
+            etiqueta = f'r = {np.corrcoef(d1[:n], d2[:n])[0, 1]:.3f}'
+        else:
+            etiqueta = 'r no definido:\nuna columna es constante'
+        ax.text(0.02, 0.98, etiqueta, transform=ax.transAxes, va='top',
                bbox=dict(boxstyle='round', fc='white', alpha=0.9))
         ax.set_title(f'{c1} vs {c2}', fontweight='bold')
         ax.set_xlabel(c1)

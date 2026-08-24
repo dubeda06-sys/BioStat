@@ -7,7 +7,7 @@ from statsmodels.stats.contingency_tables import cochrans_q as _sm_cochrans_q
 def descriptive_stats(data):
     """Estadisticas descriptivas completas."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n == 0:
         return None
@@ -16,9 +16,22 @@ def descriptive_stats(data):
     sd = np.std(data, ddof=1)
     var = np.var(data, ddof=1)
     sem = sd / np.sqrt(n)
-    skew = stats.skew(data) if n >= 8 else np.nan
-    kurt = stats.kurtosis(data) if n >= 8 else np.nan
+    constante = np.ptp(data) == 0
+    calculable = n >= 8 and not constante
+    skew = stats.skew(data) if calculable else np.nan
+    kurt = stats.kurtosis(data) if calculable else np.nan
+    # La media, la mediana y los extremos de datos constantes son validos; lo
+    # indefinido es solo lo que divide por la dispersion. Por eso avisa en vez
+    # de rechazar todo el bloque.
+    avisos = []
+    if constante:
+        avisos.append(f"Todos los valores son iguales a {data[0]:g}: la "
+                      f"asimetria, la curtosis y el CV no estan definidos.")
+    elif n < 8:
+        avisos.append(f"n={n}: la asimetria y la curtosis necesitan al menos 8 "
+                      f"datos para ser informativas.")
     return {
+        "avisos": avisos,
         "n": n, "mean": mean, "median": median, "std": sd, "var": var,
         "sem": sem, "min": np.min(data), "max": np.max(data),
         "range": np.max(data) - np.min(data),
@@ -33,7 +46,7 @@ def descriptive_stats(data):
 def trimmed_mean(data, proportion=0.1):
     """Media recortada."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 5:
         return None
@@ -49,7 +62,7 @@ def trimmed_mean(data, proportion=0.1):
 def geometric_mean(data):
     """Media geometrica."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     data = data[data > 0]
     if len(data) == 0:
         return None
@@ -59,7 +72,7 @@ def geometric_mean(data):
 def harmonic_mean(data):
     """Media armonica."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     data = data[data > 0]
     if len(data) == 0:
         return None
@@ -69,10 +82,13 @@ def harmonic_mean(data):
 def skewness_test(data):
     """Test de asimetria."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 8:
         return None
+    if np.ptp(data) == 0:
+        return {"error": f"Todos los valores son iguales a {data[0]:g}: la "
+                         f"asimetria divide por la dispersion y no esta definida."}
     skew = stats.skew(data)
     se = np.sqrt(6 / n)
     z = skew / se
@@ -83,10 +99,13 @@ def skewness_test(data):
 def kurtosis_test(data):
     """Test de curtosis."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 8:
         return None
+    if np.ptp(data) == 0:
+        return {"error": f"Todos los valores son iguales a {data[0]:g}: la "
+                         f"curtosis divide por la dispersion y no esta definida."}
     kurt = stats.kurtosis(data)
     se = np.sqrt(24 / n)
     z = kurt / se
@@ -99,10 +118,13 @@ def kurtosis_test(data):
 def ttest_1sample(data, mu=0):
     """t-test una muestra."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 2:
         return None
+    if np.ptp(data) == 0:
+        return {"error": f"Todos los valores son iguales a {data[0]:g}: el "
+                         f"error estandar es cero y la t no esta definida."}
     t, p = stats.ttest_1samp(data, mu)
     mean = np.mean(data)
     sd = np.std(data, ddof=1)
@@ -114,7 +136,7 @@ def ttest_paired(d1, d2):
     """t-test pareado."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
+    valid = np.isfinite(d1) & np.isfinite(d2)
     d1, d2 = d1[valid], d2[valid]
     n = len(d1)
     if n < 2:
@@ -128,10 +150,13 @@ def ttest_ind(d1, d2):
     """t-test independiente (Welch)."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    d1 = d1[~np.isnan(d1)]
-    d2 = d2[~np.isnan(d2)]
+    d1 = d1[np.isfinite(d1)]
+    d2 = d2[np.isfinite(d2)]
     if len(d1) < 2 or len(d2) < 2:
         return None
+    if np.ptp(d1) == 0 and np.ptp(d2) == 0:
+        return {"error": "Los dos grupos son constantes: no hay dispersion "
+                         "contra la cual medir la diferencia de medias."}
     t, p = stats.ttest_ind(d1, d2, equal_var=False)
     return {"t": t, "p": p, "mean1": np.mean(d1), "mean2": np.mean(d2),
             "sd1": np.std(d1, ddof=1), "sd2": np.std(d2, ddof=1),
@@ -141,7 +166,7 @@ def ttest_ind(d1, d2):
 def anova_oneway(groups):
     """ANOVA una via."""
     groups = [np.asarray(g, dtype=float) for g in groups]
-    groups = [g[~np.isnan(g)] for g in groups]
+    groups = [g[np.isfinite(g)] for g in groups]
     groups = [g for g in groups if len(g) > 0]
     if len(groups) < 2:
         return None
@@ -155,11 +180,14 @@ def f_test_variances(d1, d2):
     """Prueba F para comparar varianzas."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    d1 = d1[~np.isnan(d1)]
-    d2 = d2[~np.isnan(d2)]
+    d1 = d1[np.isfinite(d1)]
+    d2 = d2[np.isfinite(d2)]
     if len(d1) < 3 or len(d2) < 3:
         return None
     v1, v2 = np.var(d1, ddof=1), np.var(d2, ddof=1)
+    if v1 == 0 or v2 == 0:
+        return {"error": "Uno de los dos grupos tiene varianza cero: la razon "
+                         "de varianzas divide por cero."}
     f_stat = v1 / v2 if v1 >= v2 else v2 / v1
     df1 = (len(d1)-1) if v1 >= v2 else (len(d2)-1)
     df2 = (len(d2)-1) if v1 >= v2 else (len(d1)-1)
@@ -174,8 +202,8 @@ def mannwhitneyu(d1, d2):
     """Mann-Whitney U (Wilcoxon rank-sum)."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    d1 = d1[~np.isnan(d1)]
-    d2 = d2[~np.isnan(d2)]
+    d1 = d1[np.isfinite(d1)]
+    d2 = d2[np.isfinite(d2)]
     if len(d1) < 2 or len(d2) < 2:
         return None
     u, p = stats.mannwhitneyu(d1, d2, alternative='two-sided')
@@ -188,7 +216,7 @@ def wilcoxon_signed_rank(d1, d2):
     """Wilcoxon signed-rank (pareado)."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
+    valid = np.isfinite(d1) & np.isfinite(d2)
     d1, d2 = d1[valid], d2[valid]
     mask = d1 != d2
     d1, d2 = d1[mask], d2[mask]
@@ -205,7 +233,7 @@ def sign_test(d1, d2):
     """Sign test (prueba de signos)."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
+    valid = np.isfinite(d1) & np.isfinite(d2)
     d1, d2 = d1[valid], d2[valid]
     diff = d1 - d2
     diff = diff[diff != 0]
@@ -225,7 +253,7 @@ def sign_test(d1, d2):
 def kruskal_wallis(groups):
     """Kruskal-Wallis."""
     groups = [np.asarray(g, dtype=float) for g in groups]
-    groups = [g[~np.isnan(g)] for g in groups]
+    groups = [g[np.isfinite(g)] for g in groups]
     groups = [g for g in groups if len(g) > 0]
     if len(groups) < 2:
         return None
@@ -299,11 +327,14 @@ def pearson_r(d1, d2):
     """Correlacion de Pearson."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
+    valid = np.isfinite(d1) & np.isfinite(d2)
     d1, d2 = d1[valid], d2[valid]
     n = len(d1)
     if n < 3:
         return None
+    if np.ptp(d1) == 0 or np.ptp(d2) == 0:
+        return {"error": "Una de las dos variables es constante: la "
+                         "correlacion divide por su dispersion."}
     r, p = stats.pearsonr(d1, d2)
     return {"r": r, "r2": r**2, "p": p, "n": n}
 
@@ -312,11 +343,14 @@ def spearman_rho(d1, d2):
     """Correlacion de Spearman."""
     d1 = np.asarray(d1, dtype=float)
     d2 = np.asarray(d2, dtype=float)
-    valid = ~(np.isnan(d1) | np.isnan(d2))
+    valid = np.isfinite(d1) & np.isfinite(d2)
     d1, d2 = d1[valid], d2[valid]
     n = len(d1)
     if n < 3:
         return None
+    if np.ptp(d1) == 0 or np.ptp(d2) == 0:
+        return {"error": "Una de las dos variables es constante: todos sus "
+                         "rangos empatan y la correlacion no esta definida."}
     r, p = stats.spearmanr(d1, d2)
     return {"rho": r, "p": p, "n": n}
 
@@ -324,11 +358,14 @@ def spearman_rho(d1, d2):
 def partial_correlation(x, y, z):
     """Correlacion parcial controlando z."""
     x, y, z = np.asarray(x, dtype=float), np.asarray(y, dtype=float), np.asarray(z, dtype=float)
-    valid = ~(np.isnan(x) | np.isnan(y) | np.isnan(z))
+    valid = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
     x, y, z = x[valid], y[valid], z[valid]
     n = len(x)
     if n < 4:
         return None
+    if np.ptp(x) == 0 or np.ptp(y) == 0 or np.ptp(z) == 0:
+        return {"error": "Alguna de las tres variables es constante: la "
+                         "correlacion parcial divide por su dispersion."}
     r_xz = np.corrcoef(x, z)[0, 1]
     r_yz = np.corrcoef(y, z)[0, 1]
     r_xy = np.corrcoef(x, y)[0, 1]
@@ -348,7 +385,7 @@ def partial_correlation(x, y, z):
 def normality_test(data):
     """Shapiro-Wilk para normalidad."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 3:
         return None

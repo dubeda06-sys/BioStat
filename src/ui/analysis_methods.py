@@ -622,6 +622,10 @@ class AnalysisMethodsMixin:
         unique = np.unique(y_true)
         if not all(u in [0, 1] for u in unique):
             return f"<b>Error:</b> Variable 3 debe contener solo 0 y 1. Valores encontrados: {unique.tolist()}"
+        if len(unique) < 2:
+            return ("<b>Error:</b> La etiqueta tiene una sola clase "
+                    f"(todos {int(unique[0])}). Una curva ROC compara enfermos "
+                    "contra sanos: hacen falta los dos grupos.")
 
         fpr, tpr, thresh = roc_curve(y_true, y_score)
         a = auc(fpr, tpr)
@@ -1696,11 +1700,29 @@ class AnalysisMethodsMixin:
         self._set_formula("Formula: Prueba Diagnostica", "Sens=a/(a+c), Spec=d/(b+d)\nPPV=a/(a+b), NPV=d/(c+d)", f"Sens={r['sens']:.4f}, Spec={r['spec']:.4f}\nPPV={r['ppv']:.4f}, NPV={r['npv']:.4f}")
         h = self._h(f" Prueba Diagnostica")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Sensibilidad", f"{r['sens']:.4f}"), ("Especificidad", f"{r['spec']:.4f}"),
-                      ("VPP", f"{r['ppv']:.4f}"), ("VPN", f"{r['npv']:.4f}"),
-                      ("Exactitud", f"{r['acc']:.4f}"), ("LR+", f"{r['plr']:.4f}"), ("LR-", f"{r['nlr']:.4f}")]:
-            h += self._r(l, v)
-        return h + "</table>"
+
+        def _con_ic(valor, ic):
+            """Una proporcion sin su intervalo invita a leer 20/20 como
+            certeza. CLSI EP12 pide el IC; el metodo es Wilson."""
+            if not np.isfinite(valor):
+                return "no definido"
+            if ic is None or not all(np.isfinite(x) for x in ic):
+                return f"{valor:.4f}"
+            return f"{valor:.4f}  (IC 95%: {ic[0]:.4f} – {ic[1]:.4f})"
+
+        for l, clave, ic_clave in [("Sensibilidad", "sens", "ci_sens"),
+                                   ("Especificidad", "spec", "ci_spec"),
+                                   ("VPP", "ppv", "ci_ppv"),
+                                   ("VPN", "npv", "ci_npv"),
+                                   ("Exactitud", "acc", "ci_acc")]:
+            h += self._r(l, _con_ic(r[clave], r.get(ic_clave)))
+        for l, clave in [("LR+", "plr"), ("LR-", "nlr")]:
+            v = r[clave]
+            h += self._r(l, "infinito" if not np.isfinite(v) else f"{v:.4f}")
+        h += "</table>"
+        for aviso in r.get("avisos", []):
+            h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
+        return h
 
     # --- Outliers Grubbs ---
     def _outliers_grubbs(self, col):
@@ -1985,6 +2007,8 @@ class AnalysisMethodsMixin:
                 sd2 = self.data.iloc[4, 0]
                 n2 = int(self.data.iloc[5, 0])
                 result = compare_two_means(m1, sd1, n1, m2, sd2, n2)
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo comparar las medias.")
                 self._set_formula("Formula: Comparar 2 Medias", "t = (m1 - m2) / √(sd1²/n1 + sd2²/n2)")
                 h = self._h(f" Comparar 2 Medias")
                 h += "<table style='font-size:12px;'>"
@@ -2001,6 +2025,8 @@ class AnalysisMethodsMixin:
                 p2 = self.data.iloc[2, 0]
                 n2 = int(self.data.iloc[3, 0])
                 result = compare_two_proportions(p1, n1, p2, n2)
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo comparar las proporciones.")
                 self._set_formula("Formula: Comparar 2 Proporciones", "z = (p1 - p2) / √(p̂(1-p̂)(1/n1 + 1/n2))")
                 h = self._h(f" Comparar 2 Proporciones")
                 h += "<table style='font-size:12px;'>"
@@ -2019,6 +2045,8 @@ class AnalysisMethodsMixin:
                 se2 = self.data.iloc[4, 0]
                 n2 = int(self.data.iloc[5, 0])
                 result = compare_two_auc(auc1, se1, n1, auc2, se2, n2)
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo comparar las AUC.")
                 self._set_formula("Formula: Comparar 2 AUC", "z = (AUC1 - AUC2) / √(SE1² + SE2²)")
                 h = self._h(f" Comparar 2 AUC")
                 h += "<table style='font-size:12px;'>"

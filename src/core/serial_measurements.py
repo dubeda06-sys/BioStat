@@ -23,7 +23,7 @@ def serial_measurements_summary(data):
     time_points = np.arange(k)
     slopes = np.zeros(n)
     for i in range(n):
-        valid = ~np.isnan(data[i])
+        valid = np.isfinite(data[i])
         if np.sum(valid) >= 2:
             slope, _, _, _, _ = stats.linregress(time_points[valid], data[i, valid])
             slopes[i] = slope
@@ -34,7 +34,7 @@ def serial_measurements_summary(data):
 
     individual_trajectories = []
     for i in range(n):
-        valid = ~np.isnan(data[i])
+        valid = np.isfinite(data[i])
         if np.sum(valid) >= 2:
             slope, intercept, _, _, _ = stats.linregress(time_points[valid], data[i, valid])
             individual_trajectories.append({

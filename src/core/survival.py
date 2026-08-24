@@ -8,7 +8,7 @@ def kaplan_meier(times, events):
     times = np.asarray(times, dtype=float)
     events = np.asarray(events, dtype=int)
 
-    valid = ~(np.isnan(times)) & ~np.isnan(events)
+    valid = np.isfinite(times) & np.isfinite(events)
     times, events = times[valid], events[valid]
 
     order = np.argsort(times)
@@ -75,9 +75,9 @@ def log_rank_test(times1, events1, times2, events2):
     times2 = np.asarray(times2, dtype=float)
     events2 = np.asarray(events2, dtype=int)
 
-    valid1 = ~np.isnan(times1)
+    valid1 = np.isfinite(times1)
     times1, events1 = times1[valid1], events1[valid1]
-    valid2 = ~np.isnan(times2)
+    valid2 = np.isfinite(times2)
     times2, events2 = times2[valid2], events2[valid2]
 
     all_times = np.unique(np.concatenate([times1, times2]))

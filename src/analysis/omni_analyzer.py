@@ -205,7 +205,7 @@ def profile_dataset(df: pd.DataFrame, cols: list[str], cfg: OmniConfig) -> dict:
 def _normality(arr, cfg: OmniConfig) -> dict:
     """Normalidad con Shapiro-Wilk (n<=SHAPIRO_MAX) o Anderson-Darling."""
     arr = np.asarray(arr, dtype=float)
-    arr = arr[~np.isnan(arr)]
+    arr = arr[np.isfinite(arr)]
     n = len(arr)
     if n < 3:
         return {"normal": True, "test": "n/a", "stat": None, "p": None,
@@ -228,7 +228,7 @@ def _normality(arr, cfg: OmniConfig) -> dict:
 def _levene(groups) -> dict:
     """Homocedasticidad (Levene)."""
     clean = [np.asarray(g, dtype=float) for g in groups]
-    clean = [g[~np.isnan(g)] for g in clean]
+    clean = [g[np.isfinite(g)] for g in clean]
     clean = [g for g in clean if len(g) >= 2]
     if len(clean) < 2:
         return {"equal_var": True, "stat": None, "p": None, "nota": "no evaluable"}
@@ -370,8 +370,17 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
             f"{c2}: {'sí' if norm2['normal'] else 'no'} → "
             f"{'Pearson' if both_normal else 'Spearman'}."
         )
+        r = pearson_r(a, b) if both_normal else spearman_rho(a, b)
+        if not _ok(r):
+            # Una columna constante deja la correlacion indefinida: se dice y
+            # se sigue con los demas bloques, no se tumba el informe entero.
+            motivo = r.get("error") if isinstance(r, dict) else "no se pudo calcular"
+            block["advertencias"].append(f"Correlacion: {motivo}")
+            _descartar(block, "pearson", motivo)
+            _descartar(block, "spearman", motivo)
+            block["conclusion"] = f"No se puede medir la asociación: {motivo}"
+            return block
         if both_normal:
-            r = pearson_r(a, b)
             block["pruebas"].append({"prueba": "Pearson", "r": round(r["r"], 4),
                                      "r2": round(r["r2"], 4), "p": round(r["p"], 4),
                                      "significativo": r["p"] < cfg.ALPHA})
@@ -383,7 +392,6 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
                 f"{'significativa' if r['p']<cfg.ALPHA else 'no significativa'}."
             )
         else:
-            r = spearman_rho(a, b)
             block["pruebas"].append({"prueba": "Spearman", "rho": round(r["rho"], 4),
                                      "p": round(r["p"], 4), "significativo": r["p"] < cfg.ALPHA})
             _marcar(block, "spearman", f"rho={round(r['rho'], 4)}, {_p(r['p'])}")
@@ -628,6 +636,12 @@ def _comparison_score(c1, s1, c2, s2, cfg: OmniConfig) -> dict:
     score = 0.0
     reasons = []
 
+    # corrcoef divide por la desviacion: con una columna constante da NaN, y
+    # todas las comparaciones contra NaN son False, asi que el puntaje quedaba
+    # bajo por un motivo que no era el suyo.
+    if np.ptp(a) == 0 or np.ptp(b) == 0:
+        return {"score": 0, "reasons": ["una de las dos columnas es constante"],
+                "corr": None}
     r = float(np.corrcoef(a, b)[0, 1])
 
     # rangos solapados
@@ -1054,19 +1068,27 @@ def _correlation_matrix(df: pd.DataFrame, num_cols: list[str], cfg: OmniConfig) 
                 continue
             n1 = _normality(a, cfg)["normal"]
             n2 = _normality(b, cfg)["normal"]
+            res = pearson_r(a, b) if (n1 and n2) else spearman_rho(a, b)
+            if not _ok(res):
+                # Un par indefinido no puede sacar del informe a los demas
+                # pares, ni entrar en la correccion FDR con un p inventado.
+                cells.append({"par": f"{c1} × {c2}",
+                              "metodo": "Pearson" if (n1 and n2) else "Spearman",
+                              "coef": None, "p": None,
+                              "nota": res.get("error") if isinstance(res, dict)
+                                      else "no se pudo calcular"})
+                continue
             if n1 and n2:
-                res = pearson_r(a, b)
                 cells.append({"par": f"{c1} × {c2}", "metodo": "Pearson",
                               "coef": round(res["r"], 4), "p": round(res["p"], 4)})
-                p_values.append(res["p"])
             else:
-                res = spearman_rho(a, b)
                 cells.append({"par": f"{c1} × {c2}", "metodo": "Spearman",
                               "coef": round(res["rho"], 4), "p": round(res["p"], 4)})
-                p_values.append(res["p"])
+            p_values.append(res["p"])
     # FDR Benjamini-Hochberg
     adj = _fdr(p_values, cfg)
-    for cell, pa in zip(cells, adj):
+    con_p = [c for c in cells if c.get("p") is not None]
+    for cell, pa in zip(con_p, adj):
         cell["p_adj"] = round(float(pa), 4)
         cell["significativo_adj"] = pa < cfg.ALPHA
     return {"celdas": cells, "n_comparaciones": len(cells)}

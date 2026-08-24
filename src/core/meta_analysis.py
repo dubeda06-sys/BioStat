@@ -22,7 +22,7 @@ def meta_analysis(effects, se_effects, labels=None, model="random"):
     if k < 2:
         return None
 
-    valid = ~(np.isnan(effects) | np.isnan(se) | (se <= 0))
+    valid = np.isfinite(effects) & np.isfinite(se) & (se > 0)
     effects, se = effects[valid], se[valid]
     k = len(effects)
 

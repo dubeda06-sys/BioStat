@@ -251,7 +251,7 @@ def bland_altman_multiple(data, method_labels=None):
             m1 = data[:, i]
             m2 = data[:, j]
 
-            valid = ~(np.isnan(m1) | np.isnan(m2))
+            valid = np.isfinite(m1) & np.isfinite(m2)
             m1_clean, m2_clean = m1[valid], m2[valid]
 
             if len(m1_clean) < 2:

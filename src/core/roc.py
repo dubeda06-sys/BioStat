@@ -15,33 +15,38 @@ def roc_curve(y_true, y_score):
         thresholds: Umbrales
     """
     y_true = np.asarray(y_true)
-    y_score = np.asarray(y_score)
+    y_score = np.asarray(y_score, dtype=float)
 
-    desc_order = np.argsort(y_score)[::-1]
-    y_score_sorted = y_score[desc_order]
-    y_true_sorted = y_true[desc_order]
-
-    thresholds = np.unique(y_score_sorted)[::-1]
-    fpr = np.zeros(len(thresholds) + 1)
-    tpr = np.zeros(len(thresholds) + 1)
-
-    n_pos = np.sum(y_true == 1)
-    n_neg = np.sum(y_true == 0)
+    n_pos = int(np.count_nonzero(y_true == 1))
+    n_neg = int(np.count_nonzero(y_true == 0))
 
     if n_pos == 0 or n_neg == 0:
-        return fpr, tpr, np.append(thresholds, 0)
+        # Sin las dos clases no hay curva. Devolver ceros hacia arriba hacia
+        # que `auc` informe 0.0000, que se lee como "prueba pesima" cuando en
+        # realidad es "no se puede calcular". NaN obliga a mirarlo.
+        nan3 = np.array([np.nan, np.nan])
+        return nan3, nan3.copy(), nan3.copy()
 
-    for i, thresh in enumerate(thresholds):
-        y_pred = (y_score >= thresh).astype(int)
-        tp = np.sum((y_pred == 1) & (y_true == 1))
-        fp = np.sum((y_pred == 1) & (y_true == 0))
-        tpr[i] = tp / n_pos
-        fpr[i] = fp / n_neg
+    orden = np.argsort(-y_score, kind="mergesort")
+    y = y_true[orden]
+    s = y_score[orden]
 
-    tpr[-1] = 1.0
-    fpr[-1] = 1.0
+    tp_acum = np.cumsum(y == 1)
+    fp_acum = np.cumsum(y == 0)
 
-    return fpr, tpr, np.append(thresholds, thresholds[-1] - 1)
+    # Un score empatado no se puede partir por la mitad: o entran todos los
+    # casos con ese valor o no entra ninguno. Se toma el ULTIMO indice de cada
+    # grupo de empate. Evaluar cada umbral por separado, como se hacia antes,
+    # deja la curva arrancando fuera del origen y el trapecio se come el
+    # triangulo inicial: con scores de pocos niveles el AUC salia hasta 0.11
+    # por debajo del real, siempre subestimando.
+    fin_de_grupo = np.r_[np.where(np.diff(s))[0], len(s) - 1]
+
+    tpr = np.r_[0.0, tp_acum[fin_de_grupo] / n_pos]
+    fpr = np.r_[0.0, fp_acum[fin_de_grupo] / n_neg]
+    thresholds = np.r_[np.inf, s[fin_de_grupo]]
+
+    return fpr, tpr, thresholds
 
 
 def auc(fpr, tpr):
@@ -50,10 +55,19 @@ def auc(fpr, tpr):
 
 
 def optimal_threshold(fpr, tpr, thresholds):
-    """Encuentra el umbral optimo usando el indice de Youden."""
-    youden = tpr - fpr
-    idx = np.argmax(youden)
-    return thresholds[idx], youden[idx], tpr[idx], fpr[idx]
+    """Encuentra el umbral optimo usando el indice de Youden (J = sens + esp - 1).
+
+    Se saltea el punto (0,0), que la curva incluye por construccion y lleva
+    umbral +inf: no es un punto de corte utilizable, es "no diagnosticar a
+    nadie". Con una curva peor que el azar el argmax caeria ahi y se mostraria
+    un umbral 'inf'.
+    """
+    fpr, tpr, thresholds = np.asarray(fpr), np.asarray(tpr), np.asarray(thresholds)
+    if len(fpr) < 2 or not np.all(np.isfinite(fpr[1:])):
+        return np.nan, np.nan, np.nan, np.nan
+    youden = tpr[1:] - fpr[1:]
+    idx = int(np.argmax(youden)) + 1
+    return thresholds[idx], youden[idx - 1], tpr[idx], fpr[idx]
 
 
 def sensitivity_at_specificity(fpr, tpr, target_spec):

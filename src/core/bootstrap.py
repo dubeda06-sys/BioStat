@@ -15,7 +15,7 @@ def bootstrap_mean(data, n_bootstrap=10000, ci=0.95, seed=42):
         dict con estimaciones bootstrap
     """
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 2:
         return None
@@ -44,7 +44,7 @@ def bootstrap_mean(data, n_bootstrap=10000, ci=0.95, seed=42):
 def bootstrap_median(data, n_bootstrap=10000, ci=0.95, seed=42):
     """Bootstrap para la mediana."""
     data = np.asarray(data, dtype=float)
-    data = data[~np.isnan(data)]
+    data = data[np.isfinite(data)]
     n = len(data)
     if n < 2:
         return None
@@ -70,7 +70,7 @@ def bootstrap_correlation(x, y, n_bootstrap=10000, ci=0.95, method="pearson", se
     """Bootstrap para correlacion."""
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
-    valid = ~(np.isnan(x) | np.isnan(y))
+    valid = np.isfinite(x) & np.isfinite(y)
     x, y = x[valid], y[valid]
     n = len(x)
     if n < 3:
@@ -113,8 +113,8 @@ def bootstrap_difference(data1, data2, n_bootstrap=10000, ci=0.95, seed=42):
     """Bootstrap para la diferencia de medias."""
     data1 = np.asarray(data1, dtype=float)
     data2 = np.asarray(data2, dtype=float)
-    data1 = data1[~np.isnan(data1)]
-    data2 = data2[~np.isnan(data2)]
+    data1 = data1[np.isfinite(data1)]
+    data2 = data2[np.isfinite(data2)]
     n1, n2 = len(data1), len(data2)
     if n1 < 2 or n2 < 2:
         return None
@@ -144,7 +144,7 @@ def bootstrap_regression(x, y, n_bootstrap=10000, ci=0.95, seed=42):
     """Bootstrap para regresion lineal."""
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
-    valid = ~(np.isnan(x) | np.isnan(y))
+    valid = np.isfinite(x) & np.isfinite(y)
     x, y = x[valid], y[valid]
     n = len(x)
     if n < 3:

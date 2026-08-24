@@ -19,7 +19,7 @@ def ancova(dependent, group, covariate):
     group = np.asarray(group)
     covariate = np.asarray(covariate, dtype=float)
 
-    valid = ~(np.isnan(dependent) | np.isnan(covariate))
+    valid = np.isfinite(dependent) & np.isfinite(covariate)
     dependent, group, covariate = dependent[valid], group[valid], covariate[valid]
 
     groups = np.unique(group)

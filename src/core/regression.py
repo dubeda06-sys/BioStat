@@ -44,7 +44,7 @@ def multiple_regression(X, y):
     y = np.asarray(y, dtype=float)
     if X.ndim == 1:
         X = X.reshape(-1, 1)
-    valid = ~(np.isnan(X).any(axis=1) | np.isnan(y))
+    valid = np.isfinite(X).all(axis=1) & np.isfinite(y)
     X, y = X[valid], y[valid]
     n, p = X.shape
     if n < p + 2:
@@ -82,7 +82,7 @@ def logistic_regression(X, y, max_iter=100, lr=0.1):
     y = np.asarray(y, dtype=float)
     if X.ndim == 1:
         X = X.reshape(-1, 1)
-    valid = ~(np.isnan(X).any(axis=1) | np.isnan(y))
+    valid = np.isfinite(X).all(axis=1) & np.isfinite(y)
     X, y = X[valid], y[valid]
     n, p = X.shape
     if n < p + 2:
@@ -114,7 +114,7 @@ def nonlinear_regression(x, y, func, p0=None):
     """Regresion no lineal basica usando curve_fit."""
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
-    valid = ~(np.isnan(x) | np.isnan(y))
+    valid = np.isfinite(x) & np.isfinite(y)
     x, y = x[valid], y[valid]
     n = len(x)
     if n < 3:
