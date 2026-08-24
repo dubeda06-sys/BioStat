@@ -14,12 +14,43 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 698 verdes
+python -m pytest tests/ -q        # esperar 744 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## Los gráficos se editan, y el CCC dejó de repetir al Passing-Bablok
+
+**`src/ui/grafico_editable.py`** envuelve cualquier `Figure` y le agrega la
+barra de matplotlib (zoom, desplazamiento, guardar, y el editor de curvas que
+vive detrás del ícono de la llave) más un diálogo con lo que esa barra no
+cubre: título y rótulos, tamaño y familia de letra, tamaño/color/opacidad de
+los puntos, grilla, leyenda con posición, tamaño en pulgadas, exportación de 72
+a 600 ppp y tendencias lineal/cuadrática/cúbica con ecuación y R².
+
+Conectado en los tres lugares que muestran figuras: `analysis_panel._show_fig`,
+`graphs_panel._plot` y `omni_panel._render_plots`. El widget expone `.figure` y
+`.draw()`, así que `report_window` y el guardado de la pestaña de gráficos lo
+siguen tratando como al canvas.
+
+El núcleo son funciones puras sobre `Figure`, sin Qt, para poder probarlas sin
+levantar ventana. **Si tocás ese módulo, mirá primero los tests**: cuatro de
+ellos guardan propiedades que no son obvias — que escalar la fuente no se
+componga, que la tendencia no alimente el ajuste siguiente, que las rectas de
+referencia no cuenten como datos, y que el control se apague donde no hay nube.
+
+Defecto encontrado ahí: **`ax.grid(False, alpha=0.3)` ENCIENDE la grilla.**
+matplotlib avisa que le pasaron propiedades de línea junto al `False` y hace lo
+contrario de lo pedido. Hay que separar los dos casos.
+
+**El CCC descompuesto** tenía a la izquierda un diagrama de dispersión con la
+identidad y una recta inclinada — o sea el mismo gráfico de regresión de
+comparación que está dos pestañas antes. Ahora ubica el par (Cb, ρ) en el plano
+precisión × veracidad, con las hipérbolas de igual ρc y las zonas de McBride.
+El panel derecho pasó de una tira fina a tres rieles que llegan a 1, para que
+se lea cuánto falta y no solo cuánto hay.
 
 ## Auditoría numérica del 23 ago: 12 defectos de cálculo
 
