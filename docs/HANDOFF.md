@@ -14,12 +14,54 @@ borrarla para que nadie la abra por error.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 443 verdes
+python -m pytest tests/ -q        # esperar 698 verdes
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## Auditoría numérica del 23 ago: 12 defectos de cálculo
+
+Se verificaron las ~100 funciones públicas de `src/core` contra oráculos
+independientes (scipy, statsmodels, lifelines, sklearn, pingouin) y contra
+ejemplos publicados (NIST/SEMATECH, CLSI EP12 y EP28, Passing & Bablok 1983).
+Informe completo con tablas y reproducciones: `docs/AUDITORIA-2026-08.md`.
+
+**Lo que cambiaba un resultado clínico:**
+
+| dónde | qué pasaba |
+|---|---|
+| `passing_bablok` | el IC era el percentil empírico de las pendientes: cubría el **100 %** y detectaba un sesgo proporcional real del 10 % en **0 de 900** corridas |
+| `passing_bablok` | faltaba el desplazamiento K: era Theil-Sen. `b(x,y)·b(y,x)` daba 0.04 en vez de 1 |
+| `cox_regression` | `hes_inv` en vez de `hess_inv`: el `hasattr` daba siempre False y **todos** los errores estándar valían 0.1. Además el conjunto de riesgo invertido y el AIC con el signo cambiado |
+| `roc` | la curva no arrancaba en (0,0): el AUC subestimaba hasta **−0.11** con scores empatados |
+| `cmh` | varianza del log(OR) no publicada: con **p = 0.00036** el IC era **(0.11, 243.9)** |
+| `outliers` | ESD con doble resta en λ y sin la regla de Rosner: **1 outlier** donde el NIST publica **3** |
+| `sample_size` | z donde va t: pedías poder 0.80 y con efecto grande te daba **n=2**, cuyo poder real es **0.18**. Y `power_analysis` usaba z también, así que confirmaba su propio error |
+| `agreement` | `weighted_kappa` dividía dos veces por n y devolvía **−55**, con κ acotado a [−1,1]. Estaba en la UI |
+| `outliers` | Grubbs aceptaba `side` y lo ignoraba; el p llegaba a **3.58** |
+| `diagnostic_tests` | `relative_risk` rechazaba tablas calculables; IC de ancho cero con a=0; NNT infinito cuando la exposición daña |
+| `diagnostic_tests` | sensibilidad y especificidad **sin ningún IC**, que CLSI EP12 exige |
+| `reference` | ningún aviso del mínimo de **120** sujetos de CLSI EP28-A3c |
+
+**Robustez.** Barrido de 3.990 llamadas con entradas hostiles. El core filtraba
+con `~np.isnan(x)`, que **deja pasar ±inf**: 44 sitios en 13 archivos, migrados a
+`isfinite`. `guards.py` ya lo hacía bien y hasta lo explicaba en un comentario,
+pero nunca se había propagado. Ocho funciones devolvían NaN mudo con datos
+constantes; ahora rechazan con motivo.
+
+**Ojo con esto:** endurecer `pearson_r` *causó* tres crashes nuevos en el
+Omnianálisis, que hacía `pearson_r(a, b)["r"]` sin mirar. Mover una falla de
+"NaN silencioso" a "excepción" no la arregla. Cada vez que una función del core
+pase a devolver `{"error": ...}`, hay que revisar sus llamadores — `_ok()` en
+`omni_analyzer`, `_sin_resultado()` en la UI.
+
+**Lo que se verificó correcto** (no se tocó): Bland-Altman y sus LoA, CCC de Lin
+y su IC, Deming contra `scipy.odr`, kappa simple, CV de duplicados,
+Kaplan-Meier y log-rank contra lifelines, regresión múltiple contra OLS,
+meta-análisis, y el ruteo del Omnianálisis (41 ensayos = 41, sin huérfanos;
+0 contradicciones entre el texto narrado y sus números en 10 escenarios).
 
 ## El Omnianálisis ahora se puede auditar
 
