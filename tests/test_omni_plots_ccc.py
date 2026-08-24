@@ -19,6 +19,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import matplotlib  # noqa: E402
 matplotlib.use("Agg")
+import matplotlib.colors  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 from src.analysis.omni_analyzer import run_omnianalysis  # noqa: E402
@@ -119,32 +120,120 @@ def test_sin_componentes_no_rompe_las_otras_figuras(bloque_sesgo):
 
 # ---------------- La figura ----------------
 
-def test_la_barra_tiene_los_tres_pedazos(bloque_sesgo):
+_RIEL = matplotlib.colors.to_rgba("#f1f5f9")
+_FILA_REPARTO = 0.55
+
+
+def _segmentos_del_reparto(fig):
+    """Los pedazos de colores de la barra de reparto, sin el riel de fondo.
+
+    El panel derecho tiene tres filas: el riel de rho, el de Cb y el del
+    reparto. Hay que quedarse con la fila del reparto y descartar su riel, que
+    es el rectangulo gris que llega a 1 y solo sirve de referencia.
+    """
+    ax = fig.axes[1]
+    fila = [q for q in ax.patches
+            if abs(q.get_y() + q.get_height() / 2 - _FILA_REPARTO) < 0.02]
+    return [q for q in fila if tuple(q.get_facecolor()[:3]) != _RIEL[:3]]
+
+
+def test_la_barra_del_reparto_tiene_los_tres_pedazos(bloque_sesgo):
     fig = ccc_decomposition_figure(bloque_sesgo["resultados"]["_plot"])
-    ax_barra = fig.axes[1]
-    anchos = [p.get_width() for p in ax_barra.patches]
+    anchos = [q.get_width() for q in _segmentos_del_reparto(fig)]
     assert len(anchos) == 3, "tienen que ser logrado + dispersión + sesgo"
     assert sum(anchos) == pytest.approx(1.0, abs=1e-3)
     assert all(w >= 0 for w in anchos), "un pedazo negativo se dibuja hacia atrás"
     plt.close(fig)
 
 
-def test_el_panel_izquierdo_lleva_identidad_y_recta_de_cb(bloque_sesgo):
-    fig = ccc_decomposition_figure(bloque_sesgo["resultados"]["_plot"])
-    etiquetas = [ln.get_label() for ln in fig.axes[0].lines]
-    assert any("Identidad" in e for e in etiquetas)
-    assert any("Cb compara" in e for e in etiquetas)
+def test_el_panel_izquierdo_no_repite_el_grafico_de_regresion(bloque_sesgo):
+    """La version anterior ponia a la izquierda un diagrama de dispersion de
+    los datos crudos con la identidad y una recta inclinada — o sea, el mismo
+    grafico de regresion de comparacion que ya esta dos pestanas antes.
+    Repetirlo no agregaba una vista: gastaba medio grafico.
+
+    El panel izquierdo ahora ubica UN punto, el par (Cb, rho), en el plano de
+    la descomposicion. Si alguna vez vuelve a dibujar los n datos, este test
+    cae.
+    """
+    plot = bloque_sesgo["resultados"]["_plot"]
+    n_datos = len(plot["x"])
+    fig = ccc_decomposition_figure(plot)
+    ax = fig.axes[0]
+    grandes = [c.get_offsets().shape[0] for c in ax.collections
+               if c.get_gid() != "ccc_punto"
+               and getattr(c, "get_offsets", None)
+               and getattr(c.get_offsets(), "ndim", 0) == 2
+               and c.get_offsets().shape[0] > 5]
+    assert not grandes, (
+        f"el panel dibuja nubes de {grandes} puntos: volvió a ser un diagrama "
+        f"de dispersión de los datos ({n_datos} observaciones)")
     plt.close(fig)
 
 
-def test_el_texto_no_afirma_descalibracion_por_la_inclinacion(bloque_dispersion):
-    """La recta ámbar se inclina por el cociente de dispersiones, no solo por
-    descalibración: con ruido grande se inclina sola. Decir "ámbar lejos de la
-    gris = mal calibrado" sería falso justo en el caso de imprecisión pura."""
+def test_el_mapa_ubica_el_punto_en_las_coordenadas_cb_rho(bloque_sesgo):
+    """El punto ES la descomposicion: su abscisa es Cb y su ordenada rho."""
+    # Contra `_plot` y no contra `resultados`: ahi los valores van redondeados
+    # a 4 decimales para mostrar, y el punto se dibuja con el valor completo.
+    plot = bloque_sesgo["resultados"]["_plot"]
+    fig = ccc_decomposition_figure(plot)
+    ax = fig.axes[0]
+    marcas = [c.get_offsets() for c in ax.collections
+              if c.get_gid() == "ccc_punto"]
+    assert marcas, "no se dibujó el punto"
+    x_pt, y_pt = float(marcas[0][0][0]), float(marcas[0][0][1])
+    assert x_pt == pytest.approx(plot["ccc_cb"], abs=1e-12)
+    assert y_pt == pytest.approx(plot["ccc_rho"], abs=1e-12)
+    plt.close(fig)
+
+
+def test_el_punto_entra_entero_en_el_mapa(bloque_sesgo):
+    """Con datos buenos rho ronda 0,999: con el limite superior justo en 1 el
+    punto quedaba partido por el borde."""
+    for nombre in ("bloque_sesgo",):
+        res = bloque_sesgo["resultados"]
+        fig = ccc_decomposition_figure(res["_plot"])
+        ax = fig.axes[0]
+        (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+        assert x0 < res["ccc_cb"] < x1
+        assert y0 < res["ccc_rho"] < y1
+        assert y1 > 1.0, "el techo tiene que pasar de 1 para no cortar el punto"
+        plt.close(fig)
+
+
+def test_los_dos_escenarios_caen_en_lugares_distintos_del_mapa(
+        bloque_sesgo, bloque_dispersion):
+    """La razon de ser de la figura: el mismo rho_c bajo puede venir de
+    descalibracion o de imprecision, y se arreglan por vias distintas. En el
+    mapa eso son dos esquinas opuestas."""
+    s = bloque_sesgo["resultados"]
+    d = bloque_dispersion["resultados"]
+    assert s["ccc_cb"] < s["ccc_rho"], "sesgo puro: arriba a la izquierda"
+    assert d["ccc_rho"] < d["ccc_cb"], "imprecisión pura: abajo a la derecha"
+
+
+def test_el_texto_no_afirma_descalibracion(bloque_dispersion):
+    """Cb tambien baja por un cociente de dispersiones distinto de 1, no solo
+    por descalibracion. Decir "Cb bajo = mal calibrado" seria falso justo en el
+    caso de imprecision pura, que es uno de los dos que el grafico existe para
+    distinguir."""
     fig = ccc_decomposition_figure(bloque_dispersion["resultados"]["_plot"])
-    textos = " ".join(t.get_text() for t in fig.axes[0].texts)
+    textos = " ".join(t.get_text() for ax in fig.axes for t in ax.texts)
+    textos += " " + " ".join(ax.get_xlabel() + " " + ax.get_ylabel()
+                             for ax in fig.axes)
     assert "calibr" not in textos.lower()
-    assert "veracidad (Cb)" in textos
+    assert "veracidad" in textos.lower() and "precisión" in textos.lower()
+    plt.close(fig)
+
+
+def test_las_zonas_de_mcbride_estan_nombradas(bloque_sesgo):
+    """Sin leyenda, las bandas de color son manchas."""
+    fig = ccc_decomposition_figure(bloque_sesgo["resultados"]["_plot"])
+    leyenda = fig.axes[0].get_legend()
+    assert leyenda is not None, "el mapa no tiene leyenda de zonas"
+    etiquetas = [t.get_text().lower() for t in leyenda.get_texts()]
+    for zona in ("pobre", "moderada", "sustancial", "casi perfecta"):
+        assert zona in etiquetas, f"falta la zona '{zona}'"
     plt.close(fig)
 
 
