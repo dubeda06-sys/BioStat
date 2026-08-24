@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 
 from src.analysis.omni_analyzer import run_omnianalysis
 from src.analysis.omni_plots import comparison_figures
+from src.ui.grafico_editable import GraficoEditable
 from src.analysis import omni_arbol
 from src.analysis.omni_caso import casos as construir_casos
 from src.analysis.omni_auditoria import (
@@ -582,8 +583,10 @@ class OmniPanel(QWidget):
             title.setStyleSheet("font-weight:bold; color:#0e7490; padding:8px 2px 2px;")
             self.plot_layout.addWidget(title)
             for _name, fig in comparison_figures(pdata):
-                canvas = FigureCanvas(fig)
-                canvas.setMinimumHeight(330)
+                # Estos son los que terminan en un poster o en un informe de
+                # acreditacion, asi que son los que mas necesitan retoque.
+                canvas = GraficoEditable(fig)
+                canvas.setMinimumHeight(380)
                 self.plot_layout.addWidget(canvas)
                 plt.close(fig)
                 n_plots += 1

@@ -10,6 +10,7 @@ from scipy import stats
 import matplotlib
 matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from src.ui.grafico_editable import GraficoEditable
 import matplotlib.pyplot as plt
 
 from src.ui.icons import Icons
@@ -638,7 +639,11 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         anterior = self._vaciar_grafico()
         if anterior is not None:
             anterior.deleteLater()
-        self.canvas = FigureCanvas(fig)
+        # GraficoEditable y no FigureCanvas pelado: agrega la barra de
+        # matplotlib (zoom, desplazamiento, guardar) y el dialogo de estilo.
+        # Expone .figure y .draw(), asi que la ventana de informe lo sigue
+        # tratando igual que antes.
+        self.canvas = GraficoEditable(fig)
         self.graph_scroll.setWidget(self.canvas)
         plt.close(fig)
 

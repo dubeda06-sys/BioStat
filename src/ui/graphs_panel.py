@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt
 import matplotlib
 matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from src.ui.grafico_editable import GraficoEditable
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -147,7 +148,7 @@ class GraphsPanel(QWidget):
                 anterior = self.scroll.takeWidget()
                 if anterior is not None and anterior is not self.ph:
                     anterior.deleteLater()
-                self.canvas = FigureCanvas(result)
+                self.canvas = GraficoEditable(result)
                 self.scroll.setWidget(self.canvas)
                 plt.close(result)
 
