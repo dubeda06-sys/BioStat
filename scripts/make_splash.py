@@ -3,8 +3,9 @@
 Uso:
     python scripts/make_splash.py
 
-El PNG se versiona en el repo; este script solo hace falta si se quiere
-cambiar el diseno. Paleta tomada de src/ui/styles.py.
+El PNG NO se versiona: lleva el commit dibujado, asi que build_exe.py lo
+regenera en cada compilacion. Correr este script a mano solo hace falta para
+ver como quedo un cambio de diseno sin compilar todo. Paleta tomada de src/ui/styles.py.
 
 El ancho manda: en la unica linea de texto que expone el splash de PyInstaller
 conviven la barra, el porcentaje y la frase que rota (src/utils/frases.py).

@@ -1,12 +1,16 @@
 # BioStat — Handoff / Dónde seguir
 
 > **2026-08-23**. Leé esto primero.
-> Rama de verdad: **`develop`**. `master` 17 commits atrás.
+> Se trabaja en **`develop`**. `master` quedó al día el 23 de agosto (venía 45
+> commits atrás, y como `origin/HEAD` apunta ahí, quien clonaba aterrizaba en
+> código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
+> desde `develop` y se etiqueta: `git tag -n` lista las versiones.
+> Versión actual: **v1.0.0**.
 
 ## El `.exe` del Escritorio ya está al día
 
 Recompilado el 23 ago desde `develop`, y **la pantalla de carga ahora dice qué
-build es**: `v0.1.0 · fecha · rama · commit`, dibujado en `assets/splash.png`
+build es**: `v1.0.0 · fecha · rama · commit`, dibujado en `assets/splash.png`
 por `build_exe.py` en cada compilación. Ver `src/version.py`.
 
 Hizo falta porque había **tres** BioStat en la máquina y ninguno se

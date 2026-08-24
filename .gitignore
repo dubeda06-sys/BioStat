@@ -20,6 +20,12 @@ Thumbs.db
 # Identidad de la compilacion: la genera build_exe.py en cada build.
 src/_build_info.py
 
+# La ventana de carga lleva el commit dibujado, asi que build_exe.py la
+# regenera en CADA compilacion: es un artefacto, no un asset. Versionarla
+# ensuciaba el repo en cada build y ademas el PNG guardado mostraba
+# siempre un commit viejo.
+assets/splash.png
+
 # Skills/agents vendoreados (no son código de la app)
 .agents/
 .claude/
