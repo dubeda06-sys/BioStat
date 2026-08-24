@@ -16,6 +16,11 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src import __version__          # noqa: E402
+from src.version import info         # noqa: E402
+
 W, H = 700, 330
 
 # La linea de texto la dibuja Tk, no este script: aca solo se reserva el lugar.
@@ -66,6 +71,32 @@ def build():
     d.text((158, 58), "BioStat", font=_font("segoeuib.ttf", 48), fill=INK)
     d.text((161, 121), "Software estadistico para laboratorio clinico",
            font=_font("segoeui.ttf", 14), fill=MUTED)
+
+    # Identidad de la compilacion, arriba a la derecha. Se HORNEA en el PNG en
+    # vez de escribirse en la linea de estado porque esa linea es una sola y la
+    # ocupa la barra de progreso. Asi ademas queda visible los ~16 s enteros.
+    #
+    # La fecha y el commit son el dato util, no el semantico: lo que hay que
+    # poder contestar mirando la pantalla es "¿este es el build actual?", y
+    # `v0.1.0` no lo contesta. Ver src/version.py.
+    v = info()
+    d.text((W - 34, 62), f"v{__version__}", anchor="ra",
+           font=_font("segoeuib.ttf", 17), fill=PRIMARY)
+    if v["commit"] != "desconocido":
+        detalle = f"{v['fecha']} · {v['commit']}"
+        if v["rama"] not in ("desconocido", "HEAD"):
+            detalle = f"{v['fecha']} · {v['rama']} · {v['commit']}"
+        d.text((W - 34, 88), detalle, anchor="ra",
+               font=_font("segoeui.ttf", 12), fill=MUTED)
+        if v["sucio"]:
+            # Un build con cambios sin commitear no es reproducible desde su
+            # hash. Decirlo en la pantalla evita que alguien cite ese commit
+            # como si describiera lo que corrio.
+            d.text((W - 34, 106), "cambios sin commitear", anchor="ra",
+                   font=_font("segoeui.ttf", 11), fill="#b45309")
+    else:
+        d.text((W - 34, 88), "sin datos de compilacion", anchor="ra",
+               font=_font("segoeui.ttf", 12), fill=MUTED)
 
     # Banda de estado: da contraste a la linea que escribe Tk encima, para que
     # la frase no quede flotando sobre el blanco.

@@ -14,6 +14,9 @@ SPLASH_IMAGE = os.path.join(PROJECT_DIR, 'assets', 'splash.png')
 datas = []
 binaries = []
 hiddenimports = ['qtawesome', 'scipy.stats', 'scipy.optimize', 'openpyxl', 'reportlab', 'qtpy']
+# src._build_info lo genera build_exe.py y se importa dentro de un try/except,
+# asi que hay que nombrarlo o no viaja y el exe pierde su identidad.
+hiddenimports += ['src._build_info']
 
 # Paquetes cientificos que necesitan submodulos o datos completos.
 # pingouin (ICC/Cronbach) arrastra pandas_flavor/outdated y datos propios.

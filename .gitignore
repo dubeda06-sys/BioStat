@@ -17,6 +17,9 @@ Thumbs.db
 *.tmp
 *.bak
 
+# Identidad de la compilacion: la genera build_exe.py en cada build.
+src/_build_info.py
+
 # Skills/agents vendoreados (no son código de la app)
 .agents/
 .claude/

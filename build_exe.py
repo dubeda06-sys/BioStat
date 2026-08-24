@@ -26,17 +26,27 @@ def main():
         print(f"ERROR: No se encontro la receta {spec}")
         sys.exit(1)
 
-    # La imagen de la ventana de carga se versiona en el repo; si falta, se
-    # regenera antes de compilar (el spec la exige).
-    if not os.path.exists(splash_png):
-        print("Falta assets/splash.png; regenerandola...")
-        gen = subprocess.run(
-            [sys.executable, os.path.join(project_dir, "scripts", "make_splash.py")],
-            cwd=project_dir,
-        )
-        if gen.returncode != 0 or not os.path.exists(splash_png):
-            print("ERROR: No se pudo generar la imagen de la ventana de carga.")
-            sys.exit(1)
+    # Identidad de la compilacion. Dentro del .exe no hay repositorio git, asi
+    # que el commit y la fecha tienen que viajar horneados en un modulo.
+    sys.path.insert(0, project_dir)
+    from src.version import escribir_build_info, etiqueta
+    datos = escribir_build_info()
+    print(f"Compilando: {etiqueta(datos)}")
+    if datos["sucio"]:
+        print("  AVISO: hay cambios sin commitear. Este build no se puede "
+              "reproducir desde su commit, y la pantalla de carga lo va a decir.")
+
+    # La ventana de carga lleva esa identidad dibujada, asi que se regenera en
+    # CADA build y no solo cuando falta: si no, el exe nuevo mostraria el
+    # commit del anterior, que es peor que no mostrar nada.
+    print("Generando la ventana de carga con la version...")
+    gen = subprocess.run(
+        [sys.executable, os.path.join(project_dir, "scripts", "make_splash.py")],
+        cwd=project_dir,
+    )
+    if gen.returncode != 0 or not os.path.exists(splash_png):
+        print("ERROR: No se pudo generar la imagen de la ventana de carga.")
+        sys.exit(1)
 
     # Compilar desde el spec: ahi viven los hidden imports, los collect_all de
     # los paquetes cientificos y la configuracion del splash.
