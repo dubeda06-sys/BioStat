@@ -36,17 +36,25 @@ class TestRepeatedMeasures:
     def test_basic_repeated(self):
         from src.core.repeated_measures import repeated_measures_anova
         data = np.array([
-            [5, 6, 7],
-            [4, 5, 6],
-            [6, 7, 8],
-            [3, 4, 5],
-            [7, 8, 9]
+            [5, 6.2, 7],
+            [4, 5, 6.4],
+            [6, 7.3, 8],
+            [3, 4, 5.2],
+            [7, 8.1, 9]
         ])
         result = repeated_measures_anova(data)
         assert 'F' in result
         assert 'p' in result
         assert 'epsilon' in result
         assert 0 <= result['epsilon'] <= 1
+
+    def test_cambio_identico_en_todos_no_da_f_cero(self):
+        """Cada sujeto sube exactamente 1 por tiempo: el error residual es 0 y la
+        F no esta definida. Antes se informaba F = 0 y p = 1 — "sin cambios" ante
+        un cambio perfectamente consistente."""
+        from src.core.repeated_measures import repeated_measures_anova
+        data = np.array([[5, 6, 7], [4, 5, 6], [6, 7, 8], [3, 4, 5], [7, 8, 9]])
+        assert "error" in repeated_measures_anova(data)
 
 
 class TestCoxRegression:

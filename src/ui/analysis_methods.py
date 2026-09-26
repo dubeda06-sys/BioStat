@@ -2113,14 +2113,27 @@ class AnalysisMethodsMixin:
         try:
             sub = self.data[[c1, c2, c3]].dropna()
             result = ancova(sub[c1].values, sub[c2].values, sub[c3].values)
-            self._set_formula("Formula: ANCOVA", "F = MS_group / MS_error (ajustado por covariable)")
+            if _sin_resultado(result):
+                return _msg_error(result, "No se pudo calcular.")
+            self._set_formula("Formula: ANCOVA",
+                              f"{c1} = b0 + efecto de {c2} + b·{c3} + error\n"
+                              "F del grupo con sumas de cuadrados tipo II (statsmodels)\n"
+                              f"Medias ajustadas: prediccion de cada grupo en la media de {c3}")
             h = self._h(f" ANCOVA — {c1} por {c2} | {c3}")
             h += "<table style='font-size:12px;'>"
-            h += self._r("Factor", f"F={result['F']:.4f}, p={result['p']:.6f}, gl={result['df_group']}")
-            h += self._r("Covariable", f"F={result['F_covariate']:.4f}, p={result['p_covariate']:.6f}")
-            h += self._r("η²", f"{result['eta_squared']:.4f}")
-            h += self._r("Error", f"gl={result['df_error']}")
-            return h + "</table>" + self._ok(result['p'] < 0.05, "EFECTO SIGNIFICATIVO", "SIN EFECTO SIGNIFICATIVO")
+            h += self._r("n", result['n'])
+            h += self._r("Grupo (ajustado)", f"F={result['F']:.4f}, {_p_html(result['p'])}, "
+                                             f"gl={result['df_group']}, {result['df_error']}")
+            h += self._r("Covariable", f"F={result['F_covariate']:.4f}, {_p_html(result['p_covariate'])}, "
+                                       f"pendiente={result['pendiente_covariable']:.4f}")
+            h += self._r("η² parcial del grupo", f"{result['eta_squared']:.4f}")
+            for grupo, media in result['medias_ajustadas'].items():
+                h += self._r(f"Media ajustada — {grupo}", f"{media:.4f}")
+            h += self._r("Paralelismo (grupo × covariable)", _p_html(result['p_interaccion']))
+            h += "</table>"
+            for aviso in result.get("avisos", []):
+                h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
+            return h + self._ok(result['p'] < 0.05, "EFECTO SIGNIFICATIVO", "SIN EFECTO SIGNIFICATIVO")
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
 
@@ -2130,9 +2143,15 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Se necesitan al menos 3 columnas (mediciones repetidas)."
         try:
             result = repeated_measures_anova(self.data.values)
-            self._set_formula("Formula: Medidas Repetidas", "F = MS_time / MS_error (con corrección GG)")
+            if _sin_resultado(result):
+                return _msg_error(result, "No se pudo calcular.")
+            self._set_formula("Formula: Medidas Repetidas",
+                              "F = MS_tiempo / MS_error\n"
+                              "Greenhouse-Geisser: ε = tr(S*)² / ((k−1)·ΣS*²), S* = covarianza "
+                              "doblemente centrada;\ngl corregidos = ε·gl")
             h = self._h(f" ANOVA Medidas Repetidas")
             h += "<table style='font-size:12px;'>"
+            h += self._r("Sujetos completos", f"{result['n']} ({result['n_excluidos']} excluidos)")
             h += self._r("F", f"{result['F']:.4f}")
             h += self._r("p", f"{result['p']:.6f}")
             h += self._r("F (GG corregido)", f"{result['F_gg']:.4f}")
@@ -2181,15 +2200,25 @@ class AnalysisMethodsMixin:
             X = pares[c1].values.reshape(-1, 1)
             y = pares[c2].values
             result = probit_regression(X, y)
-            self._set_formula("Formula: Probit", "P(Y=1) = Φ(β₀ + β₁x)")
+            if _sin_resultado(result):
+                return _msg_error(result, "No se pudo calcular.")
+            self._set_formula("Formula: Probit",
+                              "P(Y=1) = Φ(β₀ + β₁x)\n"
+                              "Maxima verosimilitud (statsmodels); EE de la informacion observada\n"
+                              "AIC = 2k − 2·logL")
             h = self._h(f" Probit Regression — {c1} → {c2}")
             h += "<table style='font-size:12px;'>"
             h += self._r("n", result['n'])
             h += self._r("Log-likelihood", f"{result['log_likelihood']:.4f}")
             h += self._r("AIC", f"{result['aic']:.4f}")
-            for i, (coef, p) in enumerate(zip(result['coefficients'], result['p_values'])):
-                h += self._r(f"β{i}", f"{coef:.4f}, p={p:.6f}")
-            return h + "</table>"
+            for i, (coef, se, p) in enumerate(zip(result['coefficients'], result['se'],
+                                                  result['p_values'])):
+                nombre = "β0 (intercepto)" if i == 0 else f"β{i} ({c1})"
+                h += self._r(nombre, f"{coef:.4f} (EE {se:.4f}), {_p_html(p)}")
+            h += "</table>"
+            for aviso in result.get("avisos", []):
+                h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
+            return h
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
 

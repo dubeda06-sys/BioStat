@@ -1,60 +1,61 @@
-"""Probit Regression."""
+"""Regresion probit (statsmodels).
+
+La version anterior tenia el mismo defecto que Cox antes de agosto y nunca se
+habia arreglado aca (auditoria 2026-09, K5): leia `result.hes_inv`, que no
+existe, un `except:` desnudo lo tapaba, y TODOS los errores estandar valian
+0,1. De ahi salian z y p inventados. Aun con el nombre bien escrito, invertir
+`hess_inv` daba el Hessiano en vez de la covarianza. Y el AIC tenia el signo
+cambiado. Los coeficientes estaban bien; todo lo que sale de la varianza, no.
+"""
 import numpy as np
-from scipy import stats, optimize
+import statsmodels.api as sm
 
 
 def probit_regression(X, y):
-    """
-    Probit Regression.
+    """Regresion probit por maxima verosimilitud.
 
     Args:
-        X: 2D array of predictors (n x p)
-        y: binary response (0 or 1)
+        X: 2D array de predictoras (n x p).
+        y: respuesta binaria (0 o 1).
 
     Returns:
-        dict with coefficients, p-values, and predictions
+        dict con coeficientes, EE, z, p, predicciones, log-verosimilitud y AIC.
     """
     X = np.atleast_2d(np.asarray(X, dtype=float))
+    if X.shape[0] == 1 and X.shape[1] > 1:
+        X = X.T
     y = np.asarray(y, dtype=float)
-
+    valid = np.isfinite(X).all(axis=1) & np.isfinite(y)
+    X, y = X[valid], y[valid]
     n, p = X.shape
-    X_with_intercept = np.column_stack([np.ones(n), X])
 
-    def neg_log_likelihood(beta):
-        xb = X_with_intercept @ beta
-        xb = np.clip(xb, -10, 10)
-        phi = stats.norm.cdf(xb)
-        phi = np.clip(phi, 1e-10, 1 - 1e-10)
-        ll = np.sum(y * np.log(phi) + (1 - y) * np.log(1 - phi))
-        return -ll
+    if not np.all(np.isin(y, (0.0, 1.0))):
+        return {"error": "La respuesta del probit tiene que ser binaria (0/1)."}
+    if len(np.unique(y)) < 2:
+        return {"error": "La respuesta tiene un solo valor: no hay nada que modelar."}
+    if n < p + 2:
+        return {"error": f"Con {n} observaciones no alcanza para {p} predictora(s)."}
 
-    beta0 = np.zeros(p + 1)
-    result = optimize.minimize(neg_log_likelihood, beta0, method='BFGS')
-    beta = result.x
-
+    diseno = sm.add_constant(X, has_constant="add")
     try:
-        hessian_inv = np.linalg.inv(result.hes_inv)
-        se = np.sqrt(np.abs(np.diag(hessian_inv)))
-    except:
-        se = np.ones(p + 1) * 0.1
+        modelo = sm.Probit(y, diseno).fit(disp=0, maxiter=200)
+    except Exception as e:
+        return {"error": f"El probit no converge con estos datos ({type(e).__name__}): "
+                         f"suele ser separacion completa — una predictora separa "
+                         f"perfectamente los 0 de los 1."}
 
-    se = np.maximum(se, 1e-10)
-    z = beta / se
-    p_values = 2 * (1 - stats.norm.cdf(np.abs(z)))
-
-    xb = X_with_intercept @ beta
-    predictions = stats.norm.cdf(xb)
-
-    log_likelihood = -result.fun
-    aic = 2 * (p + 1) + 2 * log_likelihood
+    avisos = []
+    if not modelo.mle_retvals.get("converged", True):
+        avisos.append("El ajuste no convergio: los coeficientes y sus p no son confiables.")
 
     return {
-        'coefficients': beta,
-        'se': se,
-        'z': z,
-        'p_values': p_values,
-        'predictions': predictions,
-        'log_likelihood': log_likelihood,
-        'aic': aic,
-        'n': n
+        "avisos": avisos,
+        "coefficients": np.asarray(modelo.params, dtype=float),
+        "se": np.asarray(modelo.bse, dtype=float),
+        "z": np.asarray(modelo.tvalues, dtype=float),
+        "p_values": np.asarray(modelo.pvalues, dtype=float),
+        "predictions": np.asarray(modelo.predict(diseno), dtype=float),
+        "log_likelihood": float(modelo.llf),
+        "aic": float(modelo.aic),
+        "n": n,
     }

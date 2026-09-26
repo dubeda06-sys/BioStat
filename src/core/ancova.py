@@ -1,71 +1,84 @@
-"""ANCOVA - Analysis of Covariance."""
+"""ANCOVA de una via (statsmodels, sumas de cuadrados tipo II).
+
+La version anterior era casera y tenia tres defectos (auditoria 2026-09, K4):
+la pendiente de la covariable salia de la regresion TOTAL y no de la
+intragrupo, las medias ajustadas tenian el signo invertido, y la SS del error se
+obtenia por resta y podia salir negativa. Contra statsmodels daba F = 168,6
+donde corresponde 4,67. Ahora se ajusta el modelo lineal y ~ grupo + covariable,
+como ya se hace con la ANOVA de dos vias.
+"""
 import numpy as np
-from scipy import stats
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
 
 
 def ancova(dependent, group, covariate):
-    """
-    One-way ANCOVA.
+    """ANCOVA de una via: diferencias entre grupos ajustadas por una covariable.
 
     Args:
-        dependent: dependent variable
-        group: group factor (categorical)
-        covariate: continuous covariate
+        dependent: variable respuesta (continua).
+        group: factor de grupo (categorico).
+        covariate: covariable continua.
 
     Returns:
-        dict with F statistic, p-value, and eta-squared
+        dict con F y p del grupo (ajustado por la covariable), F y p de la
+        covariable, eta cuadrado parcial, SS tipo II, medias ajustadas a la media
+        de la covariable, y la prueba de paralelismo (interaccion grupo x
+        covariable), que es el supuesto central del metodo.
     """
-    dependent = np.asarray(dependent, dtype=float)
-    group = np.asarray(group)
-    covariate = np.asarray(covariate, dtype=float)
+    df = pd.DataFrame({
+        "y": pd.to_numeric(pd.Series(np.asarray(dependent)), errors="coerce"),
+        "g": pd.Series(np.asarray(group)).astype(object),
+        "x": pd.to_numeric(pd.Series(np.asarray(covariate)), errors="coerce"),
+    })
+    df = df[np.isfinite(df["y"]) & np.isfinite(df["x"]) & df["g"].notna()]
+    df["g"] = df["g"].astype(str)
+    k = df["g"].nunique()
+    n = len(df)
+    if k < 2:
+        return {"error": "Hace falta al menos 2 grupos para una ANCOVA."}
+    if n - k - 1 <= 0:
+        return {"error": f"Con {n} observaciones y {k} grupos no queda ningun grado de "
+                         f"libertad para estimar el error."}
+    if np.ptp(df["x"]) == 0:
+        return {"error": "La covariable es constante: no hay nada por lo cual ajustar."}
 
-    valid = np.isfinite(dependent) & np.isfinite(covariate)
-    dependent, group, covariate = dependent[valid], group[valid], covariate[valid]
+    modelo = ols("y ~ C(g) + x", data=df).fit()
+    aov = sm.stats.anova_lm(modelo, typ=2)
+    ss_g, ss_x, ss_e = (float(aov.loc["C(g)", "sum_sq"]), float(aov.loc["x", "sum_sq"]),
+                        float(aov.loc["Residual", "sum_sq"]))
 
-    groups = np.unique(group)
-    k = len(groups)
-    n = len(dependent)
+    # Medias ajustadas: la prediccion de cada grupo en la media GENERAL de la
+    # covariable (media marginal estimada).
+    xbar = float(df["x"].mean())
+    niveles = sorted(df["g"].unique())
+    pred = modelo.predict(pd.DataFrame({"g": niveles, "x": [xbar] * len(niveles)}))
+    medias_ajustadas = {nivel: float(v) for nivel, v in zip(niveles, pred)}
 
-    grand_mean = np.mean(dependent)
-    group_means = [np.mean(dependent[group == g]) for g in groups]
-    cov_mean = np.mean(covariate)
-
-    ss_total = np.sum((dependent - grand_mean) ** 2)
-
-    cov_deviations = covariate - cov_mean
-    dep_deviations = dependent - grand_mean
-    ss_cov = np.sum(cov_deviations ** 2)
-    slope = np.sum(cov_deviations * dep_deviations) / ss_cov if ss_cov > 0 else 0
-    ss_reg = slope ** 2 * ss_cov
-
-    ss_group = 0
-    for g, gm in zip(groups, group_means):
-        n_g = np.sum(group == g)
-        adj_mean = gm - slope * (cov_mean - np.mean(covariate[group == g]))
-        ss_group += n_g * (adj_mean - grand_mean) ** 2
-
-    ss_error = ss_total - ss_reg - ss_group
-
-    df_group = k - 1
-    df_cov = 1
-    df_error = n - k - 1
-
-    ms_group = ss_group / df_group if df_group > 0 else 0
-    ms_cov = ss_reg / df_cov if df_cov > 0 else 0
-    ms_error = ss_error / df_error if df_error > 0 else 1
-
-    f_group = ms_group / ms_error if ms_error > 0 else 0
-    f_cov = ms_cov / ms_error if ms_error > 0 else 0
-
-    p_group = 1 - stats.f.cdf(f_group, df_group, df_error) if df_group > 0 and df_error > 0 else 1
-    p_cov = 1 - stats.f.cdf(f_cov, df_cov, df_error) if df_cov > 0 and df_error > 0 else 1
-
-    eta_squared = ss_group / (ss_group + ss_error) if (ss_group + ss_error) > 0 else 0
-    eta_squared = np.clip(eta_squared, 0, 1)
+    # Paralelismo: si la covariable pesa distinto en cada grupo, "ajustar" por
+    # ella no tiene un solo sentido y la comparacion de medias ajustadas depende
+    # de en que valor de la covariable se mire.
+    avisos = []
+    p_inter = np.nan
+    try:
+        completo = sm.stats.anova_lm(ols("y ~ C(g) * x", data=df).fit(), typ=2)
+        p_inter = float(completo.loc["C(g):x", "PR(>F)"])
+    except Exception:
+        pass
+    if np.isfinite(p_inter) and p_inter < 0.05:
+        avisos.append(f"Las pendientes de la covariable no son paralelas entre grupos "
+                      f"(interaccion grupo x covariable, p={p_inter:.4f}): el supuesto "
+                      f"de la ANCOVA no se cumple y la diferencia ajustada depende del "
+                      f"valor de la covariable en que se mire.")
 
     return {
-        'F': f_group, 'p': p_group, 'df_group': df_group, 'df_error': df_error,
-        'F_covariate': f_cov, 'p_covariate': p_cov,
-        'eta_squared': eta_squared,
-        'ss_group': ss_group, 'ss_covariate': ss_reg, 'ss_error': ss_error
+        "F": float(aov.loc["C(g)", "F"]), "p": float(aov.loc["C(g)", "PR(>F)"]),
+        "df_group": int(aov.loc["C(g)", "df"]), "df_error": int(aov.loc["Residual", "df"]),
+        "F_covariate": float(aov.loc["x", "F"]), "p_covariate": float(aov.loc["x", "PR(>F)"]),
+        "eta_squared": ss_g / (ss_g + ss_e) if (ss_g + ss_e) > 0 else np.nan,
+        "ss_group": ss_g, "ss_covariate": ss_x, "ss_error": ss_e,
+        "pendiente_covariable": float(modelo.params["x"]),
+        "medias_ajustadas": medias_ajustadas, "media_covariable": xbar,
+        "p_interaccion": p_inter, "avisos": avisos, "n": n, "k": k,
     }
