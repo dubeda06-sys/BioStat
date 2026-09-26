@@ -12,6 +12,7 @@ y **atenúa** el sesgo proporcional: se ve menos desvío del que hay
 """
 import os
 import re
+from html import unescape
 
 import numpy as np
 import pytest
@@ -28,8 +29,12 @@ def qt_app():
     return QApplication.instance() or QApplication([])
 
 
-def _sin_html(texto):
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", texto))
+def _sin_html(salida):
+    """El texto del informe. Bland-Altman ya devuelve un `Resultado`: se lee lo
+    que el renderizador le muestra a la persona."""
+    from src.resultado import Resultado, render_html
+    texto = render_html(salida) if isinstance(salida, Resultado) else salida
+    return unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", texto)))
 
 
 @pytest.fixture(scope="module")
@@ -153,7 +158,7 @@ def test_el_informe_dice_en_que_se_apoyo_la_eleccion(panel):
     """Unos límites sin la evidencia que los justifica no se pueden auditar."""
     texto = _informe(panel, {})
     assert "Shapiro-Wilk" in texto
-    assert "Normalidad de las diferencias" in texto
+    assert "¿Las diferencias siguen una distribución normal?" in texto
 
 
 def test_forzar_parametrico_sobre_diferencias_no_normales_avisa(qt_app):

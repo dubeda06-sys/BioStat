@@ -18,6 +18,7 @@ cualquier cosa que el informe muestre, el test lo ve.
 """
 import os
 import re
+from dataclasses import replace
 
 import numpy as np
 import pandas as pd
@@ -27,14 +28,26 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
+from src.resultado import Resultado, render_html  # noqa: E402
+
 
 @pytest.fixture(scope="module")
 def qt_app():
     return QApplication.instance() or QApplication([])
 
 
-def _texto(html):
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
+def _texto(salida):
+    """El texto del informe, sin el aviso de filas descartadas.
+
+    Los análisis migrados devuelven un `Resultado`, que trae los descartes en su
+    `Entrada`: con huecos el informe los avisa y sin huecos no, y esa es
+    justamente la diferencia que se quiere. Se compara todo lo demás.
+    """
+    if isinstance(salida, Resultado):
+        if salida.entrada is not None:
+            salida = replace(salida, entrada=replace(salida.entrada, descartadas=0))
+        salida = render_html(salida)
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", salida)).strip()
 
 
 def _panel(df):

@@ -126,9 +126,37 @@ def pendiente_concluyente(ic) -> tuple[bool, str]:
     )
 
 
+def donde_falla_ccc(rho, cb) -> str:
+    """Cuál de los dos factores del CCC (ρc = ρ·Cb) se lleva el desacuerdo.
+
+    Es la razón de descomponerlo: un método preciso y corrido se recalibra, uno
+    centrado e impreciso no tiene recalibración que lo arregle.
+    """
+    if rho is None or cb is None:
+        return "Mide acuerdo, no correlación: penaliza estar corrido de la recta ideal."
+    if cb < 0.95 and rho >= 0.95:
+        return ("Los puntos siguen bien la línea pero están corridos: el problema "
+                "es de calibración, no de ruido. Se arregla recalibrando.")
+    if rho < 0.95 and cb >= 0.95:
+        return ("Los puntos están centrados pero dispersos: el problema es de "
+                "imprecisión de la medición, no de calibración.")
+    if rho < 0.95 and cb < 0.95:
+        return "Hay las dos cosas: dispersión y corrimiento."
+    # Cb mide el corrimiento RELATIVO a la dispersión de la muestra: con un rango
+    # de concentraciones amplio, un sesgo del 8 % casi no lo mueve. Decir "no hay
+    # corrimiento" contradecía al Bland-Altman del mismo informe.
+    return ("Los dos componentes están cerca de 1: frente a la dispersión de esta "
+            "muestra, ni el corrimiento ni el ruido pesan mucho. Eso no dice que el "
+            "sesgo sea chico en unidades del analito: eso lo dicen el sesgo y los "
+            "límites de acuerdo.")
+
+
 def texto_descartes(n: int) -> str:
     """El aviso de filas incompletas que quedaron afuera de un análisis."""
-    filas = "1 fila incompleta" if n == 1 else f"{n} filas incompletas"
-    return (f"Se dejaron afuera {filas}: tenían dato en una de las columnas del "
-            "análisis y vacío en otra. Cada fila se compara consigo misma, así "
-            "que una fila a medias no puede entrar.")
+    if n == 1:
+        inicio = "Se dejó afuera 1 fila incompleta: tenía"
+    else:
+        inicio = f"Se dejaron afuera {n} filas incompletas: tenían"
+    return (f"{inicio} dato en una de las columnas del análisis y vacío en otra. "
+            "Cada fila se compara consigo misma, así que una fila a medias no "
+            "puede entrar.")

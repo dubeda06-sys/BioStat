@@ -642,10 +642,33 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         if res.formula:
             titulo = res.metodo.nombre if res.metodo else res.titulo
             self._set_formula(f"Formula: {titulo}", res.formula)
-        # Por ahora se muestra la primera figura; el selector para ver las demas
-        # entra con el primer analisis que traiga mas de una (Bland-Altman + CCC).
         if res.figuras:
-            self._show_fig(res.figuras[0]())
+            self._mostrar_figuras(res.figuras)
+
+    def _mostrar_figuras(self, figuras):
+        """Una figura va sola, como siempre. Varias se apilan con su titulo, igual
+        que en la pestaña Graficos del Omnianalisis: se ven todas sin tener que
+        elegir, y la ventana de informe se lleva el bloque entero."""
+        if len(figuras) == 1:
+            self._show_fig(figuras[0].dibujar())
+            return
+        anterior = self._vaciar_grafico()
+        if anterior is not None:
+            anterior.deleteLater()
+        bloque = QWidget()
+        caja = QVBoxLayout(bloque)
+        caja.setContentsMargins(0, 0, 0, 0)
+        for figura in figuras:
+            fig = figura.dibujar()
+            titulo = QLabel(figura.titulo)
+            titulo.setStyleSheet("font-weight:bold; color:#2c3650; padding:8px 2px 2px;")
+            caja.addWidget(titulo)
+            grafico = GraficoEditable(fig)
+            grafico.setMinimumHeight(380)
+            caja.addWidget(grafico)
+            plt.close(fig)
+        self.canvas = bloque
+        self.graph_scroll.setWidget(bloque)
 
     def _vaciar_grafico(self):
         """Saca lo que haya en el area de grafico y lo devuelve.

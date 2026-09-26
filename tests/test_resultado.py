@@ -20,7 +20,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from src.resultado import (  # noqa: E402
-    Cita, Entrada, Metodo, Resultado, ResultadoComoBooleano, Supuesto, Valor,
+    Cita, Entrada, Figura, Metodo, Resultado, ResultadoComoBooleano, Supuesto, Valor,
     render_html,
 )
 from src.resultado import lenguaje  # noqa: E402
@@ -203,7 +203,7 @@ def test_el_panel_muestra_un_resultado(qt_app, monkeypatch):
         return fig
 
     res = _completo()
-    res.figuras = [figura]
+    res.figuras = [Figura("Prueba", figura)]
 
     panel = AnalysisPanel()
     panel.set_data(pd.DataFrame({"A": [1.0, 2.0, 3.0], "B": [1.1, 2.1, 2.9]}))

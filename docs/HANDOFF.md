@@ -28,7 +28,7 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 789 verdes (26 sep)
+python -m pytest tests/ -q        # esperar 820 verdes (26 sep)
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -48,8 +48,43 @@ Metodo, Supuesto, Cita), `lenguaje`, `datos` y `render_html`.
 - **`if resultado:` lanza `ResultadoComoBooleano`.** Se pregunta `.ok`.
 - **El panel acepta las dos formas**: el dispatch puede devolver HTML (lo viejo)
   o un `Resultado`, que `_mostrar_resultado` renderiza y del que toma fórmula y
-  primera figura. Todavía **ningún análisis está migrado**: el próximo paso es la
-  familia de validación de métodos, con `citas.py` y el selector de figuras.
+  figuras. Con más de una figura, `_mostrar_figuras` las **apila con su título**
+  (igual que la pestaña Gráficos del Omnianálisis) y la ventana de informe se
+  lleva el bloque entero.
+
+### Bland-Altman: el primer análisis migrado
+
+`src/resultado/constructores/comparacion.py::bland_altman`. El `_bland` del
+panel quedó en una línea que lo llama; `CONSTRUCTORES` lista los migrados y
+`tests/test_bland_resultado.py` les aplica el contrato a todos (ficha con
+fórmula y cita, sin «significativo», ningún p como cero, lectura y matiz).
+
+- **Mismos números.** Cada `Valor` se compara contra `bland_altman_analysis` en
+  las 9 combinaciones límites × eje, con diferencias normales y sin ellas. Además
+  se corrió el `_bland` viejo (sacado de git) contra el nuevo en 36 casos: los
+  **642** números del informe viejo están en el nuevo.
+- **Entra el CCC al panel manual**, con sus valores (ρc con IC, ρ, Cb, McBride),
+  su paso y su gráfico descompuesto — el mismo `ccc_decomposition_figure` del
+  Omnianálisis. Si no se puede calcular (una columna constante), se avisa y el
+  Bland-Altman sigue.
+- **Pasos auditables**: normalidad de las diferencias → qué límites; método de
+  referencia → qué eje; sesgo proporcional (por el IC de la pendiente, misma
+  regla que el Omnianálisis); CCC. Con referencia declarada, si la pendiente
+  contra el promedio y contra la referencia no concluyen lo mismo, lo dice.
+- **Fórmula y 8 referencias** en `src/resultado/citas.py`, en el recuadro de
+  fórmula y en el informe guardado (antes `_bland` no escribía fórmula).
+
+> [!bug] El CCC contradecía al sesgo del mismo informe (también en el Omnianálisis)
+> Con ρ y Cb ≥ 0,95, `_donde_falla_ccc` decía «ni corrimiento apreciable ni
+> dispersión». Un método que lee 8 % alto sobre un rango de 20 a 200 da
+> Cb = 0,98: Cb mide el corrimiento **frente a la dispersión de la muestra**, y
+> con un rango amplio un 8 % casi no lo mueve. El paso negaba el sesgo que la
+> tabla mostraba arriba. Ahora dice que los componentes pesan poco frente a esa
+> dispersión y que el tamaño del sesgo lo dan el sesgo y los límites.
+> `test_el_paso_del_ccc_no_niega_el_sesgo_que_muestra_la_tabla`.
+
+**Sigue:** Passing-Bablok (con `_regresion_concluyente` en vez del 10 % de la
+media), Deming, CV de duplicados, ICC y Bland-Altman múltiple.
 
 ## 26 sep: los análisis pareados del panel manual desalineaban las filas
 
@@ -355,11 +390,8 @@ Dos paneles porque son dos preguntas:
 Bland-Altman de `_plot` dependen de decisiones anteriores, y reordenarlas por un
 gráfico sería al revés.
 
-**Falta:** en el panel de análisis manual no entra. Ese panel muestra **una sola
-figura por análisis** (`_show_fig` reemplaza el canvas), y el CCC se calcula
-dentro de `_bland`, que ya usa ese lugar para el gráfico de diferencias.
-Meterlo pide un selector de figura o una figura combinada — cambio de UI, no de
-cálculo.
+**Resuelto el 26 sep:** entra también en el panel de análisis manual, debajo
+del gráfico de diferencias (ver *Bland-Altman: el primer análisis migrado*).
 
 ## Lo que entró el 22 de agosto
 
@@ -526,7 +558,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 789 verdes (26 sep); el número crece
+python -m pytest tests/ -q                       # 820 verdes (26 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

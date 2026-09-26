@@ -40,9 +40,11 @@ class Valor:
     ic: tuple | None = None
     decimales: int = 4
     nota: str = ""
+    unidad: str = ""        # "%" se pega al número: 12.34%
 
     def texto(self) -> str:
-        return _formatear(self.valor, self.decimales)
+        texto = _formatear(self.valor, self.decimales)
+        return texto + self.unidad if self.unidad and texto != "—" else texto
 
     def texto_ic(self) -> str:
         if self.ic is None or len(self.ic) != 2:
@@ -75,6 +77,18 @@ class Supuesto:
     ok: bool = True
 
 
+@dataclass(frozen=True)
+class Figura:
+    """Un gráfico del informe. Se dibuja cuando se lo va a mostrar.
+
+    `dibujar` y no una `Figure` ya hecha: el Resultado se puede construir, y
+    probar, sin pagar el costo de dibujar; y cada vista (panel, ventana de
+    informe) recibe su propia figura en vez de compartir una.
+    """
+    titulo: str
+    dibujar: Callable[[], Figure]
+
+
 class ResultadoComoBooleano(TypeError):
     """`if resultado:` sobre un `Resultado`. Hay que preguntar `.ok`."""
 
@@ -92,7 +106,7 @@ class Resultado:
     lectura: str = ""               # qué dice, en castellano llano
     matiz: str = ""                 # qué NO se puede concluir
     advertencias: list[str] = field(default_factory=list)
-    figuras: list[Callable[[], Figure]] = field(default_factory=list)
+    figuras: list[Figura] = field(default_factory=list)
     crudo: dict = field(default_factory=dict)
     error: str | None = None
 

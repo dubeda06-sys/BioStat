@@ -2,10 +2,10 @@
 
 > **2026-09-26.** Aprobada, con las cuatro recomendaciones del final. Es el paso
 > **A** de «MedCalc pero guiado» (ver `docs/HANDOFF.md`, *Hacia dónde va*).
-> Hecho: el arreglo de pares (paso 1) y el esqueleto (paso 2: `modelo`,
-> `lenguaje`, `datos`, `render_html` y el panel aceptando un `Resultado`).
-> `citas.py` entra con el paso 3, junto con las fichas de cada análisis: una
-> tabla vacía no prueba nada.
+> Hecho: el arreglo de pares (paso 1), el esqueleto (paso 2) y, del paso 3,
+> **Bland-Altman con el CCC** junto con `citas.py`. Falta el resto de la
+> familia de validación: Passing-Bablok, Deming, CV de duplicados, ICC y
+> Bland-Altman múltiple.
 
 ## Qué hay hoy (leído del código, no del HANDOFF)
 
@@ -85,7 +85,7 @@ class Resultado:
     lectura: str                  # qué dice, en castellano llano
     matiz: str                    # qué NO se puede concluir
     advertencias: list[str]
-    figuras: list[Callable[[], Figure]]
+    figuras: list[Figura]         # título + función que dibuja la Figure
     crudo: dict                   # lo que devolvió el core, sin tocar
     error: str | None = None
 ```
@@ -103,9 +103,10 @@ class Resultado:
    primera vez que se corre el test, no en el informe de un paciente.
 
 3. **Las figuras son funciones que devuelven `Figure`**, no llamadas a
-   `self._show_fig` escondidas dentro del cálculo. El panel muestra la primera y
-   ofrece un selector si hay más. Eso **cierra la deuda del CCC en el panel
-   manual**: `_bland` podrá entregar el gráfico de diferencias *y* el del CCC.
+   `self._show_fig` escondidas dentro del cálculo. Con más de una, el panel las
+   **apila con su título**, como la pestaña Gráficos del Omnianálisis (se pensó
+   en un selector; apiladas se ven todas y la ventana de informe se lleva el
+   bloque). Eso **cerró la deuda del CCC en el panel manual**.
 
 4. **Fórmulas y citas en una tabla declarativa** (`src/resultado/citas.py`),
    con la clave del análisis. Se carga desde `docs/referencia-medcalc/`, que ya

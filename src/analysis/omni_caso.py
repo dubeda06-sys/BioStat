@@ -25,8 +25,8 @@ from src.analysis.omni_analyzer import _fmt_p, _p
 # El lenguaje llano vive en src/resultado/lenguaje.py, compartido con el panel
 # manual: si cada lado tiene su copia, vuelven a divergir.
 from src.resultado.lenguaje import (  # noqa: F401  (se re-exportan)
-    ALPHA, ic_texto as _ic, num as _num, pendiente_concluyente,
-    probabilidad_en_palabras,
+    ALPHA, donde_falla_ccc as _donde_falla_ccc, ic_texto as _ic, num as _num,
+    pendiente_concluyente, probabilidad_en_palabras,
 )
 
 
@@ -631,20 +631,6 @@ def _regresion_concluyente(reg: dict) -> tuple[bool, str]:
     `lenguaje.pendiente_concluyente`: un IC que incluye el 1 no prueba nada si
     es demasiado ancho."""
     return pendiente_concluyente(reg.get("ic_pendiente"))
-
-
-def _donde_falla_ccc(rho, cb) -> str:
-    if rho is None or cb is None:
-        return "Mide acuerdo, no correlación: penaliza estar corrido de la recta ideal."
-    if cb < 0.95 and rho >= 0.95:
-        return ("Los puntos siguen bien la línea pero están corridos: el problema "
-                "es de calibración, no de ruido. Se arregla recalibrando.")
-    if rho < 0.95 and cb >= 0.95:
-        return ("Los puntos están centrados pero dispersos: el problema es de "
-                "imprecisión de la medición, no de calibración.")
-    if rho < 0.95 and cb < 0.95:
-        return "Hay las dos cosas: dispersión y corrimiento."
-    return "Los dos componentes están bien: ni corrimiento apreciable ni dispersión."
 
 
 def _veredicto_concordancia(par, ccc, sesgo, lo, hi) -> str:

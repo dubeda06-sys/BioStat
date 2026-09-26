@@ -79,6 +79,7 @@ def _msg_error(res, generico):
 from src.core.passing_bablok import passing_bablok
 from src.core.survival import kaplan_meier, log_rank_test
 from src.resultado.datos import filas_completas
+from src.resultado.constructores import bland_altman
 from src.resultado.lenguaje import texto_descartes
 from src.core.meta_analysis import meta_analysis
 from src.core.sample_size import (
@@ -715,148 +716,9 @@ class AnalysisMethodsMixin:
 
     # --- Bland-Altman ---
     def _bland(self, c1, c2, opciones=None):
-        """Bland-Altman con las tres variantes que admite el metodo.
-
-        `opciones` (de analysis_specs.OPCIONES):
-          limites:    "auto" | "parametrico" | "no_parametrico"
-          referencia: "promedio" | "x" | "y"
-
-        El core ya calculaba las tres; lo que faltaba era poder elegir. El eje X
-        importa mas de lo que parece: si uno de los dos metodos es de referencia
-        o un valor asignado, graficar contra el promedio mete la referencia en
-        los dos ejes y ATENUA el sesgo proporcional — se ve menos desvio del que
-        hay (Krouwer JS, 2008, Stat Med 27:778-780; CLSI EP09).
-        """
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        d1, d2 = pares[c1], pares[c2]
-        n = len(pares)
-        if n < 3:
-            return "<b>Error:</b> Minimo 3 pares."
-
-        opciones = opciones or {}
-        modo = opciones.get("limites", "auto")
-        eje = opciones.get("referencia", "promedio")
-        referencia = eje if eje in ("x", "y") else None
-
-        result = bland_altman_analysis(d1.values, d2.values,
-                                       reference=referencia)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-
-        normales = result.get("normal_diffs")
-        sw_p = result.get("shapiro_p")
-        # En automatico decide la normalidad de las DIFERENCIAS, no la de los
-        # datos crudos. Si Shapiro no se pudo correr, se cae a parametrico y se
-        # avisa: no se elige en silencio.
-        if modo == "auto":
-            elegido = "parametrico" if normales in (True, None) else "no_parametrico"
-        else:
-            elegido = modo
-
-        if elegido == "parametrico":
-            lim_inf, lim_sup = result["loa_lower"], result["loa_upper"]
-            centro, centro_rotulo = result["mean_difference"], "Sesgo (media de las diferencias)"
-            rotulo_lim = "Límites de acuerdo (± 1,96·DE)"
-        else:
-            lim_inf, lim_sup = result["loa_np_lower"], result["loa_np_upper"]
-            centro = float(np.median(result["diffs"]))
-            centro_rotulo = "Sesgo (mediana de las diferencias)"
-            rotulo_lim = "Límites de acuerdo (percentiles 2,5 y 97,5)"
-
-        nombre_eje = {"x": c1, "y": c2}.get(eje)
-        titulo_modo = "paramétrico" if elegido == "parametrico" else "no paramétrico"
-        titulo_eje = f" · eje X = {nombre_eje} (Krouwer)" if nombre_eje else ""
-        h = self._h(f" Bland-Altman {titulo_modo}{titulo_eje} — {c1} vs {c2}")
-
-        h += "<table style='font-size:12px;'>"
-        filas = [("n", result["n"]),
-                 (f"Media {c1}", f"{result['mean_method1']:.4f}"),
-                 (f"Media {c2}", f"{result['mean_method2']:.4f}"),
-                 (centro_rotulo, f"{centro:.4f}"),
-                 ("Sesgo %", f"{result['bias_pct']:.2f}%"),
-                 ("DE de las diferencias", f"{result['sd_difference']:.4f}"),
-                 (f"{rotulo_lim} — superior", f"{lim_sup:.4f}"),
-                 (f"{rotulo_lim} — inferior", f"{lim_inf:.4f}")]
-        if elegido == "parametrico":
-            filas.append(("IC 95% del sesgo",
-                          f"{result['ci_mean'][0]:.4f} a {result['ci_mean'][1]:.4f}"))
-            filas.append(("IC 95% del límite superior",
-                          f"{result['ci_upper'][0]:.4f} a {result['ci_upper'][1]:.4f}"))
-            filas.append(("IC 95% del límite inferior",
-                          f"{result['ci_lower'][0]:.4f} a {result['ci_lower'][1]:.4f}"))
-        for l, v in filas:
-            h += self._r(l, v)
-        h += "</table>"
-
-        # En que se apoya la eleccion. Sin esto, el usuario ve unos limites y no
-        # sabe si son los que corresponden.
-        h += "<div style='margin-top:10px;padding:8px 10px;border-radius:6px;background:#f0f9fb;border-left:3px solid #0e7490;font-size:12px;'>"
-        if np.isfinite(sw_p if sw_p is not None else np.nan):
-            veredicto = "no se apartan de la normal" if normales else "NO son normales"
-            h += (f"<b>Normalidad de las diferencias</b> (Shapiro-Wilk): "
-                  f"W={result['shapiro_w']:.4f}, {_p_html(sw_p)} → {veredicto}.")
-        else:
-            h += "<b>Normalidad de las diferencias:</b> no evaluable."
-        if modo == "auto":
-            h += f" Se eligieron los límites <b>{titulo_modo}s</b> por ese resultado."
-        else:
-            h += f" Límites <b>{titulo_modo}s</b> elegidos a mano."
-            if elegido == "parametrico" and normales is False:
-                h += ("<br><b style='color:#b45309;'>Atención:</b> las diferencias no son "
-                      "normales; estos límites paramétricos no son los que corresponden.")
-        h += "</div>"
-
-        # Sesgo proporcional: la pendiente que vale es la del eje elegido, pero
-        # se muestran las dos para que se vea cuanto atenua el promedio.
-        pend_prom = result["slope_vs_mean"]
-        pend_ref = result.get("slope_vs_reference")
-        h += "<div style='margin-top:8px;font-size:12px;'><b>Sesgo proporcional</b><table style='font-size:12px;'>"
-        h += self._r("Pendiente contra el promedio",
-                     f"{pend_prom['slope']:.4f} ({_p_html(pend_prom['p'])})")
-        if pend_ref is not None:
-            h += self._r(f"Pendiente contra {nombre_eje} (referencia)",
-                         f"{pend_ref['slope']:.4f} ({_p_html(pend_ref['p'])})")
-        h += "</table>"
-        if pend_ref is not None:
-            h += ("<i>Con un método de referencia vale la segunda: regresar contra el "
-                  "promedio mete la referencia en los dos ejes y atenúa el sesgo "
-                  "proporcional (Krouwer 2008, CLSI EP09).</i>")
-        else:
-            h += ("<i>Sin método de referencia declarado, la pendiente contra el promedio "
-                  "es la que corresponde (Bland-Altman clásico).</i>")
-        h += "</div>"
-
-        # El programa no sabe que diferencia tolera este analito: eso lo pone el
-        # laboratorio. Se informa el margen, no un veredicto de aprobado.
-        h += ("<div style='margin-top:8px;padding:8px 10px;border-radius:6px;"
-              "background:#fdf6ec;border-left:3px solid #d97706;font-size:12px;'>"
-              f"<b>Cómo se lee.</b> El 95 % de las diferencias entre los dos métodos cae "
-              f"entre <b>{lim_inf:.4f}</b> y <b>{lim_sup:.4f}</b>. Si una diferencia de ese "
-              "tamaño en un paciente concreto te cambiaría una conducta, los métodos no son "
-              "intercambiables — por chico que sea el sesgo promedio. El límite tolerable lo "
-              "fija el requisito de calidad del analito, no el programa.</div>")
-
-        eje_x = result["x_axis"]
-        diffs = result["diffs"]
-        etiqueta_x = (f"{nombre_eje} (método de referencia)" if nombre_eje
-                      else "Promedio de ambos métodos")
-        fig, ax = plt.subplots(figsize=(9, 6))
-        ax.scatter(eje_x, diffs, alpha=0.5, c='#4f6ef7', edgecolors='white', s=50)
-        ax.axhline(centro, color='#22c55e', lw=2, label=f'{centro_rotulo.split("(")[0].strip()}: {centro:.3f}')
-        ax.axhline(lim_sup, color='#ef4444', ls='--', lw=1.5, label=f'Límite superior: {lim_sup:.3f}')
-        ax.axhline(lim_inf, color='#ef4444', ls='--', lw=1.5, label=f'Límite inferior: {lim_inf:.3f}')
-        ax.fill_between([float(np.min(eje_x)), float(np.max(eje_x))], lim_inf, lim_sup,
-                        alpha=0.08, color='#22c55e')
-        ax.set_xlabel(etiqueta_x)
-        ax.set_ylabel(f'Diferencia ({c1} − {c2})')
-        ax.set_title(f'Bland-Altman {titulo_modo} — {c1} vs {c2}', fontweight='bold')
-        ax.legend(loc='upper right', framealpha=0.9)
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
+        """Bland-Altman + CCC. Lo arma `src/resultado/constructores/comparacion.py`:
+        es el primer analisis migrado a `Resultado`."""
+        return bland_altman(self.data, c1, c2, opciones)
 
     # --- Passing-Bablok ---
     def _passing(self, c1, c2):
