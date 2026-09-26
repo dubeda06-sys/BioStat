@@ -7,7 +7,7 @@ from src.core.guards import finite_pair
 Z95 = 1.96
 
 
-def bland_altman_analysis(method1, method2, reference=None):
+def bland_altman_analysis(method1, method2, reference=None, escala="unidades"):
     """Realiza el analisis de Bland-Altman.
 
     Args:
@@ -22,18 +22,36 @@ def bland_altman_analysis(method1, method2, reference=None):
             atenuacion del sesgo proporcional (Krouwer JS, 2008, Stat Med
             27:778-780; distincion recogida en CLSI EP09). Se devuelven ambas
             pendientes siempre, para poder contrastarlas.
+        escala: "unidades" (d = m1 - m2) o "porcentaje" (d = 100·(m1 - m2)/eje,
+            con eje = la referencia si se declaro, si no el promedio). El
+            porcentaje corresponde cuando la DISPERSION de las diferencias
+            crece con la concentracion (CV constante, CLSI EP09c §5.4.2 y
+            tabla 3): en unidades, un solo par de limites seria demasiado
+            ancho abajo y demasiado angosto arriba.
 
     Returns:
-        dict con medias, diferencias, limites de concordancia, etc.
+        dict con medias, diferencias, limites de concordancia, etc. Todo lo que
+        se calcula sobre las diferencias (sesgo, DE, limites, pendientes) queda
+        en la escala pedida.
     """
     m1, m2, motivo = finite_pair(method1, method2, min_n=3,
                                  nombre_metodo="el analisis de Bland-Altman")
     if motivo:
         return {"error": motivo}
+    if escala not in ("unidades", "porcentaje"):
+        return {"error": f"Escala desconocida: {escala!r}. Usar 'unidades' o 'porcentaje'."}
     n = len(m1)
 
     means = (m1 + m2) / 2
     diffs = m1 - m2
+    if escala == "porcentaje":
+        base = m1 if reference == "x" else (m2 if reference == "y" else means)
+        no_positivos = int(np.sum(base <= 0))
+        if no_positivos:
+            return {"error": f"La diferencia en porcentaje necesita valores positivos "
+                             f"en el eje, y hay {no_positivos} valor(es) ≤ 0: un "
+                             f"porcentaje de cero no está definido."}
+        diffs = 100.0 * diffs / base
 
     mean_diff = np.mean(diffs)
     sd_diff = np.std(diffs, ddof=1)
@@ -93,12 +111,17 @@ def bland_altman_analysis(method1, method2, reference=None):
     else:
         ref_axis, slope_vs_ref = None, None
 
-    bias_pct = (mean_diff / np.mean(m1)) * 100 if np.mean(m1) != 0 else 0
+    if escala == "porcentaje":
+        # Las diferencias ya son porcentajes: el sesgo medio ES el sesgo en %.
+        bias_pct = mean_diff
+    else:
+        bias_pct = (mean_diff / np.mean(m1)) * 100 if np.mean(m1) != 0 else 0
 
     avisos = [a for a in (sw_nota,) if a]
 
     return {
         "avisos": avisos,
+        "escala": escala,
         "n": n,
         "mean_method1": np.mean(m1),
         "mean_method2": np.mean(m2),

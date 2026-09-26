@@ -685,10 +685,14 @@ class OmniPanel(QWidget):
                     h += f"<p class='step'>▶ {step}</p>"
 
             for pr in b.get("pruebas", []):
-                sig_cls = "sig" if pr.get("significativo") else "nosig"
-                sig_txt = "Significativo ✓" if pr.get("significativo") else "No significativo ✗"
+                det = pr.get("detectado")
+                sig_cls = "sig" if det else "nosig"
+                sig_txt = "Se detectó ✓" if det else "No se detectó"
                 extras = " ".join(f"{k}={v}" for k, v in pr.items()
-                                  if k not in ("prueba", "significativo"))
+                                  if k not in ("prueba", "detectado", "n_familia", "p_adj"))
+                if int(pr.get("n_familia") or 1) > 1 and pr.get("p_adj") is not None:
+                    extras += (f" · p corregido (Benjamini-Hochberg, {pr['n_familia']} "
+                               f"pruebas)={pr['p_adj']}")
                 h += f"<div class='result'><b>{pr['prueba']}</b> — {extras} — <span class='{sig_cls}'>{sig_txt}</span></div>"
 
             # Concordancia — sub-resultados
@@ -697,8 +701,12 @@ class OmniPanel(QWidget):
             if "regresion" in res:
                 h += f"<div class='result'><b>Regresión de comparación:</b> {res['regresion']}</div>"
             if "sesgo_en_niveles" in res:
-                h += ("<div class='result'><b>Sesgo en niveles de decisión (CLSI EP09):</b>"
-                      "<table><tr><th>Nivel (X)</th><th>Sesgo absoluto</th><th>Sesgo %</th></tr>")
+                orient = res.get("orientacion") or {}
+                nivel = f"Nivel de {orient['x']}" if orient.get("x") else "Nivel (X)"
+                dif = f" ({orient['diferencia']})" if orient.get("diferencia") else ""
+                h += ("<div class='result'><b>Sesgo en niveles de decisión (CLSI EP09)"
+                      f"{dif}:</b>"
+                      f"<table><tr><th>{nivel}</th><th>Sesgo absoluto</th><th>Sesgo %</th></tr>")
                 for s in res["sesgo_en_niveles"]:
                     h += (f"<tr><td>{s['nivel']}</td><td>{s['sesgo_abs']}</td>"
                           f"<td>{s['sesgo_pct'] if s['sesgo_pct'] is not None else '—'}</td></tr>")
@@ -722,7 +730,7 @@ class OmniPanel(QWidget):
                 h += f"<div class='result'><b>Post-hoc {ph.get('metodo','')}:</b> "
                 if "comparaciones" in ph:
                     for cmp_ in ph["comparaciones"]:
-                        cls = "sig" if cmp_["significativo"] else "nosig"
+                        cls = "sig" if cmp_.get("detectado") else "nosig"
                         h += f"<br><span class='{cls}'>{cmp_['par']}: p_adj={cmp_['p_adj']}</span>"
                 elif "resumen" in ph:
                     h += f"<pre style='font-size:11px;'>{ph['resumen']}</pre>"
@@ -739,9 +747,11 @@ class OmniPanel(QWidget):
         if "correlation_matrix" in report:
             cm = report["correlation_matrix"]
             h += "<h2>Matriz de correlación (método por celda + FDR)</h2>"
+            h += ("<p class='step'>El p ajustado es el mismo con que decide cada bloque: "
+                  "se corrigieron juntas todas las pruebas bivariadas de la corrida.</p>")
             h += "<table><tr><th>Par</th><th>Método</th><th>Coef</th><th>p</th><th>p ajustado (BH)</th></tr>"
             for c in cm["celdas"]:
-                cls = "sig" if c.get("significativo_adj") else "nosig"
+                cls = "sig" if c.get("detectado") else "nosig"
                 h += (f"<tr><td>{c['par']}</td><td>{c['metodo']}</td><td>{c['coef']}</td>"
                       f"<td>{c['p']}</td><td class='{cls}'>{c.get('p_adj')}</td></tr>")
             h += "</table>"

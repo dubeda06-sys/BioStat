@@ -22,33 +22,50 @@ _BORDE = "#cbd5e1"
 
 
 def bland_altman_figure(plot_data: dict):
-    """Gráfico de Bland-Altman: diferencias (Y−X) vs promedio."""
+    """Gráfico de Bland-Altman: diferencias (Y − X) contra el eje que usó el motor.
+
+    El motor orienta el par (X = comparativo o referencia, Y = candidato) y
+    elige el eje y la escala; el gráfico dibuja exactamente eso. Si graficara
+    siempre contra el promedio y en unidades, las líneas de sesgo y límites —
+    que vienen del motor, en su escala — quedarían sobre puntos en otra.
+    """
     x = np.asarray(plot_data["x"], dtype=float)
     y = np.asarray(plot_data["y"], dtype=float)
     nx, ny = plot_data.get("nombre_x", "X"), plot_data.get("nombre_y", "Y")
-    means = (x + y) / 2
+    contra_ref = plot_data.get("eje_ba") == "referencia"
+    en_pct = plot_data.get("escala") == "porcentaje"
+    eje = x if contra_ref else (x + y) / 2
     diffs = y - x
+    if en_pct:
+        diffs = 100.0 * diffs / eje
     bias = plot_data.get("sesgo")
     loa = plot_data.get("loa", (None, None))
     tipo = plot_data.get("ba_tipo", "paramétrico")
+    u = " %" if en_pct else ""
+    means = eje
 
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     ax.scatter(means, diffs, s=42, c=_TEAL, alpha=0.7, edgecolors="white", linewidths=0.6, zorder=3)
 
     if bias is not None:
         ax.axhline(bias, color=_INK, lw=1.6, zorder=2,
-                   label=f"Sesgo = {bias:.3g}")
+                   label=f"Sesgo = {bias:.3g}{u}")
     lo, hi = loa
     if lo is not None and hi is not None:
         ax.axhline(hi, color=_RED, ls="--", lw=1.3, zorder=2,
-                   label=f"LoA sup = {hi:.3g}")
+                   label=f"LoA sup = {hi:.3g}{u}")
         ax.axhline(lo, color=_RED, ls="--", lw=1.3, zorder=2,
-                   label=f"LoA inf = {lo:.3g}")
+                   label=f"LoA inf = {lo:.3g}{u}")
         ax.fill_between([means.min(), means.max()], lo, hi, color=_RED, alpha=0.05, zorder=1)
     ax.axhline(0, color=_MUTED, lw=0.8, ls=":", zorder=1)
 
-    ax.set_xlabel(f"Promedio de los métodos  ({nx} + {ny})/2")
-    ax.set_ylabel(f"Diferencia  ({ny} − {nx})")
+    ax.set_xlabel(f"{nx} (método de referencia)" if contra_ref
+                  else f"Promedio de los métodos  ({nx} + {ny})/2")
+    if en_pct:
+        base = nx if contra_ref else "promedio"
+        ax.set_ylabel(f"Diferencia %  100·({ny} − {nx}) / {base}")
+    else:
+        ax.set_ylabel(f"Diferencia  ({ny} − {nx})")
     ax.set_title(f"Bland-Altman ({tipo}) — {nx} vs {ny}", fontweight="bold", color=_INK)
     ax.legend(fontsize=9, framealpha=0.9, loc="best")
     ax.grid(True, alpha=0.25)

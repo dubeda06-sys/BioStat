@@ -6,7 +6,8 @@ import pytest
 from src.analysis.omni_analyzer import (
     run_omnianalysis, _classify_column, profile_dataset,
     detect_comparison_candidates, concordance_analysis,
-    NUMERIC_CONTINUOUS, NUMERIC_DISCRETE, CATEGORICAL_NOMINAL, BINARY, DATETIME,
+    NUMERIC_CONTINUOUS, NUMERIC_DISCRETE, CATEGORICAL_NOMINAL, CATEGORICAL_ORDINAL,
+    BINARY, DATETIME,
 )
 from src.analysis.omni_config import DEFAULT_CONFIG as CFG
 
@@ -20,8 +21,13 @@ def test_classify_continuous():
 
 
 def test_classify_discrete():
+    # Los enteros consecutivos 0..5 ahora son códigos de categoría (auditoría
+    # 2026-09, A15); con huecos siguen siendo un conteo. Se consume el RNG
+    # global igual que antes: los tests de abajo dependen de ese flujo.
     s = pd.Series(RNG.randint(0, 6, 100))
-    assert _classify_column(s, CFG)["tipo"] == NUMERIC_DISCRETE
+    assert _classify_column(s, CFG)["tipo"] == CATEGORICAL_ORDINAL
+    conteo = pd.Series(np.random.RandomState(7).choice([0, 2, 3, 5, 8, 9], 100))
+    assert _classify_column(conteo, CFG)["tipo"] == NUMERIC_DISCRETE
 
 
 def test_classify_binary():
@@ -123,7 +129,8 @@ def test_contingency_chi_vs_fisher():
     })
     r = run_omnianalysis(df, ["a", "b"])
     cont = [b for b in r["blocks"] if b.get("tipo") == "tabla de contingencia"][0]
-    assert cont["pruebas"][0]["prueba"] in ("Chi-cuadrado", "Test exacto de Fisher")
+    # En 2×2 el chi-cuadrado lleva Yates, y el nombre lo dice.
+    assert cont["pruebas"][0]["prueba"].startswith(("Chi-cuadrado", "Test exacto de Fisher"))
 
 
 # --- Detección de comparación de métodos ---

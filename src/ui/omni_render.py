@@ -41,8 +41,8 @@ _RAMAS = {
     "C": ("Rama C — tres o más columnas",
           "Describe cada variable, cruza todos los pares y agrega lo que solo "
           "tiene sentido con varias a la vez. Con muchas comparaciones a la vez "
-          "aparecen significativos por azar, así que la corrección por "
-          "multiplicidad es obligatoria."),
+          "alguna da un p chico por azar, así que todos los p de la corrida se "
+          "corrigen juntos y cada prueba decide con el suyo corregido."),
 }
 
 
@@ -63,29 +63,38 @@ def _tarjetas(auditoria):
     return h + "</tr></table>"
 
 
+def _p_mostrado(pr):
+    """El p con el que se decidió: el corregido si la corrida hizo varias pruebas."""
+    m = int(pr.get("n_familia") or 1)
+    if m > 1 and pr.get("p_adj") is not None:
+        return f"{_p(pr.get('p_adj'))} corregido ({_p(pr.get('p'))} sin corregir)"
+    return _p(pr.get("p"))
+
+
 def _hallazgos(report):
-    """Lo significativo y lo concluyente, sin la aritmética intermedia."""
-    sig, no_sig = [], 0
+    """Lo detectado y lo no detectado, sin la aritmética intermedia."""
+    detectados, no_detectados = [], 0
     for b in report.get("blocks", []) or []:
         titulo = b.get("titulo", "")
         for pr in b.get("pruebas", []) or []:
-            if pr.get("significativo"):
+            if pr.get("detectado"):
                 # `_p` evita el "p=0.0" que se lee como p exactamente cero.
-                sig.append(f"<b>{titulo}</b> — {pr['prueba']}: {_p(pr.get('p'))}")
+                detectados.append(f"<b>{titulo}</b> — {pr['prueba']}: {_p_mostrado(pr)}")
             else:
-                no_sig += 1
+                no_detectados += 1
 
     h = ""
-    if sig:
-        h += "<p>Diferencias o asociaciones <span class='sig'>significativas</span>:</p><ul>"
-        for s in sig:
+    if detectados:
+        h += ("<p>Se <span class='sig'>detectó</span> diferencia o asociación "
+              "(p &lt; 0,05) en:</p><ul>")
+        for s in detectados:
             h += f"<li>{s}</li>"
         h += "</ul>"
-    if no_sig:
-        h += (f"<p class='nota'>Otras {no_sig} prueba(s) no dieron significativas. "
-              "No significativo no es lo mismo que \"no hay efecto\": puede ser "
-              "falta de n.</p>")
-    if not sig and not no_sig:
+    if no_detectados:
+        h += (f"<p class='nota'>En otras {no_detectados} prueba(s) no se detectó nada. "
+              "No detectar no es lo mismo que \"no hay efecto\": puede faltar "
+              "cantidad de datos.</p>")
+    if not detectados and not no_detectados:
         h += "<p class='nota'>No se corrieron pruebas de hipótesis en esta corrida.</p>"
     return h
 
@@ -99,10 +108,16 @@ def _concordancias(report):
         res = b.get("resultados", {})
         ba = res.get("bland_altman", {})
         sesgo = ba.get("sesgo", ba.get("sesgo_mediana"))
+        u = " %" if ba.get("escala") == "porcentaje" else ""
         reg = res.get("regresion", {})
+        orient = res.get("orientacion") or {}
+        dif = f" ({orient['diferencia']})" if orient.get("diferencia") else ""
+        tendencia = ("cambia con la concentración"
+                     if res.get("estructura_diferencia") == "proporcional" else "pareja")
         h += f"<p><b>{b.get('titulo','')}</b></p><ul>"
-        h += (f"<li>Sesgo ({ba.get('tipo','?')}): <b>{sesgo}</b>. "
-              f"Estructura de la diferencia: {res.get('estructura_diferencia','?')}.</li>")
+        h += (f"<li>Sesgo{dif} ({ba.get('tipo','?')}): <b>{sesgo}{u}</b>. "
+              f"Tendencia del sesgo: {tendencia}. Dispersión de las diferencias: "
+              f"{res.get('variabilidad', '?')}.</li>")
         if res.get("ccc") is not None:
             h += (f"<li>Acuerdo (CCC de Lin): <b>{res['ccc']}</b>"
                   + (f" — {res['ccc_fuerza']}" if res.get("ccc_fuerza") else "")

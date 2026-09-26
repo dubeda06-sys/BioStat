@@ -37,6 +37,29 @@ def _si_no(condicion: bool) -> str:
     return "Sí" if condicion else "No"
 
 
+def _p_de_la_prueba(pr: dict) -> str:
+    """El p como se muestra: crudo, y corregido cuando la corrida hizo varias
+    pruebas a la vez. Los dos a la vista: esconder el crudo haría parecer que
+    el número cambió solo."""
+    m = int(pr.get("n_familia") or 1)
+    if m > 1 and pr.get("p_adj") is not None:
+        return (f"{_p(pr.get('p'))} sin corregir; {_p(pr.get('p_adj'))} corregido por "
+                f"las {m} pruebas de esta corrida")
+    return _p(pr.get("p"))
+
+
+def _consecuencia_del_p(pr: dict) -> str:
+    """Qué significa el p con el que se decidió, y por qué es ese."""
+    m = int(pr.get("n_familia") or 1)
+    p = pr.get("p_adj") if pr.get("p_adj") is not None else pr.get("p")
+    texto = probabilidad_en_palabras(p)
+    if m > 1:
+        texto += (f" Esta corrida hizo {m} pruebas a la vez, y con tantas alguna da un "
+                  f"número chico por pura casualidad: por eso se decide con el p "
+                  f"corregido y no con el crudo.")
+    return texto
+
+
 def _normalidad_en_palabras(norm: dict) -> tuple[str, str]:
     """(respuesta, medición) para una prueba de normalidad."""
     if not norm:
@@ -221,17 +244,16 @@ def _caso_correlacion(b: dict) -> Caso:
 
     if pr:
         coef = pr.get("r", pr.get("rho"))
-        p = pr.get("p")
         caso.pasos.append(Paso(
             pregunta="¿Cuánto se mueven juntas?",
-            medicion=f"{pr.get('prueba')}: coeficiente = {coef}, {_p(p)}",
+            medicion=f"{pr.get('prueba')}: coeficiente = {coef}, {_p_de_la_prueba(pr)}",
             respuesta=_fuerza_correlacion(coef),
-            consecuencia=probabilidad_en_palabras(p),
-            ok=bool(pr.get("significativo")),
+            consecuencia=_consecuencia_del_p(pr),
+            ok=bool(pr.get("detectado")),
         ))
-        caso.veredicto = _veredicto_correlacion(par, coef, pr.get("significativo"))
+        caso.veredicto = _veredicto_correlacion(par, coef, pr.get("detectado"))
 
-    if pr and pr.get("significativo"):
+    if pr and pr.get("detectado"):
         caso.matiz = (
             "Que dos cosas se muevan juntas no quiere decir que una cause la otra, "
             "ni que midan lo mismo. Para saber si dos métodos concuerdan hace falta "
@@ -324,33 +346,36 @@ def _caso_grupos(b: dict) -> Caso:
     lev = sup.get("levene") or {}
     if lev.get("p") is not None:
         iguales = bool(lev.get("equal_var"))
+        if iguales:
+            consecuencia = "Se puede usar la versión que asume dispersión pareja."
+        elif todas_normales:
+            consecuencia = ("Se usa la versión de Welch, que no supone dispersión pareja: "
+                            "así la dispersión distinta no falsea el resultado.")
+        else:
+            consecuencia = ("Ojo: la prueba por orden también reacciona cuando un grupo es "
+                            "más disperso que otro, no solo cuando está corrido. Si detecta "
+                            "algo, no alcanza para decir que un grupo tiene valores más altos.")
         caso.pasos.append(Paso(
             pregunta="¿Los grupos son igual de dispersos entre sí?",
             medicion=f"Prueba de Levene: {_p(lev['p'])}",
             respuesta=_si_no(iguales),
-            consecuencia=(
-                "Se puede usar la versión que asume dispersión pareja."
-                if iguales else
-                "Se corrige la prueba para que la dispersión distinta no falsee "
-                "el resultado."
-            ),
+            consecuencia=consecuencia,
             ok=iguales,
         ))
 
     if pr:
-        p = pr.get("p")
         caso.pasos.append(Paso(
             pregunta="¿La diferencia entre los grupos es más grande de lo que daría el azar?",
-            medicion=f"{pr.get('prueba')}: {_p(p)}",
-            respuesta=("Sí, la diferencia es real" if pr.get("significativo")
+            medicion=f"{pr.get('prueba')}: {_p_de_la_prueba(pr)}",
+            respuesta=("Sí, la diferencia es real" if pr.get("detectado")
                        else "No alcanza para afirmarlo"),
-            consecuencia=probabilidad_en_palabras(p),
-            ok=bool(pr.get("significativo")),
+            consecuencia=_consecuencia_del_p(pr),
+            ok=bool(pr.get("detectado")),
         ))
 
     ph = res.get("posthoc")
     if ph and ph.get("comparaciones"):
-        difieren = [c["par"] for c in ph["comparaciones"] if c.get("significativo")]
+        difieren = [c["par"] for c in ph["comparaciones"] if c.get("detectado")]
         caso.pasos.append(Paso(
             pregunta="¿Entre cuáles grupos, exactamente, está la diferencia?",
             medicion=f"{ph.get('metodo','post-hoc')}, {len(ph['comparaciones'])} par(es) comparado(s)",
@@ -364,13 +389,13 @@ def _caso_grupos(b: dict) -> Caso:
 
     if pr:
         caso.veredicto = (
-            f"Los grupos de {par} difieren." if pr.get("significativo")
+            f"Los grupos de {par} difieren." if pr.get("detectado")
             else f"No hay evidencia de que los grupos de {par} difieran."
         )
     # El matiz tiene que hablar del resultado que hubo, no del otro: advertir
     # "no confundas real con importante" cuando no se encontro diferencia
     # suena a que si la hubo, y es al reves.
-    if pr and pr.get("significativo"):
+    if pr and pr.get("detectado"):
         caso.matiz = (
             "Que la diferencia sea real no quiere decir que sea grande ni que "
             "importe clínicamente: eso se decide mirando cuánto difieren, no el p."
@@ -402,35 +427,46 @@ def _caso_contingencia(b: dict) -> Caso:
     umbral = sup.get("umbral", 5)
     if esperada is not None:
         alcanza = esperada >= umbral
+        forma = sup.get("forma") or (0, 0)
+        if alcanza:
+            consecuencia = "Se puede usar chi-cuadrado, que aproxima."
+        elif sup.get("camino") == "fisher":
+            consecuencia = ("Con casilleros tan flacos el chi-cuadrado miente. Como la "
+                            "tabla es de 2×2, se calcula la probabilidad exacta en vez de "
+                            "aproximarla.")
+        else:
+            # La tabla es más grande que 2×2: no hay probabilidad exacta a mano.
+            # Decir "exacta" acá y mostrar un chi-cuadrado en el paso siguiente
+            # era la contradicción que marcó la auditoría (A8).
+            consecuencia = (f"Con casilleros tan flacos el chi-cuadrado miente, y la "
+                            f"probabilidad exacta es para tablas de 2×2. Esta es de "
+                            f"{forma[0]}×{forma[1]}: el p se calcula armando "
+                            f"{sup.get('simulaciones', 9999)} tablas al azar con los "
+                            f"mismos totales y viendo cuántas salen tan desparejas "
+                            f"como la real.")
         caso.pasos.append(Paso(
             pregunta="¿Hay suficientes casos en cada casillero de la tabla?",
             medicion=(f"El casillero más flaco esperaría {esperada} caso(s); "
                       f"el mínimo para la prueba aproximada es {umbral}"),
             respuesta=_si_no(alcanza),
-            consecuencia=(
-                "Se puede usar chi-cuadrado, que aproxima."
-                if alcanza else
-                "Con casilleros tan flacos el chi-cuadrado miente: se calcula la "
-                "probabilidad exacta en vez de aproximarla."
-            ),
+            consecuencia=consecuencia,
             ok=alcanza,
         ))
 
     if pr:
-        p = pr.get("p")
         caso.pasos.append(Paso(
             pregunta="¿La asociación es más marcada de lo que daría el azar?",
-            medicion=f"{pr.get('prueba')}: {_p(p)}",
-            respuesta=("Sí" if pr.get("significativo") else "No alcanza para afirmarlo"),
-            consecuencia=probabilidad_en_palabras(p),
-            ok=bool(pr.get("significativo")),
+            medicion=f"{pr.get('prueba')}: {_p_de_la_prueba(pr)}",
+            respuesta=("Sí" if pr.get("detectado") else "No alcanza para afirmarlo"),
+            consecuencia=_consecuencia_del_p(pr),
+            ok=bool(pr.get("detectado")),
         ))
         caso.veredicto = (
-            f"Las categorías de {par} están asociadas." if pr.get("significativo")
+            f"Las categorías de {par} están asociadas." if pr.get("detectado")
             else f"No hay evidencia de asociación entre las categorías de {par}."
         )
 
-    if pr and pr.get("significativo"):
+    if pr and pr.get("detectado"):
         caso.matiz = "Asociación no es causa. Ninguna tabla de contingencia prueba causalidad."
     else:
         caso.matiz = ("No encontrar asociación no prueba que no la haya: con "
@@ -440,12 +476,42 @@ def _caso_contingencia(b: dict) -> Caso:
     return caso
 
 
+_VARIABILIDAD_EN_PALABRAS = {
+    "DE constante": (
+        "Pareja",
+        "El margen de desacuerdo es el mismo en valores bajos y altos: se expresa "
+        "en unidades del analito.",
+        "Si se hubiera abierto con la concentración, se habría expresado en "
+        "porcentaje.",
+    ),
+    "CV constante": (
+        "Crece con la concentración",
+        "El margen se agranda en los valores altos pero se mantiene parejo en "
+        "porcentaje: se expresa en %, y la recta pesa menos los puntos altos, que "
+        "son los más ruidosos.",
+        "Si hubiera sido pareja, se habría expresado en unidades del analito.",
+    ),
+    "mixta": (
+        "Ni pareja ni proporcional",
+        "No hay una sola escala que sirva para todo el rango: se usa una recta que "
+        "no supone nada sobre la dispersión, y conviene mirar el gráfico por tramos "
+        "de concentración.",
+        "Si hubiera sido pareja o proporcional, se habría podido resumir con un "
+        "solo margen, en unidades o en porcentaje.",
+    ),
+}
+
+
 def _caso_concordancia(b: dict) -> Caso:
     res = b.get("resultados", {})
     sup = res.get("supuestos", {})
     ba = res.get("bland_altman", {})
     reg = res.get("regresion", {})
+    orient = res.get("orientacion") or {}
     par = b.get("titulo", "").replace("Concordancia de métodos — ", "")
+    nx, ny = orient.get("x", "X"), orient.get("y", "Y")
+    en_pct = ba.get("escala") == "porcentaje"
+    u = " %" if en_pct else ""
 
     caso = Caso(
         titulo=b.get("titulo", ""),
@@ -453,22 +519,43 @@ def _caso_concordancia(b: dict) -> Caso:
         pregunta=f"¿Se puede reemplazar un método por el otro en {par} sin cambiar la decisión clínica?",
     )
 
+    # Paso de la tendencia del sesgo. Se guarda su número: el paso de la recta
+    # lo nombra si las dos lecturas no coinciden.
     proporcional = bool(sup.get("proporcional"))
+    paso_tendencia = None
     if sup.get("p_pendiente") is not None:
         caso.pasos.append(Paso(
             pregunta="¿El desacuerdo entre los métodos crece cuando sube la concentración?",
-            medicion=(f"Pendiente de la diferencia contra "
+            medicion=(f"Pendiente de la diferencia{u} contra "
                       f"{sup.get('eje_estructura', 'el promedio')} = "
                       f"{sup.get('pendiente_estructura')}, {_p(sup.get('p_pendiente'))}"),
             respuesta=_si_no(proporcional),
             consecuencia=(
-                "El desacuerdo se agranda en los valores altos: hay que mirarlo "
-                "en porcentaje, no en unidades fijas."
+                "El sesgo no es el mismo en todo el rango: un solo sesgo promedio no "
+                "lo resume, hay que mirarlo en los niveles donde se decide."
                 if proporcional else
-                "El desacuerdo es parejo en todo el rango: se puede expresar en "
-                "unidades absolutas."
+                "El sesgo es parejo en todo el rango: el sesgo promedio lo resume bien."
             ),
             ok=not proporcional,
+        ))
+        paso_tendencia = len(caso.pasos)
+
+    var = sup.get("variabilidad") or {}
+    clase = var.get("clase")
+    if clase in _VARIABILIDAD_EN_PALABRAS:
+        respuesta, consecuencia, alternativa = _VARIABILIDAD_EN_PALABRAS[clase]
+        caso.pasos.append(Paso(
+            pregunta=("¿La dispersión entre los dos métodos es pareja en todo el rango, o "
+                      "se abre cuando sube la concentración?"),
+            medicion=(f"Tamaño de las diferencias contra "
+                      f"{sup.get('eje_estructura', 'el promedio')}: {_p(var.get('p_de'))} "
+                      f"en unidades"
+                      + (f", {_p(var.get('p_cv'))} en porcentaje"
+                         if var.get("p_cv") is not None else "")),
+            respuesta=respuesta,
+            consecuencia=consecuencia,
+            alternativa=alternativa,
+            ok=(clase != "mixta"),
         ))
 
     norm_diff = sup.get("normalidad_diferencias") or {}
@@ -493,7 +580,9 @@ def _caso_concordancia(b: dict) -> Caso:
     ))
     # La prueba va sobre las DIFERENCIAS, no sobre los datos crudos. Es el error
     # clasico de Bland-Altman y conviene que se lea, no que se sobreentienda.
-    caso.pasos[-1].medicion += "  (la prueba va sobre las diferencias, no sobre los valores de cada método)"
+    caso.pasos[-1].medicion += ("  (la prueba va sobre las diferencias"
+                                + (" en porcentaje" if en_pct else "")
+                                + ", no sobre los valores de cada método)")
 
     sesgo = ba.get("sesgo", ba.get("sesgo_mediana"))
     lo = ba.get("loa_inferior", ba.get("loa_inferior_p2.5"))
@@ -501,12 +590,14 @@ def _caso_concordancia(b: dict) -> Caso:
     if sesgo is not None:
         caso.pasos.append(Paso(
             pregunta="En promedio, ¿cuánto se separan los dos métodos?",
-            medicion=(f"Sesgo = {_num(sesgo)}"
-                      + (f"; entre {_num(lo)} y {_num(hi)} caen el 95% de las diferencias"
+            medicion=(f"Sesgo ({ny} − {nx}) = {_num(sesgo)}{u}"
+                      + (f"; entre {_num(lo)}{u} y {_num(hi)}{u} caen el 95% de las diferencias"
                          if lo is not None and hi is not None else "")),
-            respuesta=_num(sesgo),
+            respuesta=f"{_num(sesgo)}{u}",
             consecuencia=(
-                "Ese intervalo es lo que hay que mirar: dice cuánto puede llegar "
+                ("Está en porcentaje del valor, porque el margen crece con la "
+                 "concentración. " if en_pct else "")
+                + "Ese intervalo es lo que hay que mirar: dice cuánto puede llegar "
                 "a diferir un resultado del otro en un paciente concreto. Si ese "
                 "margen te cambia una conducta clínica, los métodos no son "
                 "intercambiables — por más chico que sea el sesgo promedio."
@@ -577,15 +668,24 @@ def _caso_concordancia(b: dict) -> Caso:
                 "Se detecta desvío sistemático: apunta a recalibración, no a "
                 "ruido de la medición."
             )
-        # Paso 1 y este paso pueden discrepar: miden lo mismo con pruebas de
-        # sensibilidad distinta. Si discrepan, decirlo — para el lector es una
-        # contradiccion, y una contradiccion sin explicar destruye la confianza.
-        if proporcional and not prop:
+        # El paso de la tendencia y este pueden discrepar: miran lo mismo por
+        # caminos distintos. Si discrepan se dice, y sin darle la razón a
+        # ninguno: la pendiente de las diferencias se deja engañar cuando un
+        # método es más impreciso que el otro, cov(d, m) = (σ²ₐ − σ²_b)/2
+        # (Bland y Altman 1999), y la recta depende del cociente de
+        # imprecisiones que se le supone. "Vale la del paso 1" no tenía base
+        # (auditoría 2026-09, A16).
+        if paso_tendencia and proporcional != bool(prop):
+            vio = "sí vio" if proporcional else "no vio"
+            confirma = "no lo confirma" if proporcional else "sí lo ve"
             consecuencia += (
-                "  Ojo: el paso 1 sí detectó que el desacuerdo crece con la "
-                "concentración. Las dos pruebas miran lo mismo, pero la de acá "
-                "es menos sensible; con estos datos no llega a confirmarlo. "
-                "Vale la del paso 1."
+                f"  Ojo: el paso {paso_tendencia} {vio} que el desacuerdo cambia con la "
+                f"concentración y esta recta {confirma}. Las dos miran lo mismo por "
+                f"caminos distintos y ninguna manda sobre la otra: la del paso "
+                f"{paso_tendencia} se deja engañar cuando un método es más impreciso "
+                f"que el otro, y esta depende de suponer bien cuánto error tiene cada "
+                f"método. Con estos datos, un error de escala no se puede afirmar ni "
+                f"descartar."
             )
         caso.pasos.append(Paso(
             pregunta="¿El desacuerdo es un corrimiento parejo o un error de escala?",
@@ -616,7 +716,7 @@ def _caso_concordancia(b: dict) -> Caso:
             ok=(float(ccc) >= 0.90),
         ))
 
-    caso.veredicto = _veredicto_concordancia(par, ccc, sesgo, lo, hi)
+    caso.veredicto = _veredicto_concordancia(par, ccc, sesgo, lo, hi, u)
     caso.matiz = (
         "El programa no sabe cuánta diferencia es tolerable para tu analito: eso "
         "lo pone el laboratorio, desde el requisito de calidad. Lo que sí dice es "
@@ -633,10 +733,10 @@ def _regresion_concluyente(reg: dict) -> tuple[bool, str]:
     return pendiente_concluyente(reg.get("ic_pendiente"))
 
 
-def _veredicto_concordancia(par, ccc, sesgo, lo, hi) -> str:
+def _veredicto_concordancia(par, ccc, sesgo, lo, hi, u="") -> str:
     if ccc is None:
         return f"No se pudo cerrar la comparación de {par}."
-    margen = (f" Un resultado puede diferir del otro entre {_num(lo)} y {_num(hi)}."
+    margen = (f" Un resultado puede diferir del otro entre {_num(lo)}{u} y {_num(hi)}{u}."
               if lo is not None and hi is not None else "")
     sesgo = _num(sesgo)
     if float(ccc) >= 0.99:
@@ -648,7 +748,7 @@ def _veredicto_concordancia(par, ccc, sesgo, lo, hi) -> str:
     else:
         nivel = "Concordancia pobre"
     return (f"{nivel} entre los métodos de {par} (CCC = {ccc}), con un sesgo "
-            f"promedio de {sesgo}.{margen} Si ese margen te cambia una conducta, "
+            f"promedio de {sesgo}{u}.{margen} Si ese margen te cambia una conducta, "
             f"no son intercambiables.")
 
 

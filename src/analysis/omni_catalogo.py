@@ -82,12 +82,15 @@ ENSAYOS: tuple[Ensayo, ...] = (
     Ensayo("shapiro", "Normalidad: Shapiro-Wilk", UNIVARIADO,
            "Columna numérica con n ≤ SHAPIRO_MAX (5000).",
            "Es el nodo que decide si la variable se resume con media o con "
-           "mediana. Shapiro-Wilk pierde validez con n muy grande.",
+           "mediana. Por encima de 5000 datos el p de Shapiro-Wilk deja de ser "
+           "confiable en scipy.",
            alternativa="anderson"),
     Ensayo("anderson", "Normalidad: Anderson-Darling", UNIVARIADO,
            "Columna numérica con n > SHAPIRO_MAX (5000).",
-           "Reemplaza a Shapiro cuando el n es tan grande que Shapiro rechaza "
-           "por desviaciones triviales.",
+           "Reemplaza a Shapiro-Wilk cuando el n supera lo que su p aguanta. No "
+           "es más indulgente: con n tan grande cualquier prueba de normalidad "
+           "rechaza por desviaciones mínimas, sin importancia práctica. Antes de "
+           "descartar la media conviene mirar el histograma.",
            alternativa="shapiro"),
     Ensayo("central_media", "Tendencia central: media ± DS", UNIVARIADO,
            "La prueba de normalidad no rechazó.",
@@ -137,7 +140,7 @@ ENSAYOS: tuple[Ensayo, ...] = (
     Ensayo("levene", "Homocedasticidad: prueba de Levene", BIVARIADO,
            "Par numérico × categórico con 2 o más grupos.",
            "Verifica si los grupos tienen varianzas comparables. Decide entre t "
-           "de Student y t de Welch, y entre ANOVA y Kruskal-Wallis.",
+           "de Student y t de Welch, y entre ANOVA clásico y ANOVA de Welch.",
            incondicional=True),
     Ensayo("t_student", "t de Student (varianzas iguales)", BIVARIADO,
            "2 grupos, ambos normales, Levene no rechazó.",
@@ -151,39 +154,64 @@ ENSAYOS: tuple[Ensayo, ...] = (
     Ensayo("mann_whitney", "U de Mann-Whitney", BIVARIADO,
            "2 grupos donde al menos uno no es normal.",
            "Compara distribuciones por rangos. No compara medias: compara la "
-           "probabilidad de que un valor de un grupo supere al del otro.",
+           "probabilidad de que un valor de un grupo supere al del otro. Si los "
+           "grupos dispersan distinto, también reacciona a eso.",
            alternativa="t_student"),
     Ensayo("anova", "ANOVA de una vía", BIVARIADO,
-           "3 o más grupos, todos normales y homocedásticos.",
+           "3 o más grupos, todos normales, y Levene no rechazó.",
            "Prueba global: dice si al menos un grupo difiere, no cuál.",
-           alternativa="kruskal"),
+           alternativa="anova_welch"),
+    Ensayo("anova_welch", "ANOVA de Welch", BIVARIADO,
+           "3 o más grupos, todos normales, y Levene rechazó.",
+           "Compara medias sin suponer varianzas iguales: pondera cada grupo por "
+           "su varianza. Kruskal-Wallis no sirve para este caso: con dispersiones "
+           "distintas rechaza por la dispersión, no por la posición.",
+           alternativa="kruskal", norma="Welch 1951"),
     Ensayo("kruskal", "Kruskal-Wallis", BIVARIADO,
-           "3 o más grupos con normalidad u homocedasticidad incumplida.",
-           "El equivalente no paramétrico del ANOVA, sobre rangos.",
+           "3 o más grupos, alguno no normal.",
+           "El equivalente por rangos del ANOVA. Supone la misma forma de "
+           "distribución en todos los grupos: si dispersan distinto, también "
+           "reacciona a eso.",
            alternativa="anova"),
     Ensayo("tukey_hsd", "Post-hoc: Tukey HSD", BIVARIADO,
-           "ANOVA significativo.",
-           "Solo después de un ANOVA significativo: identifica QUÉ pares "
-           "difieren, corrigiendo por las comparaciones múltiples. Correrlo sin "
-           "ANOVA significativo infla los falsos positivos.",
-           alternativa="dunn"),
+           "El ANOVA detectó diferencia.",
+           "Solo después de que el ANOVA detecta algo: identifica QUÉ pares "
+           "difieren, controlando las comparaciones múltiples. Correrlo cuando el "
+           "ANOVA no detectó nada infla los falsos positivos.",
+           alternativa="games_howell"),
+    Ensayo("games_howell", "Post-hoc: Games-Howell", BIVARIADO,
+           "El ANOVA de Welch detectó diferencia.",
+           "El post-hoc del camino de Welch: cada par con su propio error "
+           "estándar y sus grados de libertad, sin suponer varianzas iguales.",
+           alternativa="dunn", norma="Games & Howell 1976"),
     Ensayo("dunn", "Post-hoc: Dunn (Bonferroni)", BIVARIADO,
-           "Kruskal-Wallis significativo.",
-           "El post-hoc del camino no paramétrico, con Bonferroni sobre los "
-           "pares.",
-           alternativa="tukey_hsd"),
+           "Kruskal-Wallis detectó diferencia.",
+           "Compara los rangos medios de cada par dentro del ranking conjunto de "
+           "Kruskal-Wallis, corregido por empates, con Bonferroni sobre los "
+           "pares. No es Mann-Whitney de a pares: ese re-rankea cada par y "
+           "pierde a los demás grupos.",
+           alternativa="tukey_hsd", norma="Dunn 1964"),
 
     # ---------------- Bivariado: categorica x categorica ----------------
     Ensayo("chi2", "Chi-cuadrado", BIVARIADO,
            "Tabla de contingencia con todas las frecuencias esperadas ≥ 5.",
            "Prueba de asociación. La aproximación chi-cuadrado necesita "
-           "frecuencias esperadas suficientes; si no, miente.",
+           "frecuencias esperadas suficientes; si no, miente. En 2×2 lleva la "
+           "corrección de Yates.",
            alternativa="fisher"),
     Ensayo("fisher", "Test exacto de Fisher", BIVARIADO,
            "Tabla 2×2 con alguna frecuencia esperada < 5.",
            "Calcula la probabilidad exacta en vez de aproximarla. Es la salida "
-           "correcta cuando el chi-cuadrado no aplica.",
+           "correcta cuando el chi-cuadrado no aplica y la tabla es 2×2.",
            alternativa="chi2"),
+    Ensayo("chi2_montecarlo", "Chi-cuadrado con p por simulación", BIVARIADO,
+           "Tabla mayor que 2×2 con alguna frecuencia esperada < 5.",
+           "Con casilleros flacos la aproximación del chi-cuadrado no vale, y "
+           "Fisher es para 2×2. El p se calcula permutando una variable contra "
+           "la otra, que deja fijos los totales de filas y columnas: 9999 "
+           "tablas, con semilla fija para que la misma tabla dé siempre el "
+           "mismo p.",
+           alternativa="chi2", norma="Hope 1968"),
 
     # ---------------- Deteccion de comparacion de metodos ----------------
     Ensayo("score_comparacion", "Puntaje de sospecha de comparación", CONCORDANCIA,
@@ -193,12 +221,31 @@ ENSAYOS: tuple[Ensayo, ...] = (
            "solas: el usuario confirma."),
 
     # ---------------- Subarbol de concordancia ----------------
-    Ensayo("estructura_diferencia", "Estructura de la diferencia (dif. ~ promedio)", CONCORDANCIA,
+    Ensayo("variabilidad_diferencias", "Variabilidad de las diferencias (DE, CV o mixta)",
+           CONCORDANCIA,
            "Par confirmado como comparación de métodos.",
-           "Regresión de la diferencia contra el promedio. Si la pendiente es "
-           "significativa, el sesgo crece con la concentración: hay que "
-           "trabajar en % o en log, no en unidades absolutas.",
+           "¿La dispersión de las diferencias es pareja en todo el rango (DE "
+           "constante), crece con la concentración (CV constante) o ninguna de "
+           "las dos (mixta)? Se mide con los residuos absolutos contra el eje. "
+           "Decide si el Bland-Altman va en unidades o en % y qué regresión "
+           "corresponde.",
+           norma="CLSI EP09c §5.4 / Bland & Altman 1999"),
+    Ensayo("estructura_diferencia", "Tendencia del sesgo (¿cambia con la concentración?)",
+           CONCORDANCIA,
+           "Par confirmado como comparación de métodos.",
+           "Regresión de la diferencia contra el eje: la referencia, o el "
+           "promedio si no se declaró una. Si la pendiente no es cero, el sesgo "
+           "cambia con la concentración. Es una lectura de apoyo: la que decide "
+           "sobre el sesgo proporcional es la recta de comparación. No mide la "
+           "dispersión; eso lo hace la variabilidad de las diferencias.",
            norma="Bland & Altman 1999"),
+    Ensayo("ba_escala_porcentual", "Bland-Altman en porcentaje", CONCORDANCIA,
+           "La dispersión de las diferencias crece con la concentración y en % "
+           "queda pareja (CV constante).",
+           "Con CV constante, un solo par de límites en unidades sería demasiado "
+           "ancho abajo y demasiado angosto arriba. En porcentaje el margen vale "
+           "para todo el rango.",
+           norma="CLSI EP09c §5.4.2"),
     Ensayo("normalidad_diferencias", "Normalidad de las DIFERENCIAS", CONCORDANCIA,
            "Par confirmado como comparación de métodos.",
            "El test va sobre la serie de diferencias, NUNCA sobre los datos "
@@ -220,27 +267,37 @@ ENSAYOS: tuple[Ensayo, ...] = (
            "Bland-Altman clásico grafica la diferencia contra el promedio de "
            "ambos métodos, porque ninguno de los dos es verdad. Pero si uno ES "
            "la referencia (valor asignado, consenso, material de control), el "
-           "promedio la mete en los dos ejes y ATENÚA el sesgo proporcional: el "
-           "método parece mejor calibrado de lo que está. Cuando se declara una "
-           "referencia se contrastan las dos pendientes para dejar ver cuánto "
-           "se habría perdido usando el promedio.",
+           "promedio contiene a los dos métodos y distorsiona la pendiente en "
+           "las dos direcciones: la achica cuando el sesgo proporcional es real "
+           "y la infla con el ruido del método en prueba. Cuando se declara una "
+           "referencia se contrastan las dos pendientes para dejar ver si el "
+           "promedio habría cambiado la conclusión.",
            norma="Krouwer 2008 / CLSI EP09"),
     Ensayo("deming", "Regresión de Deming", CONCORDANCIA,
-           "Diferencias normales y homocedásticas.",
+           "Diferencias normales con dispersión pareja (DE constante).",
            "Regresión con error en ambos ejes. A diferencia de OLS, no asume "
-           "que el método del eje X mide sin error.",
-           alternativa="passing_bablok", norma="CLSI EP09"),
+           "que el método del eje X mide sin error. Es la recta por defecto de "
+           "EP09c cuando la DE es constante.",
+           alternativa="deming_ponderado", norma="CLSI EP09c §6.2.1"),
+    Ensayo("deming_ponderado", "Regresión de Deming ponderada (CV constante)", CONCORDANCIA,
+           "Diferencias en % normales, CV constante y todos los valores positivos.",
+           "Deming con cada punto pesado por 1/concentración²: los puntos altos, "
+           "más ruidosos, pesan menos. Sin ponderar, esos puntos arrastran la "
+           "recta.",
+           alternativa="passing_bablok",
+           norma="Linnet 1990 / CLSI EP09c §6.2.2 y apéndice B"),
     Ensayo("passing_bablok", "Regresión de Passing-Bablok", CONCORDANCIA,
-           "Diferencias no normales o error heterocedástico.",
+           "Diferencias no normales, o dispersión mixta.",
            "Regresión no paramétrica basada en medianas de pendientes: no "
            "asume distribución y aguanta valores atípicos.",
-           alternativa="deming", norma="Passing & Bablok 1983 / CLSI EP09"),
+           alternativa="deming", norma="Passing & Bablok 1983 / CLSI EP09c §6.2.3"),
     Ensayo("sesgo_niveles", "Sesgo en niveles de decisión médica", CONCORDANCIA,
-           "Se obtuvo una recta de comparación (Deming o Passing-Bablok).",
+           "Se obtuvo una recta de comparación (Deming, Deming ponderado o "
+           "Passing-Bablok).",
            "Traduce la recta a la pregunta que importa en el laboratorio: "
-           "cuánto se desvía el método justo en la concentración donde se toma "
-           "la decisión clínica.",
-           norma="CLSI EP09"),
+           "cuánto se desvía el método en prueba justo en la concentración de "
+           "la referencia donde se toma la decisión clínica.",
+           norma="CLSI EP09c §6.3"),
     Ensayo("ccc", "CCC de Lin (concordancia)", CONCORDANCIA,
            "Par confirmado como comparación de métodos.",
            "Mide ACUERDO, no asociación: penaliza el corrimiento respecto de la "
@@ -256,12 +313,14 @@ ENSAYOS: tuple[Ensayo, ...] = (
     # ---------------- Rama C: multivariado ----------------
     Ensayo("matriz_correlacion", "Matriz de correlación (método por celda)", MULTIVARIADO,
            "3 o más columnas, con 2 o más numéricas.",
-           "Elige Pearson o Spearman CELDA POR CELDA según la normalidad de ese "
-           "par. Asumir Pearson para toda la matriz es un error común."),
+           "Resume los pares numéricos en una tabla: Pearson o Spearman CELDA POR "
+           "CELDA según la normalidad de ese par, con el mismo p corregido que "
+           "su bloque. Asumir Pearson para toda la matriz es un error común."),
     Ensayo("fdr_bh", "Corrección por multiplicidad (Benjamini-Hochberg)", MULTIVARIADO,
-           "Se calculó una matriz de correlación.",
-           "Con muchas comparaciones a la vez, algunas dan significativas por "
-           "azar. Se informan p crudo y p ajustado.",
+           "Rama C, con 2 o más pruebas bivariadas.",
+           "Con muchas comparaciones a la vez, alguna da un p chico por azar. "
+           "Todos los p bivariados de la corrida se corrigen juntos, y cada "
+           "bloque, la matriz y el caso deciden con el mismo p corregido.",
            norma="Benjamini & Hochberg 1995"),
     Ensayo("regresion_multiple", "Regresión múltiple", MULTIVARIADO,
            "Se eligió una variable objetivo numérica y hay predictoras.",

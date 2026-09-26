@@ -17,6 +17,7 @@ from src.resultado.lenguaje import fmt_p, p_token
 from src.core.statistics import (
     descriptive_stats, normality_test, anova_oneway, kruskal_wallis,
     chi_square_test, fisher_exact_test, pearson_r, spearman_rho,
+    dunn_test, welch_anova, games_howell,
 )
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation
 
@@ -81,7 +82,7 @@ def _descartar(destino: dict, id_: str, motivo: str):
 
 
 from src.core.passing_bablok import passing_bablok
-from src.core.agreement import deming_regression, cv_from_duplicates
+from src.core.agreement import deming_regression, deming_ponderado
 from src.core.outliers import tukey_outliers
 
 
@@ -127,6 +128,21 @@ def _classify_column(series: pd.Series, cfg: OmniConfig) -> dict:
         arr = s.to_numpy(dtype=float)
         all_int = np.allclose(arr, np.round(arr))
         non_negative = np.all(arr >= 0)
+        # Códigos: enteros consecutivos que arrancan en 0 o 1, pocos valores y
+        # repetidos (Grupo 1/2/3, grado 0-4, estadio 1-4). Leídos como número,
+        # un Grupo 1/2/3 terminaba en una correlación de Spearman cuyo resultado
+        # depende de cómo se numeraron los grupos; como categoría se comparan
+        # grupos, y eso no depende de la numeración (auditoría 2026-09, A15).
+        if all_int and _son_codigos(arr, n_unique, cfg):
+            lo, hi = int(round(arr.min())), int(round(arr.max()))
+            info["tipo"] = CATEGORICAL_ORDINAL
+            info["codigos"] = True
+            info["nota"] = (
+                f"Enteros consecutivos de {lo} a {hi}: se toman como códigos de "
+                f"categoría (grupo, grado, estadio) y se comparan como grupos. Tratados "
+                f"como cantidad, el resultado dependería de cómo se numeraron."
+            )
+            return info
         # Discreta / conteo: enteros no negativos, cardinalidad moderada
         if all_int and non_negative and n_unique <= cfg.CARDINALITY_THRESHOLD:
             info["tipo"] = NUMERIC_DISCRETE
@@ -148,6 +164,27 @@ def _classify_column(series: pd.Series, cfg: OmniConfig) -> dict:
     else:
         info["tipo"] = CATEGORICAL_NOMINAL
     return info
+
+
+def _son_codigos(arr, n_unique: int, cfg: OmniConfig) -> bool:
+    """Enteros 0..k o 1..k sin huecos, con 3 a CARDINALITY_THRESHOLD valores
+    y al menos dos casos por valor en promedio: así se ve una columna de
+    códigos. Un identificador o una medición entera no repiten tanto."""
+    if not 3 <= n_unique <= cfg.CARDINALITY_THRESHOLD or len(arr) < 2 * n_unique:
+        return False
+    valores = np.unique(np.round(arr))
+    return valores[0] in (0.0, 1.0) and valores[-1] - valores[0] + 1 == n_unique
+
+
+def _como_categoria(serie: pd.Series) -> pd.Series:
+    """Una columna de códigos numéricos, con rótulos "1", "2"... en vez de
+    "1.0", "2.0": el rótulo es lo que se lee en las tablas y en los pares."""
+    if pd.api.types.is_numeric_dtype(serie):
+        s = serie.dropna()
+        arr = s.to_numpy(dtype=float)
+        if len(arr) and np.all(np.isfinite(arr)) and np.allclose(arr, np.round(arr)):
+            return s.round().astype(int).astype(str).reindex(serie.index)
+    return serie
 
 
 def _is_numeric_type(tipo: str) -> bool:
@@ -301,7 +338,7 @@ def _univariate(col: str, series: pd.Series, tipo: str, cfg: OmniConfig) -> dict
         return block
 
     # Categórica
-    counts = s.value_counts()
+    counts = _como_categoria(s).value_counts()
     total = int(counts.sum())
     freq = {str(k): {"n": int(v), "%": round(float(v / total * 100), 1)} for k, v in counts.items()}
     block["resultados"]["frecuencias"] = freq
@@ -322,6 +359,14 @@ def _univariate(col: str, series: pd.Series, tipo: str, cfg: OmniConfig) -> dict
 # ============================================================
 #  Rama B — bivariado (matriz de decisión)
 # ============================================================
+# Cada bloque bivariado corre su prueba y deja el p CRUDO en `_p`, sin decidir.
+# La decisión la toma `_decidir` después, cuando `run_omnianalysis` ya juntó
+# todos los p de la corrida: en la rama C se corrigen juntos (una sola familia
+# de Benjamini-Hochberg), y el bloque, la matriz y el caso leen el mismo p
+# corregido. Antes cada bloque decidía con su p crudo y la matriz corregía
+# aparte, así que el mismo par salía "detectado" en un lado y no en el otro
+# (auditoría 2026-09, K7). Los post-hoc también esperan: solo corren si la
+# prueba global detectó algo con el p corregido.
 def _bivariate(c1: str, s1: pd.Series, t1: str,
                c2: str, s2: pd.Series, t2: str, cfg: OmniConfig) -> dict:
     block = {"titulo": f"Bivariado — {c1} × {c2}", "traza": [],
@@ -362,27 +407,18 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
             block["conclusion"] = f"No se puede medir la asociación: {motivo}"
             return block
         if both_normal:
-            block["pruebas"].append({"prueba": "Pearson", "r": round(r["r"], 4),
-                                     "r2": round(r["r2"], 4), "p": round(r["p"], 4),
-                                     "significativo": r["p"] < cfg.ALPHA})
-            _marcar(block, "pearson", f"r={round(r['r'], 4)}, {_p(r['p'])}")
+            block["pruebas"].append({"prueba": "Pearson", "r": round(float(r["r"]), 4),
+                                     "r2": round(float(r["r2"]), 4), "p": round(float(r["p"]), 4)})
+            _marcar(block, "pearson", f"r={round(float(r['r']), 4)}, {_p(r['p'])}")
             _descartar(block, "spearman", "ambas variables pasaron la prueba de normalidad")
-            block["conclusion"] = (
-                f"Ambas normales → Pearson r={round(r['r'],4)}, p={round(r['p'],4)}, "
-                f"R²={round(r['r2'],4)}. Asociación lineal "
-                f"{'significativa' if r['p']<cfg.ALPHA else 'no significativa'}."
-            )
         else:
-            block["pruebas"].append({"prueba": "Spearman", "rho": round(r["rho"], 4),
-                                     "p": round(r["p"], 4), "significativo": r["p"] < cfg.ALPHA})
-            _marcar(block, "spearman", f"rho={round(r['rho'], 4)}, {_p(r['p'])}")
+            block["pruebas"].append({"prueba": "Spearman", "rho": round(float(r["rho"]), 4),
+                                     "p": round(float(r["p"]), 4)})
+            _marcar(block, "spearman", f"rho={round(float(r['rho']), 4)}, {_p(r['p'])}")
             _descartar(block, "pearson",
                        f"normalidad incumplida ({c1}: {'sí' if norm1['normal'] else 'no'}, "
                        f"{c2}: {'sí' if norm2['normal'] else 'no'})")
-            block["conclusion"] = (
-                f"No ambas normales → Spearman ρ={round(r['rho'],4)}, p={round(r['p'],4)}. "
-                f"Asociación monótona {'significativa' if r['p']<cfg.ALPHA else 'no significativa'}."
-            )
+        _dejar_p(block, r["p"])
         return block
 
     # --- numérica × categórica → comparación de grupos ---
@@ -402,6 +438,15 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
     return block
 
 
+def _dejar_p(block: dict, p) -> None:
+    """Deja el p crudo para la decisión. Un p no finito no entra a la familia:
+    corregirlo con los demás inventaría un número."""
+    if p is not None and np.isfinite(p):
+        block["_p"] = float(p)
+    else:
+        block["advertencias"].append("La prueba no devolvió un p calculable.")
+
+
 def _align(s1: pd.Series, s2: pd.Series):
     df = pd.DataFrame({"a": s1, "b": s2}).dropna()
     return df["a"].to_numpy(dtype=float), df["b"].to_numpy(dtype=float)
@@ -410,7 +455,7 @@ def _align(s1: pd.Series, s2: pd.Series):
 def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
                     cfg: OmniConfig, block: dict) -> dict:
     block["tipo"] = "comparación de grupos"
-    df = pd.DataFrame({"y": num_s, "g": cat_s}).dropna()
+    df = pd.DataFrame({"y": num_s, "g": _como_categoria(cat_s)}).dropna()
     groups = [g["y"].to_numpy(dtype=float) for _, g in df.groupby("g")]
     labels = [str(k) for k, _ in df.groupby("g")]
     k = len(groups)
@@ -439,6 +484,16 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         "todas_normales": all_normal,
         "levene": lev,
     }
+    if not all_normal and not lev["equal_var"]:
+        # La prueba por rangos supone la misma forma de distribución bajo H0:
+        # si un grupo es más disperso, rechaza por eso aunque ninguno esté
+        # corrido. No hay prueba simple que lo resuelva sin normalidad; se dice.
+        block["advertencias"].append(
+            "Los grupos no son normales y además dispersan distinto (Levene "
+            f"{_p(lev['p'])}). La prueba por rangos también reacciona a la diferencia "
+            "de dispersión, no solo a la de posición: si detecta algo, no alcanza para "
+            "afirmar que un grupo tiene valores más altos que otro."
+        )
 
     if k == 2:
         # Los de 3+ grupos no compiten aca: no aplican, no fueron descartados.
@@ -448,7 +503,7 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
             name = "t de Student" if equal_var else "t de Welch"
             block["traza"].append(f"2 grupos normales, varianzas {'iguales' if equal_var else 'distintas'} → {name}.")
             block["pruebas"].append({"prueba": name, "estadístico": round(float(t_stat), 4),
-                                     "p": round(float(t_p), 4), "significativo": t_p < cfg.ALPHA})
+                                     "p": round(float(t_p), 4)})
             elegido = "t_student" if equal_var else "t_welch"
             rival = "t_welch" if equal_var else "t_student"
             _marcar(block, elegido, f"t={round(float(t_stat), 4)}, {_p(t_p)}")
@@ -456,106 +511,143 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
                        f"Levene {_p(lev['p'])}: varianzas "
                        f"{'iguales' if equal_var else 'distintas'}")
             _descartar(block, "mann_whitney", "los dos grupos pasaron la prueba de normalidad")
-            block["conclusion"] = (
-                f"{name}: t={round(t_stat,4)}, p={round(t_p,4)}. Diferencia "
-                f"{'significativa' if t_p<cfg.ALPHA else 'no significativa'} (α={cfg.ALPHA})."
-            )
+            _dejar_p(block, float(t_p))
         else:
             u_stat, u_p = stats.mannwhitneyu(groups[0], groups[1], alternative="two-sided")
             block["traza"].append("2 grupos no normales → Mann-Whitney U.")
             block["pruebas"].append({"prueba": "Mann-Whitney U", "estadístico": round(float(u_stat), 4),
-                                     "p": round(float(u_p), 4), "significativo": u_p < cfg.ALPHA})
+                                     "p": round(float(u_p), 4)})
             _marcar(block, "mann_whitney", f"U={round(float(u_stat), 4)}, {_p(u_p)}")
             _descartar(block, "t_student", "normalidad incumplida en al menos un grupo")
             _descartar(block, "t_welch", "normalidad incumplida en al menos un grupo")
-            block["conclusion"] = (
-                f"Mann-Whitney U: U={round(u_stat,4)}, p={round(u_p,4)}. Diferencia "
-                f"{'significativa' if u_p<cfg.ALPHA else 'no significativa'} (α={cfg.ALPHA})."
-            )
+            _dejar_p(block, float(u_p))
         return block
 
-    # k >= 3 grupos
+    # k >= 3 grupos. Tres caminos, y el post-hoc va con su camino.
     if all_normal and lev["equal_var"]:
         av = anova_oneway(groups)
-        block["traza"].append(f"{k} grupos normales + homocedásticos → ANOVA.")
-        sig = av["p"] < cfg.ALPHA
+        block["traza"].append(f"{k} grupos normales y con varianzas iguales → ANOVA.")
         block["pruebas"].append({"prueba": "ANOVA una vía", "estadístico": round(float(av["f"]), 4),
-                                 "p": round(float(av["p"]), 4), "significativo": sig})
+                                 "p": round(float(av["p"]), 4)})
         _marcar(block, "anova", f"F={round(float(av['f']), 4)}, {_p(av['p'])}")
-        _descartar(block, "kruskal", "los grupos son normales y homocedásticos")
-        block["conclusion"] = (
-            f"ANOVA: F={round(av['f'],4)}, p={round(av['p'],4)}. "
-            f"{'Al menos un grupo difiere' if sig else 'Sin diferencias'} (α={cfg.ALPHA})."
-        )
-        if sig:
-            posthoc = _tukey_posthoc(df["y"].to_numpy(dtype=float), df["g"].astype(str).to_numpy())
-            block["resultados"]["posthoc"] = posthoc
-            block["traza"].append("ANOVA significativo → post-hoc Tukey HSD.")
-            _marcar(block, "tukey_hsd", f"{k} grupos")
-            _descartar(block, "dunn", "el camino fue paramétrico (ANOVA)")
-        else:
-            _descartar(block, "tukey_hsd",
-                       f"ANOVA no significativo ({_p(av['p'])}): "
-                       "correr el post-hoc igual inflaría los falsos positivos")
-            _descartar(block, "dunn", "el camino fue paramétrico (ANOVA)")
+        _descartar(block, "anova_welch",
+                   f"Levene {_p(lev['p'])}: varianzas iguales, y así el ANOVA clásico "
+                   "tiene más potencia")
+        _descartar(block, "kruskal", "los grupos son normales y con varianzas iguales")
+        block["_posthoc"] = {"camino": "anova", "grupos": groups, "etiquetas": labels,
+                             "y": df["y"].to_numpy(dtype=float),
+                             "g": df["g"].astype(str).to_numpy()}
+        _dejar_p(block, float(av["p"]))
+    elif all_normal:
+        # Normales con varianzas distintas: ANOVA de Welch. Kruskal-Wallis NO es
+        # la salida: supone la misma forma bajo H0 y rechaza por la dispersión.
+        # Con medias iguales y DE 2/6/14 el motor daba 16,7 % de falsos
+        # positivos por ese camino; Welch, 5,6 % (auditoría 2026-09, K10).
+        wa = welch_anova(groups)
+        if not _ok(wa):
+            motivo = wa.get("error") if isinstance(wa, dict) else "no se pudo calcular"
+            block["advertencias"].append(f"ANOVA de Welch: {motivo}")
+            _descartar(block, "anova_welch", motivo)
+            block["conclusion"] = f"No se pudo comparar los grupos: {motivo}"
+            return block
+        block["traza"].append(f"{k} grupos normales con varianzas distintas → ANOVA de Welch.")
+        block["pruebas"].append({"prueba": "ANOVA de Welch", "estadístico": round(float(wa["f"]), 4),
+                                 "gl": (round(float(wa["df1"]), 2), round(float(wa["df2"]), 2)),
+                                 "p": round(float(wa["p"]), 4)})
+        _marcar(block, "anova_welch", f"F={round(float(wa['f']), 4)}, {_p(wa['p'])}")
+        _descartar(block, "anova",
+                   f"Levene {_p(lev['p'])}: varianzas distintas, y el ANOVA clásico las "
+                   "supone iguales")
+        _descartar(block, "kruskal",
+                   "los grupos son normales; con dispersiones distintas Kruskal-Wallis "
+                   "reacciona a la dispersión, no solo a la posición")
+        block["_posthoc"] = {"camino": "welch", "grupos": groups, "etiquetas": labels}
+        _dejar_p(block, wa["p"])
     else:
         kw = kruskal_wallis(groups)
-        block["traza"].append(f"{k} grupos no normales/heterocedásticos → Kruskal-Wallis.")
-        sig = kw["p"] < cfg.ALPHA
+        block["traza"].append(f"{k} grupos, alguno no normal → Kruskal-Wallis.")
         block["pruebas"].append({"prueba": "Kruskal-Wallis", "estadístico": round(float(kw["h"]), 4),
-                                 "p": round(float(kw["p"]), 4), "significativo": sig})
+                                 "p": round(float(kw["p"]), 4)})
         _marcar(block, "kruskal", f"H={round(float(kw['h']), 4)}, {_p(kw['p'])}")
-        _descartar(block, "anova",
-                   f"normalidad {'ok' if all_normal else 'incumplida'}, "
-                   f"homocedasticidad {'ok' if lev['equal_var'] else 'incumplida'}")
-        block["conclusion"] = (
-            f"Kruskal-Wallis: H={round(kw['h'],4)}, p={round(kw['p'],4)}. "
-            f"{'Al menos un grupo difiere' if sig else 'Sin diferencias'} (α={cfg.ALPHA})."
-        )
-        if sig:
-            block["resultados"]["posthoc"] = _dunn_posthoc(groups, labels, cfg)
-            block["traza"].append("Kruskal-Wallis significativo → post-hoc Dunn.")
-            _marcar(block, "dunn", f"{k} grupos, Bonferroni")
-            _descartar(block, "tukey_hsd", "el camino fue no paramétrico (Kruskal-Wallis)")
-        else:
-            _descartar(block, "dunn",
-                       f"Kruskal-Wallis no significativo ({_p(kw['p'])})")
-            _descartar(block, "tukey_hsd", "el camino fue no paramétrico (Kruskal-Wallis)")
+        _descartar(block, "anova", "normalidad incumplida en al menos un grupo")
+        _descartar(block, "anova_welch", "normalidad incumplida en al menos un grupo")
+        block["_posthoc"] = {"camino": "kruskal", "grupos": groups, "etiquetas": labels}
+        _dejar_p(block, float(kw["p"]))
     return block
 
 
-def _tukey_posthoc(y, g):
+# Post-hoc de cada camino, y los que no le tocan.
+_POSTHOC = {"anova": "tukey_hsd", "welch": "games_howell", "kruskal": "dunn"}
+_NOMBRE_GLOBAL = {"anova": "El ANOVA", "welch": "El ANOVA de Welch",
+                  "kruskal": "Kruskal-Wallis"}
+_POR_QUE_NO = {
+    "tukey_hsd": {"welch": "Tukey supone varianzas iguales y Levene dijo que no",
+                  "kruskal": "el camino fue por rangos (Kruskal-Wallis)"},
+    "games_howell": {"anova": "las varianzas son iguales: Tukey es el que corresponde",
+                     "kruskal": "el camino fue por rangos (Kruskal-Wallis)"},
+    "dunn": {"anova": "el camino fue paramétrico (ANOVA)",
+             "welch": "el camino fue paramétrico (ANOVA de Welch)"},
+}
+
+
+def _correr_posthoc(block: dict, detectado: bool, p_txt: str, cfg: OmniConfig) -> None:
+    datos = block.pop("_posthoc", None)
+    if datos is None:
+        return
+    camino = datos["camino"]
+    propio = _POSTHOC[camino]
+    for otro, motivos in _POR_QUE_NO.items():
+        if otro != propio:
+            _descartar(block, otro, motivos[camino])
+    if not detectado:
+        _descartar(block, propio,
+                   f"{_NOMBRE_GLOBAL[camino]} no detectó diferencia ({p_txt}): correr el "
+                   "post-hoc igual inflaría los falsos positivos")
+        return
+    k = len(datos["grupos"])
+    if camino == "anova":
+        ph = _tukey_posthoc(datos["y"], datos["g"], cfg)
+        block["traza"].append(f"{_NOMBRE_GLOBAL[camino]} detectó diferencia → post-hoc de Tukey.")
+        _marcar(block, "tukey_hsd", f"{k} grupos")
+    elif camino == "welch":
+        ph = games_howell(datos["grupos"], datos["etiquetas"])
+        block["traza"].append(f"{_NOMBRE_GLOBAL[camino]} detectó diferencia → post-hoc de Games-Howell.")
+        _marcar(block, "games_howell", f"{k} grupos")
+    else:
+        ph = dunn_test(datos["grupos"], datos["etiquetas"])
+        block["traza"].append(f"{_NOMBRE_GLOBAL[camino]} detectó diferencia → post-hoc de Dunn.")
+        _marcar(block, "dunn", f"{k} grupos, Bonferroni")
+    if not ph or ph.get("error"):
+        block["advertencias"].append(
+            "No se pudo correr el post-hoc"
+            + (f": {ph['error']}" if ph and ph.get("error") else "."))
+        return
+    if ph.get("comparaciones"):
+        for c in ph["comparaciones"]:
+            c["detectado"] = bool(c["p_adj"] < cfg.ALPHA)
+            for clave in ("p", "p_adj", "z", "diferencia"):
+                if clave in c:
+                    c[clave] = round(float(c[clave]), 4)
+    block["resultados"]["posthoc"] = ph
+
+
+def _tukey_posthoc(y, g, cfg: OmniConfig):
     try:
         from statsmodels.stats.multicomp import pairwise_tukeyhsd
-        res = pairwise_tukeyhsd(y, g)
-        return {"metodo": "Tukey HSD", "resumen": str(res)}
+        res = pairwise_tukeyhsd(y, g, alpha=cfg.ALPHA)
     except Exception as e:
         return {"metodo": "Tukey HSD", "error": str(e)}
-
-
-def _dunn_posthoc(groups, labels, cfg: OmniConfig):
-    """Dunn con corrección Bonferroni (implementación mínima con Mann-Whitney)."""
-    pairs = []
-    raw_p = []
-    for i in range(len(groups)):
-        for j in range(i + 1, len(groups)):
-            try:
-                _, p = stats.mannwhitneyu(groups[i], groups[j], alternative="two-sided")
-            except ValueError:
-                p = 1.0
-            pairs.append((labels[i], labels[j]))
-            raw_p.append(p)
-    m = len(raw_p)
-    adj = [min(p * m, 1.0) for p in raw_p]  # Bonferroni
-    return {"metodo": "Dunn (Bonferroni)",
-            "comparaciones": [{"par": f"{a} vs {b}", "p": round(p, 4), "p_adj": round(pa, 4),
-                               "significativo": pa < cfg.ALPHA}
-                              for (a, b), p, pa in zip(pairs, raw_p, adj)]}
+    grupos = [str(x) for x in res.groupsunique]
+    pares = [(grupos[i], grupos[j]) for i in range(len(grupos))
+             for j in range(i + 1, len(grupos))]
+    return {"metodo": "Tukey HSD",
+            "comparaciones": [{"par": f"{a} vs {b}", "diferencia": float(d), "p_adj": float(p)}
+                              for (a, b), d, p in zip(pares, res.meandiffs, res.pvalues)]}
 
 
 def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:
     block["tipo"] = "tabla de contingencia"
-    ct = pd.crosstab(s1.dropna(), s2.dropna())
+    ct = pd.crosstab(_como_categoria(s1).dropna(), _como_categoria(s2).dropna())
     block["resultados"]["tabla"] = ct.to_dict()
     chi = chi_square_test(ct.values)
     if chi is None:
@@ -563,48 +655,124 @@ def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:
         return block
     expected = np.asarray(chi["expected"])
     min_exp = float(np.min(expected))
-    use_fisher = ct.shape == (2, 2) and min_exp < cfg.FISHER_MIN_FREQ
+    es_2x2 = ct.shape == (2, 2)
+    alcanza = min_exp >= cfg.FISHER_MIN_FREQ
+    camino = "chi2" if alcanza else ("fisher" if es_2x2 else "chi2_montecarlo")
+    forma = f"{ct.shape[0]}×{ct.shape[1]}"
     block["resultados"]["supuestos"] = {
         "esperada_minima": round(min_exp, 2),
         "umbral": cfg.FISHER_MIN_FREQ,
         "forma": (int(ct.shape[0]), int(ct.shape[1])),
         "n_total": int(ct.values.sum()),
+        "camino": camino,
+        "simulaciones": cfg.MONTECARLO_N,
     }
+    comparador = "≥" if alcanza else "<"
     block["traza"].append(
-        f"Frecuencia esperada mínima={round(min_exp,2)} "
-        f"({'<' if min_exp < cfg.FISHER_MIN_FREQ else '≥'} {cfg.FISHER_MIN_FREQ}) → "
-        f"{'Fisher' if use_fisher else 'Chi-cuadrado'}."
+        f"Tabla {forma}, frecuencia esperada mínima={round(min_exp, 2)} "
+        f"({comparador} {cfg.FISHER_MIN_FREQ}) → "
+        + {"chi2": "Chi-cuadrado.",
+           "fisher": "Fisher (probabilidad exacta).",
+           "chi2_montecarlo": f"Chi-cuadrado con p por simulación ({cfg.MONTECARLO_N} tablas "
+                              "con los mismos totales)."}[camino]
     )
-    if use_fisher:
+    razon_esperada = (f"esperada mínima {round(min_exp, 2)} {comparador} "
+                      f"{cfg.FISHER_MIN_FREQ}")
+    if camino == "fisher":
         (a, b), (c, d) = ct.values
         fe = fisher_exact_test(int(a), int(b), int(c), int(d))
         block["pruebas"].append({"prueba": "Test exacto de Fisher", "p": round(float(fe["p"]), 4),
-                                 "odds_ratio": round(float(fe["odds_ratio"]), 4),
-                                 "significativo": fe["p"] < cfg.ALPHA})
+                                 "odds_ratio": round(float(fe["odds_ratio"]), 4)})
         _marcar(block, "fisher", f"{_p(fe['p'])}, "
                                  f"OR={round(float(fe['odds_ratio']), 4)}")
-        _descartar(block, "chi2",
-                   f"frecuencia esperada mínima {round(min_exp, 2)} < "
-                   f"{cfg.FISHER_MIN_FREQ}: la aproximación chi-cuadrado no vale")
-        block["conclusion"] = (
-            f"Fisher (2x2, esperadas<{cfg.FISHER_MIN_FREQ}): p={round(fe['p'],4)}, "
-            f"OR={round(fe['odds_ratio'],4)}. Asociación "
-            f"{'significativa' if fe['p']<cfg.ALPHA else 'no significativa'}."
-        )
+        _descartar(block, "chi2", f"{razon_esperada}: la aproximación chi-cuadrado no vale")
+        _descartar(block, "chi2_montecarlo",
+                   "la tabla es 2×2: Fisher da la probabilidad exacta, no hace falta simular")
+        _dejar_p(block, float(fe["p"]))
+    elif camino == "chi2_montecarlo":
+        # Tabla más grande que 2×2 con casilleros flacos: la aproximación del
+        # chi-cuadrado no vale y Fisher de r×c no está a mano. El p se calcula
+        # permutando una columna contra la otra, que deja fijos los totales de
+        # filas y columnas. Con semilla fija: la misma tabla da siempre el mismo
+        # p (auditoría 2026-09, A8).
+        mc = stats.chi2_contingency(
+            ct.values, correction=False,
+            method=stats.PermutationMethod(n_resamples=cfg.MONTECARLO_N,
+                                           rng=np.random.default_rng(cfg.MONTECARLO_SEMILLA)))
+        block["pruebas"].append({"prueba": "Chi-cuadrado (p por simulación)",
+                                 "estadístico": round(float(mc.statistic), 4),
+                                 "gl": int(chi["df"]), "p": round(float(mc.pvalue), 4)})
+        _marcar(block, "chi2_montecarlo",
+                f"χ²={round(float(mc.statistic), 4)}, {_p(mc.pvalue)}, "
+                f"{cfg.MONTECARLO_N} simulaciones")
+        _descartar(block, "chi2", f"{razon_esperada}: la aproximación chi-cuadrado no vale")
+        _descartar(block, "fisher", f"la tabla es {forma}, no 2×2")
+        _dejar_p(block, float(mc.pvalue))
     else:
-        block["pruebas"].append({"prueba": "Chi-cuadrado", "estadístico": round(float(chi["chi2"]), 4),
-                                 "gl": int(chi["df"]), "p": round(float(chi["p"]), 4),
-                                 "significativo": chi["p"] < cfg.ALPHA})
+        nombre = "Chi-cuadrado (con corrección de Yates)" if es_2x2 else "Chi-cuadrado"
+        block["pruebas"].append({"prueba": nombre, "estadístico": round(float(chi["chi2"]), 4),
+                                 "gl": int(chi["df"]), "p": round(float(chi["p"]), 4)})
         _marcar(block, "chi2", f"χ²={round(float(chi['chi2']), 4)}, gl={int(chi['df'])}, "
                                f"{_p(chi['p'])}")
-        _descartar(block, "fisher",
-                   f"esperada mínima {round(min_exp, 2)} ≥ {cfg.FISHER_MIN_FREQ}"
-                   + ("" if ct.shape == (2, 2) else f"; además la tabla es {ct.shape[0]}×{ct.shape[1]}, no 2×2"))
-        block["conclusion"] = (
-            f"Chi-cuadrado: χ²={round(chi['chi2'],4)}, gl={chi['df']}, p={round(chi['p'],4)}. "
-            f"Asociación {'significativa' if chi['p']<cfg.ALPHA else 'no significativa'}."
-        )
+        _descartar(block, "fisher", f"{razon_esperada}: la aproximación vale")
+        _descartar(block, "chi2_montecarlo", f"{razon_esperada}: no hace falta simular")
+        _dejar_p(block, float(chi["p"]))
     return block
+
+
+# ============================================================
+#  Decisión: se toma con el p de la familia, no con el del bloque
+# ============================================================
+_QUE_SE_BUSCA = {
+    "comparación de grupos": "diferencia entre los grupos",
+    "tabla de contingencia": "asociación entre las categorías",
+}
+_SIMBOLO = {"t de Student": "t", "t de Welch": "t", "Mann-Whitney U": "U",
+            "ANOVA una vía": "F", "ANOVA de Welch": "F", "Kruskal-Wallis": "H"}
+
+
+def _texto_p(p, p_adj, n_familia: int) -> str:
+    if n_familia > 1:
+        return (f"{_p(p)} sin corregir; corregido por las {n_familia} pruebas de esta "
+                f"corrida (Benjamini-Hochberg), {_p(p_adj)}")
+    return _p(p)
+
+
+def _decidir(block: dict, p_adj, n_familia: int, cfg: OmniConfig) -> None:
+    """Cierra un bloque bivariado con el p que le toca.
+
+    `p_adj` es el p corregido por la familia (rama C) o el mismo p crudo (rama
+    B, una sola prueba). El veredicto, la conclusión y el post-hoc salen de acá
+    y de ningún otro lado.
+    """
+    p = block.pop("_p", None)
+    if p is None or not block.get("pruebas"):
+        block.pop("_posthoc", None)
+        return
+    pr = block["pruebas"][0]
+    detectado = bool(p_adj < cfg.ALPHA)
+    pr["p_adj"] = round(float(p_adj), 4)
+    pr["n_familia"] = int(n_familia)
+    pr["detectado"] = detectado
+    p_txt = _texto_p(p, p_adj, n_familia)
+
+    tipo = block.get("tipo")
+    if tipo == "correlación":
+        forma = "lineal" if pr["prueba"] == "Pearson" else "monótona"
+        coef = (f"r={pr['r']}, R²={pr['r2']}" if pr["prueba"] == "Pearson"
+                else f"ρ={pr['rho']}")
+        veredicto = (f"Se detectó asociación {forma}" if detectado
+                     else f"No se detectó asociación {forma}")
+        block["conclusion"] = f"{pr['prueba']}: {coef}, {p_txt}. {veredicto} (α={cfg.ALPHA})."
+    else:
+        que = _QUE_SE_BUSCA.get(tipo, "efecto")
+        simbolo = _SIMBOLO.get(pr["prueba"], "χ²" if pr["prueba"].startswith("Chi") else "estadístico")
+        estad = (f"{simbolo}={pr['estadístico']}, " if "estadístico" in pr else "")
+        extra = (f"OR={pr['odds_ratio']}, " if "odds_ratio" in pr else "")
+        veredicto = f"Se detectó {que}" if detectado else f"No se detectó {que}"
+        block["conclusion"] = (f"{pr['prueba']}: {estad}{extra}{p_txt}. "
+                               f"{veredicto} (α={cfg.ALPHA}).")
+    _correr_posthoc(block, detectado, _p(p_adj), cfg)
 
 
 # ============================================================
@@ -681,6 +849,64 @@ def detect_comparison_candidates(df: pd.DataFrame, num_cols: list[str], cfg: Omn
 # ============================================================
 #  Sub-árbol de concordancia (comparación de métodos confirmada)
 # ============================================================
+DE_CONSTANTE = "DE constante"
+CV_CONSTANTE = "CV constante"
+MIXTA = "mixta"
+
+
+def _recta(eje, valores):
+    """OLS de `valores` contra `eje`: (pendiente, intercepto, p, residuos).
+
+    Por nombre y no por posición: `linregress` devuelve (slope, intercept,
+    rvalue, pvalue, stderr), y un desempaquetado posicional llegó a meter el
+    ERROR ESTÁNDAR donde iba el p. Sin variación en alguno de los dos ejes la
+    pendiente no existe: p = 1 y residuos = desvío de la media.
+    """
+    eje = np.asarray(eje, dtype=float)
+    valores = np.asarray(valores, dtype=float)
+    if np.ptp(eje) == 0 or np.ptp(valores) == 0:
+        return 0.0, float(np.mean(valores)), 1.0, valores - np.mean(valores)
+    lr = stats.linregress(eje, valores)
+    resid = valores - (lr.intercept + lr.slope * eje)
+    return float(lr.slope), float(lr.intercept), float(lr.pvalue), resid
+
+
+def _variabilidad(eje, d, cfg: OmniConfig) -> dict:
+    """¿Cómo se abre la dispersión de las diferencias a lo largo del rango?
+
+    CLSI EP09c §5.4 pide contestarlo ANTES de elegir cómo resumir y qué
+    regresión usar: DE constante (diferencias en unidades, Deming), CV
+    constante (diferencias en %, Deming ponderado) o mixta (Passing-Bablok).
+    Se mide como proponen Bland y Altman (1999): regresión de los residuos
+    ABSOLUTOS contra el eje. Si no crecen, la DE es constante. Si crecen, se
+    repite en porcentaje: si ahí ya no crecen, el CV es constante.
+
+    Es una pregunta distinta de si el sesgo cambia con la concentración (la
+    pendiente de la diferencia misma). El motor usaba esa pendiente como si
+    midiera la dispersión: con CV constante y sin sesgo decía "homocedástico"
+    190 de 200 veces, y con sesgo proporcional y DE constante descartaba
+    Deming por "heterocedástico" 200 de 200 (auditoría 2026-09, A2).
+    """
+    _, _, _, resid_u = _recta(eje, d)
+    pend_de, _, p_de, _ = _recta(eje, np.abs(resid_u))
+    info = {"pendiente_de": round(pend_de, 6), "p_de": round(p_de, 4),
+            "pendiente_cv": None, "p_cv": None, "cv_calculable": bool(np.all(eje > 0))}
+    if p_de >= cfg.VARIABILIDAD_ALPHA:
+        info["clase"] = DE_CONSTANTE
+        return info
+    if info["cv_calculable"]:
+        d_pct = 100.0 * d / eje
+        _, _, _, resid_p = _recta(eje, d_pct)
+        pend_cv, _, p_cv, _ = _recta(eje, np.abs(resid_p))
+        info["pendiente_cv"] = round(pend_cv, 6)
+        info["p_cv"] = round(p_cv, 4)
+        if pend_de > 0 and p_cv >= cfg.VARIABILIDAD_ALPHA:
+            info["clase"] = CV_CONSTANTE
+            return info
+    info["clase"] = MIXTA
+    return info
+
+
 def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: OmniConfig,
                          referencia: str | None = None) -> dict:
     """Sub-arbol de concordancia para un par confirmado.
@@ -690,67 +916,133 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         son pares. Se recibe el NOMBRE y no "x"/"y" porque el par viaja
         ordenado alfabeticamente desde `run_omnianalysis`, y con "x"/"y" la
         referencia terminaria colgada de la columna equivocada.
+
+    El par se orienta como en CLSI EP09c (tabla 1): X es el procedimiento
+    comparativo — la referencia, si se declaró — e Y el candidato. La
+    diferencia es Y − X, la regresión es Y sobre X y el sesgo en un nivel de
+    decisión se evalúa en una concentración de X. Antes la rama usaba el orden
+    alfabético: con la referencia en la segunda columna, un método que leía
+    10 % alto salía con −9,3 % de sesgo (auditoría 2026-09, K1).
     """
-    block = {"titulo": f"Concordancia de métodos — {c1} vs {c2}", "tipo": "concordancia",
+    hay_ref = referencia in (c1, c2)
+    if referencia == c2:
+        nx, ny, sx, sy = c2, c1, s2, s1
+    else:
+        nx, ny, sx, sy = c1, c2, s1, s2
+    block = {"titulo": f"Concordancia de métodos — {nx} vs {ny}", "tipo": "concordancia",
              "traza": [], "advertencias": [], "resultados": {}, "conclusion": "", "pruebas": [],
              "ensayos": []}
-    a, b = _align(s1, s2)
-    if len(a) < 3:
+    x, y = _align(sx, sy)
+    if len(x) < 3:
         block["conclusion"] = "n<3 — sin concordancia."
         return block
+    if np.ptp(x) == 0 or np.ptp(y) == 0:
+        cual = nx if np.ptp(x) == 0 else ny
+        block["advertencias"].append(f"{cual} no varía: no hay recta ni acuerdo que medir.")
+        block["conclusion"] = f"Sin comparación: {cual} es constante."
+        return block
 
-    diffs = a - b
-    means = (a + b) / 2
-    ref_arg = "x" if referencia == c1 else ("y" if referencia == c2 else None)
+    block["resultados"]["orientacion"] = {
+        "x": nx, "y": ny, "referencia_declarada": bool(hay_ref),
+        "diferencia": f"{ny} − {nx}",
+    }
+    if hay_ref:
+        block["traza"].append(
+            f"Orientación: {nx} es la referencia → eje X; {ny} es el método en prueba "
+            f"→ eje Y. Diferencia = {ny} − {nx} (EP09c, tabla 1).")
+    else:
+        block["traza"].append(
+            f"Orientación: sin referencia declarada, {nx} va en X y {ny} en Y. "
+            f"Diferencia = {ny} − {nx}.")
+        block["advertencias"].append(
+            f"Ninguna de las dos columnas se declaró método de referencia. Se tomó {nx} "
+            f"como comparativo (eje X) y {ny} como el método en prueba: las diferencias "
+            f"son {ny} − {nx}, y el sesgo en los niveles de decisión se mide en valores "
+            f"de {nx}. Si la referencia es {ny}, el signo del sesgo se invierte: "
+            f"declarala al confirmar el par."
+        )
 
-    # 1) NODO estructura de la diferencia (regresión de la diferencia contra el eje).
-    # El eje es el promedio solo cuando NO hay referencia declarada. Con una
-    # referencia hay que regresar contra ella: contra el promedio, el ruido del
-    # metodo en prueba entra en los dos lados de la cuenta y fabrica pendiente.
-    # Dejar este nodo contra el promedio y el de Bland-Altman contra la
-    # referencia hacia que el informe se contradijera consigo mismo.
-    eje_estructura = {"x": a, "y": b}.get(ref_arg, means)
-    eje_nombre = referencia if ref_arg else "el promedio"
-    # Por nombre y no por posicion: linregress devuelve
-    # (slope, intercept, rvalue, pvalue, stderr), y el desempaquetado posicional
-    # que habia aca metia el STDERR en p_slope. Toda la rama de "diferencia
-    # proporcional" — y con ella la eleccion entre Deming y Passing-Bablok —
-    # venia decidiendose comparando un error estandar contra 0,05.
-    lr_estructura = stats.linregress(eje_estructura, diffs)
-    slope, intercept, p_slope = (lr_estructura.slope, lr_estructura.intercept,
-                                 lr_estructura.pvalue)
-    proporcional = p_slope < cfg.PROPORTIONAL_SLOPE_ALPHA
+    d = y - x
+    medias = (x + y) / 2
+    eje = x if hay_ref else medias
+    eje_nombre = nx if hay_ref else "el promedio"
+
+    # 1) NODO variabilidad de las diferencias (EP09c §5.4). Decide la escala del
+    # Bland-Altman y la regresión; por eso va primero.
+    var = _variabilidad(eje, d, cfg)
+    clase = var["clase"]
+    escala = "porcentaje" if clase == CV_CONSTANTE else "unidades"
+    unidad = " %" if escala == "porcentaje" else ""
+    d_esc = 100.0 * d / eje if escala == "porcentaje" else d
+    block["resultados"]["variabilidad"] = clase
     block["traza"].append(
-        f"NODO estructura: pendiente(diff~{eje_nombre})={round(slope,4)}, "
-        f"p={round(p_slope,4)} → diferencia "
-        f"{'PROPORCIONAL (usar % / log)' if proporcional else 'CONSTANTE (absolutas)'}."
-    )
-    block["resultados"]["estructura_diferencia"] = (
-        "proporcional" if proporcional else "constante"
-    )
+        f"NODO variabilidad: |residuos| contra {eje_nombre}: pendiente="
+        f"{var['pendiente_de']}, {_p(var['p_de'])}"
+        + (f"; en %: {_p(var['p_cv'])}" if var["p_cv"] is not None else "")
+        + f" → {clase}.")
+    _marcar(block, "variabilidad_diferencias",
+            f"contra {eje_nombre}: {_p(var['p_de'])} en unidades"
+            + (f", {_p(var['p_cv'])} en %" if var["p_cv"] is not None else "")
+            + f" → {clase}")
+    if clase == CV_CONSTANTE:
+        _marcar(block, "ba_escala_porcentual",
+                "la dispersión crece con la concentración y en % queda pareja")
+    elif clase == DE_CONSTANTE:
+        _descartar(block, "ba_escala_porcentual",
+                   f"la dispersión de las diferencias es pareja ({_p(var['p_de'])}): "
+                   "se informa en unidades")
+    else:
+        _descartar(block, "ba_escala_porcentual",
+                   "la dispersión no es pareja ni en unidades ni en %: variabilidad mixta")
+        block["advertencias"].append(
+            "La dispersión de las diferencias no es pareja ni proporcional en todo el "
+            "rango (variabilidad mixta, CLSI EP09c §5.4.3). Un solo par de límites de "
+            "acuerdo exagera el margen en un tramo y lo achica en otro: conviene mirar "
+            "el gráfico por tramos de concentración."
+            + ("" if var["cv_calculable"] else
+               " Además hay valores ≤ 0 en el eje, y ahí el porcentaje no existe.")
+        )
+
+    # 2) NODO tendencia del sesgo: ¿la diferencia misma cambia con el nivel?
+    # Contra la referencia si la hay; contra el promedio, el ruido del método en
+    # prueba entra en los dos lados de la cuenta y fabrica pendiente. Se mide en
+    # la escala elegida, donde la dispersión es pareja y el p de OLS vale.
+    slope, _, p_slope, _ = _recta(eje, d_esc)
+    tendencia = p_slope < cfg.PROPORTIONAL_SLOPE_ALPHA
+    block["traza"].append(
+        f"NODO tendencia: pendiente(diferencia{unidad} ~ {eje_nombre})={round(slope, 4)}, "
+        f"{_p(p_slope)} → el sesgo {'CAMBIA' if tendencia else 'no cambia'} con la "
+        f"concentración.")
+    block["resultados"]["estructura_diferencia"] = "proporcional" if tendencia else "constante"
     _marcar(block, "estructura_diferencia",
             f"contra {eje_nombre}: pendiente={round(slope, 4)}, {_p(p_slope)} → "
-            f"{'proporcional' if proporcional else 'constante'}")
+            f"{'cambia con la concentración' if tendencia else 'constante'}")
 
-    # 2) NODO normalidad de las DIFERENCIAS (no de datos crudos)
-    norm_diff = _normality(diffs, cfg)
+    # 3) NODO normalidad de las DIFERENCIAS (no de datos crudos), en su escala.
+    norm_diff = _normality(d_esc, cfg)
     block["traza"].append(
-        f"NODO normalidad de DIFERENCIAS ({norm_diff['test']}): p={norm_diff['p']} → "
+        f"NODO normalidad de DIFERENCIAS{unidad} ({norm_diff['test']}): p={norm_diff['p']} → "
         f"{'normal' if norm_diff['normal'] else 'NO normal'}."
     )
     _marcar(block, "normalidad_diferencias",
             f"{norm_diff['test']}, {_p(norm_diff['p'])} → "
             f"{'normales' if norm_diff['normal'] else 'NO normales'}")
     block["resultados"]["supuestos"] = {
-        "n_pares": int(len(a)),
+        "n_pares": int(len(x)),
+        "x": nx, "y": ny,
         # Nombre sin "mean": con una referencia declarada el eje NO es el promedio.
         "eje_estructura": eje_nombre,
+        "variabilidad": var,
+        "escala": escala,
         "pendiente_estructura": round(float(slope), 4),
         "p_pendiente": round(float(p_slope), 4),
-        "proporcional": bool(proporcional),
+        "proporcional": bool(tendencia),
         "normalidad_diferencias": norm_diff,
     }
-    ba = bland_altman_analysis(a, b, reference=ref_arg)
+
+    # 4) Bland-Altman: d = Y − X en la escala elegida. El core resta
+    # method1 − method2, así que va (y, x); reference="y" apunta a x.
+    ba = bland_altman_analysis(y, x, reference="y" if hay_ref else None, escala=escala)
     if not _ok(ba):
         block["resultados"]["bland_altman"] = {"error": ba.get("error") if isinstance(ba, dict)
                                                else "No se pudo calcular Bland-Altman."}
@@ -759,45 +1051,48 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
     if norm_diff["normal"]:
         block["resultados"]["bland_altman"] = {
             "tipo": "paramétrico",
-            "sesgo": round(ba["mean_difference"], 4),
-            "loa_inferior": round(ba["loa_lower"], 4),
-            "loa_superior": round(ba["loa_upper"], 4),
-            "ic_sesgo": tuple(round(x, 4) for x in ba["ci_mean"]),
+            "escala": escala,
+            "sesgo": round(float(ba["mean_difference"]), 4),
+            "loa_inferior": round(float(ba["loa_lower"]), 4),
+            "loa_superior": round(float(ba["loa_upper"]), 4),
+            "ic_sesgo": tuple(round(float(v), 4) for v in ba["ci_mean"]),
         }
-        block["traza"].append("Diferencias normales → Bland-Altman PARAMÉTRICO (sesgo ± 1.96·DS).")
+        block["traza"].append(f"Diferencias{unidad} normales → Bland-Altman PARAMÉTRICO "
+                              "(sesgo ± 1,96·DE).")
         _marcar(block, "ba_parametrico",
-                f"sesgo={round(ba['mean_difference'], 4)}, "
-                f"LoA [{round(ba['loa_lower'], 4)}, {round(ba['loa_upper'], 4)}]")
+                f"sesgo={round(float(ba['mean_difference']), 4)}{unidad}, "
+                f"LoA [{round(float(ba['loa_lower']), 4)}, {round(float(ba['loa_upper']), 4)}]")
         _descartar(block, "ba_no_parametrico",
                    f"las diferencias pasaron la prueba de normalidad ({_p(norm_diff['p'])})")
     else:
-        lo = float(np.percentile(diffs, 2.5))
-        hi = float(np.percentile(diffs, 97.5))
+        lo, hi = float(ba["loa_np_lower"]), float(ba["loa_np_upper"])
         block["resultados"]["bland_altman"] = {
             "tipo": "no paramétrico",
-            "sesgo_mediana": round(float(np.median(diffs)), 4),
-            "loa_inferior_p2.5": round(lo, 4),
-            "loa_superior_p97.5": round(hi, 4),
+            "escala": escala,
+            "sesgo_mediana": round(float(np.median(d_esc)), 4),
+            "loa_inferior_p2.5": round(float(lo), 4),
+            "loa_superior_p97.5": round(float(hi), 4),
         }
         block["advertencias"].append(
             "Diferencias NO normales: Bland-Altman paramétrico sería incorrecto. "
             "Se usan percentiles empíricos 2.5/97.5."
         )
-        block["traza"].append("Diferencias NO normales → Bland-Altman NO PARAMÉTRICO (percentiles).")
+        block["traza"].append(f"Diferencias{unidad} NO normales → Bland-Altman NO PARAMÉTRICO "
+                              "(percentiles).")
         _marcar(block, "ba_no_parametrico",
-                f"mediana={round(float(np.median(diffs)), 4)}, "
+                f"mediana={round(float(np.median(d_esc)), 4)}{unidad}, "
                 f"P2,5/P97,5 [{round(lo, 4)}, {round(hi, 4)}]")
         _descartar(block, "ba_parametrico",
                    f"las diferencias NO son normales ({_p(norm_diff['p'])}): los LoA "
                    "paramétricos serían incorrectos")
 
-    # 2b) NODO eje X: promedio (Bland-Altman clasico) o referencia (Krouwer).
-    # El promedio mete la referencia en los dos ejes y atenua la pendiente. Se
-    # informan las dos para que la atenuacion se vea, no se afirme.
+    # 4b) NODO eje X: promedio (Bland-Altman clasico) o referencia (Krouwer).
+    # El promedio contiene a los dos métodos y distorsiona la pendiente en las
+    # dos direcciones. Se informan las dos para que se vea, no se afirme.
     ba_res = block["resultados"]["bland_altman"]
-    ba_res["eje_x"] = (f"{referencia} (método de referencia)" if ref_arg
+    ba_res["eje_x"] = (f"{nx} (método de referencia)" if hay_ref
                        else "promedio de ambos métodos")
-    if not ref_arg:
+    if not hay_ref:
         _descartar(block, "ba_eje_referencia",
                    "ninguna columna se declaró método de referencia: se grafica "
                    "contra el promedio (Bland-Altman clásico)")
@@ -816,25 +1111,25 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
             det_prom = _detecta_pendiente(ba["slope_vs_mean"])
             cambia = det_ref != det_prom
             ba_res["cambia_la_conclusion"] = bool(cambia)
-            detalle = (f"pendiente contra {referencia}={round(p_ref, 4)}, "
+            detalle = (f"pendiente contra {nx}={round(p_ref, 4)}, "
                        f"contra el promedio={round(p_prom, 4)}"
                        + ("; el eje cambia la conclusión" if cambia else
                           "; misma conclusión por los dos ejes"))
             _marcar(block, "ba_eje_referencia", detalle)
             block["traza"].append(
-                f"NODO eje X: {referencia} es el método de referencia → se grafica y "
+                f"NODO eje X: {nx} es el método de referencia → se grafica y "
                 f"regresa contra ella, no contra el promedio (Krouwer). {detalle}."
             )
             if cambia:
-                quien = (f"solo contra {referencia} se detecta sesgo proporcional"
+                quien = (f"solo contra {nx} se detecta sesgo proporcional"
                          if det_ref else
                          f"el sesgo proporcional aparece solo contra el promedio y "
-                         f"no contra {referencia}, o sea que el promedio lo inventa")
+                         f"no contra {nx}, o sea que el promedio lo inventa")
                 block["advertencias"].append(
                     f"El eje X cambia la conclusión sobre el sesgo proporcional: "
-                    f"pendiente contra {referencia} = {round(p_ref, 4)}, contra el "
+                    f"pendiente contra {nx} = {round(p_ref, 4)}, contra el "
                     f"promedio = {round(p_prom, 4)}, y {quien}. Se informa la de "
-                    f"{referencia}: el promedio contiene a los dos métodos y "
+                    f"{nx}: el promedio contiene a los dos métodos y "
                     f"distorsiona la pendiente en las dos direcciones — la achica "
                     f"cuando el sesgo es real y la infla con el ruido del método en "
                     f"prueba (Krouwer 2008, Stat Med 27:778-780)."
@@ -844,53 +1139,77 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
                        "alguna de las dos pendientes no se pudo calcular: hay un eje "
                        "sin variación")
 
-    # 3) Regresión de comparación (CLSI EP09)
-    # ~normal + homocedástico → Deming (con λ configurable); si no → Passing-Bablok.
-    resid_homoced = not proporcional
+    # 5) Regresión de comparación (CLSI EP09c §6.2), Y sobre X:
+    #    DE constante + diferencias normales  → Deming
+    #    CV constante + diferencias normales  → Deming ponderado (apéndice B)
+    #    mixta, o diferencias no normales     → Passing-Bablok (§6.2.3, §6.2.4)
     reg_slope = reg_intercept = None
-    if norm_diff["normal"] and resid_homoced:
-        _descartar(block, "passing_bablok",
-                   "diferencias normales y homocedásticas: Deming es más eficiente")
-        dem = deming_regression(a, b, lambda_ratio=cfg.DEMING_LAMBDA)
-        if not _ok(dem) and isinstance(dem, dict) and dem.get("error"):
-            block["advertencias"].append(f"Regresion de Deming: {dem['error']}")
-            _descartar(block, "deming", dem["error"])
-        if _ok(dem):
-            ci_s, ci_i = dem["ci_slope"], dem["ci_intercept"]
-            slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
-            intercept_no_const = ci_i[0] <= 0 <= ci_i[1]
-            reg_slope, reg_intercept = dem["slope"], dem["intercept"]
-            block["resultados"]["regresion"] = {
-                "metodo": "Deming", "lambda": dem["lambda"],
-                "pendiente": round(dem["slope"], 4), "ic_pendiente": tuple(round(x, 4) for x in ci_s),
-                "intercepto": round(dem["intercept"], 4), "ic_intercepto": tuple(round(x, 4) for x in ci_i),
-                "r2": round(dem["r2"], 4),
-                "sesgo_proporcional": not slope_no_prop,
-                "sesgo_constante": not intercept_no_const,
-            }
-            _marcar(block, "deming",
-                    f"pendiente={round(dem['slope'], 4)}, intercepto={round(dem['intercept'], 4)}, "
-                    f"λ={dem['lambda']}")
-            block["traza"].append(
-                f"Diferencias normales + homocedásticas → Deming (λ={dem['lambda']}). "
-                f"IC pendiente {tuple(round(x,4) for x in ci_s)} "
-                f"{'incluye' if slope_no_prop else 'NO incluye'} 1 → "
-                f"{'sin' if slope_no_prop else 'HAY'} sesgo proporcional. "
-                f"IC intercepto {tuple(round(x,4) for x in ci_i)} "
-                f"{'incluye' if intercept_no_const else 'NO incluye'} 0 → "
-                f"{'sin' if intercept_no_const else 'HAY'} sesgo constante."
-            )
+    elegida = "passing_bablok"
+    if norm_diff["normal"] and clase in (DE_CONSTANTE, CV_CONSTANTE):
+        elegida = "deming" if clase == DE_CONSTANTE else "deming_ponderado"
+    if elegida == "deming":
+        dem = deming_regression(x, y, lambda_ratio=cfg.DEMING_LAMBDA)
+        _descartar(block, "deming_ponderado",
+                   f"la dispersión de las diferencias es pareja ({_p(var['p_de'])}): no "
+                   "hace falta ponderar")
+    elif elegida == "deming_ponderado":
+        dem = deming_ponderado(x, y, lambda_ratio=cfg.DEMING_LAMBDA)
+        _descartar(block, "deming",
+                   "la dispersión crece con la concentración (CV constante): sin "
+                   "ponderar, los puntos altos arrastran la recta")
     else:
-        # Deming exige las dos cosas; decir cual de las dos fallo, no las dos.
+        dem = None
         faltantes = []
         if not norm_diff["normal"]:
             faltantes.append(f"las diferencias no son normales ({_p(norm_diff['p'])})")
-        if not resid_homoced:
-            faltantes.append(f"la diferencia es proporcional al promedio ({_p(p_slope)}): "
-                             "error heterocedástico")
-        _descartar(block, "deming", "Deming asume normalidad y homocedasticidad; " +
-                                    " y ".join(faltantes))
-        pb = passing_bablok(a, b)
+        if clase == MIXTA:
+            faltantes.append("la dispersión de las diferencias es mixta")
+        motivo = "Deming supone diferencias normales con DE o CV constante; " + \
+                 " y ".join(faltantes)
+        _descartar(block, "deming", motivo)
+        _descartar(block, "deming_ponderado", motivo)
+
+    if dem is not None and not _ok(dem):
+        # Si la recta paramétrica no se puede calcular, la salida es la robusta.
+        error = dem.get("error") if isinstance(dem, dict) else "no se pudo calcular"
+        nombre = "Deming" if elegida == "deming" else "Deming ponderado"
+        block["advertencias"].append(f"Regresión de {nombre}: {error}. Se usa Passing-Bablok.")
+        _descartar(block, elegida, error)
+        elegida, dem = "passing_bablok", None
+
+    if dem is not None:
+        _descartar(block, "passing_bablok",
+                   "diferencias normales y con dispersión pareja: Deming es más eficiente"
+                   if elegida == "deming" else
+                   "diferencias en % normales y CV constante: Deming ponderado es más "
+                   "eficiente (EP09c §6.2.2)")
+        ci_s, ci_i = dem["ci_slope"], dem["ci_intercept"]
+        slope_no_prop = ci_s[0] <= 1 <= ci_s[1]
+        intercept_no_const = ci_i[0] <= 0 <= ci_i[1]
+        reg_slope, reg_intercept = dem["slope"], dem["intercept"]
+        nombre = "Deming" if elegida == "deming" else "Deming ponderado"
+        block["resultados"]["regresion"] = {
+            "metodo": nombre, "lambda": dem["lambda"],
+            "pendiente": round(float(dem["slope"]), 4), "ic_pendiente": tuple(round(float(v), 4) for v in ci_s),
+            "intercepto": round(float(dem["intercept"]), 4), "ic_intercepto": tuple(round(float(v), 4) for v in ci_i),
+            "r2": round(float(dem["r2"]), 4),
+            "sesgo_proporcional": not slope_no_prop,
+            "sesgo_constante": not intercept_no_const,
+        }
+        _marcar(block, elegida,
+                f"pendiente={round(float(dem['slope']), 4)}, intercepto={round(float(dem['intercept']), 4)}, "
+                f"λ={dem['lambda']}")
+        block["traza"].append(
+            f"Diferencias{unidad} normales, {clase} → {nombre} (λ={dem['lambda']}). "
+            f"IC pendiente {tuple(round(float(v), 4) for v in ci_s)} "
+            f"{'incluye' if slope_no_prop else 'NO incluye'} 1 → "
+            f"{'sin' if slope_no_prop else 'HAY'} sesgo proporcional. "
+            f"IC intercepto {tuple(round(float(v), 4) for v in ci_i)} "
+            f"{'incluye' if intercept_no_const else 'NO incluye'} 0 → "
+            f"{'sin' if intercept_no_const else 'HAY'} sesgo constante."
+        )
+    elif elegida == "passing_bablok":
+        pb = passing_bablok(x, y)
         if not _ok(pb) and isinstance(pb, dict) and pb.get("error"):
             block["advertencias"].append(f"Passing-Bablok: {pb['error']}")
             _descartar(block, "passing_bablok", pb["error"])
@@ -904,27 +1223,28 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
             reg_slope, reg_intercept = pb["slope"], pb["intercept"]
             block["resultados"]["regresion"] = {
                 "metodo": "Passing-Bablok",
-                "pendiente": round(pb["slope"], 4), "ic_pendiente": tuple(round(x, 4) for x in ci_s),
-                "intercepto": round(pb["intercept"], 4), "ic_intercepto": tuple(round(x, 4) for x in ci_i),
+                "pendiente": round(float(pb["slope"]), 4), "ic_pendiente": tuple(round(float(v), 4) for v in ci_s),
+                "intercepto": round(float(pb["intercept"]), 4), "ic_intercepto": tuple(round(float(v), 4) for v in ci_i),
                 "sesgo_proporcional": not slope_no_prop,
                 "sesgo_constante": not intercept_no_const,
             }
             _marcar(block, "passing_bablok",
-                    f"pendiente={round(pb['slope'], 4)}, intercepto={round(pb['intercept'], 4)}")
+                    f"pendiente={round(float(pb['slope']), 4)}, intercepto={round(float(pb['intercept']), 4)}")
             block["traza"].append(
-                f"Sin distribución asumida / outliers → Passing-Bablok. "
-                f"IC pendiente {tuple(round(x,4) for x in ci_s)} "
+                f"Sin distribución asumida → Passing-Bablok. "
+                f"IC pendiente {tuple(round(float(v), 4) for v in ci_s)} "
                 f"{'incluye' if slope_no_prop else 'NO incluye'} 1 → "
                 f"{'sin' if slope_no_prop else 'HAY'} sesgo proporcional. "
-                f"IC intercepto {tuple(round(x,4) for x in ci_i)} "
+                f"IC intercepto {tuple(round(float(v), 4) for v in ci_i)} "
                 f"{'incluye' if intercept_no_const else 'NO incluye'} 0 → "
                 f"{'sin' if intercept_no_const else 'HAY'} sesgo constante."
             )
 
-    # 3b) Sesgo estimado en niveles de decisión médica (desde la recta EP09)
+    # 5b) Sesgo en niveles de decisión médica, desde la recta, en valores de X
+    # (el comparativo): EP09c evalúa el sesgo en X_c.
     if reg_slope is not None:
         levels = list(cfg.DECISION_LEVELS) if cfg.DECISION_LEVELS else \
-            [float(np.percentile(a, q)) for q in (25, 50, 75)]
+            [float(np.percentile(x, q)) for q in (25, 50, 75)]
         sesgo_niveles = []
         for L in levels:
             pred = reg_slope * L + reg_intercept
@@ -935,22 +1255,24 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
             })
         block["resultados"]["sesgo_en_niveles"] = sesgo_niveles
         block["traza"].append(
-            "Sesgo estimado en niveles de decisión (desde la recta): " +
+            f"Sesgo estimado en niveles de decisión de {nx} (desde la recta): " +
             "; ".join(f"X={s['nivel']}→{s['sesgo_abs']}" for s in sesgo_niveles) + "."
         )
-        _marcar(block, "sesgo_niveles", f"{len(sesgo_niveles)} nivel(es)")
+        _marcar(block, "sesgo_niveles", f"{len(sesgo_niveles)} nivel(es) de {nx}")
     else:
         _descartar(block, "sesgo_niveles",
                    "no hubo recta de comparación: sin ella no hay sesgo que estimar")
 
-    # 3c) Datos para graficar (Bland-Altman + regresión) — los usa la UI
+    # 5c) Datos para graficar (Bland-Altman + regresión) — los usa la UI
     if cfg.GENERAR_GRAFICOS_COMPARACION:
         ba_res_tmp = block["resultados"]["bland_altman"]
         block["resultados"]["_plot"] = {
-            "x": np.asarray(a, dtype=float),
-            "y": np.asarray(b, dtype=float),
-            "nombre_x": c1, "nombre_y": c2,
+            "x": np.asarray(x, dtype=float),
+            "y": np.asarray(y, dtype=float),
+            "nombre_x": nx, "nombre_y": ny,
             "ba_tipo": ba_res_tmp["tipo"],
+            "escala": escala,
+            "eje_ba": "referencia" if hay_ref else "promedio",
             "sesgo": ba_res_tmp.get("sesgo", ba_res_tmp.get("sesgo_mediana")),
             "loa": (ba_res_tmp.get("loa_inferior", ba_res_tmp.get("loa_inferior_p2.5")),
                     ba_res_tmp.get("loa_superior", ba_res_tmp.get("loa_superior_p97.5"))),
@@ -963,8 +1285,8 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         "X no tiene error. Se usó regresión de errores en ambos ejes."
     )
 
-    # 4) Concordancia global — CCC (NO Pearson), descompuesto en precisión × veracidad
-    ccc = concordance_correlation(a, b)
+    # 6) Concordancia global — CCC (NO Pearson), descompuesto en precisión × veracidad
+    ccc = concordance_correlation(x, y)
     if not _ok(ccc):
         motivo = ccc.get("error") if isinstance(ccc, dict) else "No se pudo calcular el CCC."
         block["advertencias"].append(f"CCC de Lin: {motivo}")
@@ -972,13 +1294,13 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         _descartar(block, "ccc_descomposicion", "el CCC no se pudo calcular")
         block["conclusion"] = f"Comparacion de metodos incompleta: {motivo}"
         return block
-    block["resultados"]["ccc"] = round(ccc["ccc"], 4)
-    block["resultados"]["ccc_rho"] = round(ccc["rho"], 4)
-    block["resultados"]["ccc_cb"] = round(ccc["cb"], 4)
+    block["resultados"]["ccc"] = round(float(ccc["ccc"]), 4)
+    block["resultados"]["ccc_rho"] = round(float(ccc["rho"]), 4)
+    block["resultados"]["ccc_cb"] = round(float(ccc["cb"]), 4)
     block["resultados"]["ccc_fuerza"] = ccc["strength"]
-    _marcar(block, "ccc", f"CCC={round(ccc['ccc'], 4)} ({ccc['strength']})")
+    _marcar(block, "ccc", f"CCC={round(float(ccc['ccc']), 4)} ({ccc['strength']})")
     if np.isfinite(ccc["ci_low"]):
-        block["resultados"]["ccc_ic95"] = (round(ccc["ci_low"], 4), round(ccc["ci_high"], 4))
+        block["resultados"]["ccc_ic95"] = (round(float(ccc["ci_low"]), 4), round(float(ccc["ci_high"]), 4))
 
     # El grafico de la descomposicion necesita rho y Cb, y `_plot` se arma mas
     # arriba, antes de que el CCC exista. Se completa aca en vez de mover el
@@ -993,10 +1315,10 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
         plot_data["ccc_ic95"] = block["resultados"].get("ccc_ic95")
     block["advertencias"].append(
         "NO usar Pearson como medida de acuerdo: correlación alta ≠ concordancia. "
-        f"CCC (Lin) = {round(ccc['ccc'],4)}."
+        f"CCC (Lin) = {round(float(ccc['ccc']), 4)}."
     )
     block["traza"].append(
-        f"Concordancia global → CCC de Lin = {round(ccc['ccc'],4)} "
+        f"Concordancia global → CCC de Lin = {round(float(ccc['ccc']), 4)} "
         f"({ccc['strength']}, escala de McBride 2005)."
     )
     # La descomposición CCC = rho × Cb dice DÓNDE está el defecto: rho bajo con Cb
@@ -1006,30 +1328,32 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
     if np.isfinite(ccc["rho"]) and np.isfinite(ccc["cb"]):
         if ccc["cb"] < 0.95 and ccc["rho"] >= 0.95:
             donde = ("el desacuerdo es sobre todo de VERACIDAD (sesgo): Cb="
-                     f"{round(ccc['cb'],4)} con rho={round(ccc['rho'],4)} alto. "
+                     f"{round(float(ccc['cb']), 4)} con rho={round(float(ccc['rho']), 4)} alto. "
                      "Apunta a calibración, no a imprecisión.")
         elif ccc["rho"] < 0.95 and ccc["cb"] >= 0.95:
             donde = ("el desacuerdo es sobre todo de PRECISIÓN (dispersión): rho="
-                     f"{round(ccc['rho'],4)} con Cb={round(ccc['cb'],4)} alto. "
+                     f"{round(float(ccc['rho']), 4)} con Cb={round(float(ccc['cb']), 4)} alto. "
                      "Apunta a imprecisión analítica, no a calibración.")
         elif ccc["rho"] < 0.95 and ccc["cb"] < 0.95:
-            donde = (f"hay componente de dispersión (rho={round(ccc['rho'],4)}) Y de "
-                     f"sesgo (Cb={round(ccc['cb'],4)}).")
+            donde = (f"hay componente de dispersión (rho={round(float(ccc['rho']), 4)}) Y de "
+                     f"sesgo (Cb={round(float(ccc['cb']), 4)}).")
         else:
-            donde = (f"ambos componentes son altos (rho={round(ccc['rho'],4)}, "
-                     f"Cb={round(ccc['cb'],4)}).")
+            donde = (f"ambos componentes son altos (rho={round(float(ccc['rho']), 4)}, "
+                     f"Cb={round(float(ccc['cb']), 4)}).")
         block["traza"].append("Descomposición CCC = rho × Cb → " + donde)
         _marcar(block, "ccc_descomposicion",
-                f"rho={round(ccc['rho'], 4)}, Cb={round(ccc['cb'], 4)}")
+                f"rho={round(float(ccc['rho']), 4)}, Cb={round(float(ccc['cb']), 4)}")
     else:
         _descartar(block, "ccc_descomposicion", "rho o Cb no finitos")
 
     ba_res = block["resultados"]["bland_altman"]
     sesgo = ba_res.get("sesgo", ba_res.get("sesgo_mediana"))
+    reg = block["resultados"].get("regresion", {})
     block["conclusion"] = (
-        f"Comparación de métodos: sesgo={sesgo}, CCC={round(ccc['ccc'],4)}, "
-        f"estructura {block['resultados']['estructura_diferencia']}. "
-        f"Ver Bland-Altman y regresión de comparación arriba."
+        f"Comparación de métodos ({ny} − {nx}): sesgo={sesgo}{unidad}, "
+        f"CCC={round(float(ccc['ccc']), 4)}; dispersión de las diferencias: {clase}"
+        + (f"; recta de {reg['metodo']}" if reg else "")
+        + ". Ver Bland-Altman y regresión de comparación arriba."
     )
     return block
 
@@ -1037,41 +1361,31 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
 # ============================================================
 #  Rama C — multiplicidad + matriz de correlación + regresión múltiple
 # ============================================================
-def _correlation_matrix(df: pd.DataFrame, num_cols: list[str], cfg: OmniConfig) -> dict:
-    """Matriz de correlación con método correcto celda por celda + FDR."""
+def _correlation_matrix(bloques: list[dict]) -> dict:
+    """Matriz de correlación: una vista de los bloques bivariados numéricos.
+
+    No recalcula nada. Cada celda es el mismo Pearson o Spearman del bloque de
+    ese par — elegido celda por celda según la normalidad del par — con el
+    mismo p corregido por la familia de la corrida. Cuando la matriz calculaba
+    y corregía por su cuenta, el mismo par salía detectado en su bloque y no
+    detectado en la matriz (auditoría 2026-09, K7).
+    """
     cells = []
-    p_values = []
-    for i in range(len(num_cols)):
-        for j in range(i + 1, len(num_cols)):
-            c1, c2 = num_cols[i], num_cols[j]
-            a, b = _align(df[c1], df[c2])
-            if len(a) < 3:
-                continue
-            n1 = _normality(a, cfg)["normal"]
-            n2 = _normality(b, cfg)["normal"]
-            res = pearson_r(a, b) if (n1 and n2) else spearman_rho(a, b)
-            if not _ok(res):
-                # Un par indefinido no puede sacar del informe a los demas
-                # pares, ni entrar en la correccion FDR con un p inventado.
-                cells.append({"par": f"{c1} × {c2}",
-                              "metodo": "Pearson" if (n1 and n2) else "Spearman",
-                              "coef": None, "p": None,
-                              "nota": res.get("error") if isinstance(res, dict)
-                                      else "no se pudo calcular"})
-                continue
-            if n1 and n2:
-                cells.append({"par": f"{c1} × {c2}", "metodo": "Pearson",
-                              "coef": round(res["r"], 4), "p": round(res["p"], 4)})
-            else:
-                cells.append({"par": f"{c1} × {c2}", "metodo": "Spearman",
-                              "coef": round(res["rho"], 4), "p": round(res["p"], 4)})
-            p_values.append(res["p"])
-    # FDR Benjamini-Hochberg
-    adj = _fdr(p_values, cfg)
-    con_p = [c for c in cells if c.get("p") is not None]
-    for cell, pa in zip(con_p, adj):
-        cell["p_adj"] = round(float(pa), 4)
-        cell["significativo_adj"] = pa < cfg.ALPHA
+    for b in bloques:
+        if b.get("tipo") != "correlación":
+            continue
+        par = b.get("titulo", "").replace("Bivariado — ", "")
+        pruebas = b.get("pruebas") or []
+        if not pruebas:
+            # Un par indefinido no puede sacar del informe a los demas pares,
+            # ni entrar en la correccion con un p inventado.
+            cells.append({"par": par, "metodo": "—", "coef": None, "p": None,
+                          "nota": "; ".join(b.get("advertencias") or []) or "no se pudo calcular"})
+            continue
+        pr = pruebas[0]
+        cells.append({"par": par, "metodo": pr["prueba"],
+                      "coef": pr.get("r", pr.get("rho")), "p": pr.get("p"),
+                      "p_adj": pr.get("p_adj"), "detectado": bool(pr.get("detectado"))})
     return {"celdas": cells, "n_comparaciones": len(cells)}
 
 
@@ -1238,11 +1552,35 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
 
     # --- Bivariado (todos los pares) ---
     pairs = [(cols[i], cols[j]) for i in range(n) for j in range(i + 1, n)]
+    bivariados = []
     for c1, c2 in pairs:
-        report["blocks"].append(
-            _bivariate(c1, df[c1], col_types[c1]["tipo"],
+        b = _bivariate(c1, df[c1], col_types[c1]["tipo"],
                        c2, df[c2], col_types[c2]["tipo"], cfg)
+        report["blocks"].append(b)
+        bivariados.append(b)
+
+    # --- Una sola familia de pruebas ---
+    # En la rama C se miran muchos pares a la vez, y alguno da un p chico por
+    # azar. Todos los p de la corrida se corrigen JUNTOS y cada bloque decide
+    # con el suyo corregido: el bloque, la matriz y el caso leen el mismo número.
+    familia = [b for b in bivariados if "_p" in b]
+    crudos = [b["_p"] for b in familia]
+    if branch == "C" and len(crudos) > 1:
+        corregidos = _fdr(crudos, cfg)
+        n_familia = len(crudos)
+        report["warnings_globales"].append(
+            f"Corrección por multiplicidad (Benjamini-Hochberg) sobre las {n_familia} "
+            "pruebas bivariadas de esta corrida: cada una informa su p crudo y su p "
+            "corregido, y decide con el corregido."
         )
+        _marcar(report, "fdr_bh", f"{cfg.FDR_METHOD} sobre {n_familia} prueba(s) bivariada(s)")
+    else:
+        corregidos, n_familia = crudos, 1
+        _descartar(report, "fdr_bh",
+                   "una sola prueba bivariada: no hay multiplicidad que corregir"
+                   if branch == "B" else "menos de 2 pruebas bivariadas con p calculable")
+    for b, p_adj in zip(familia, corregidos):
+        _decidir(b, float(p_adj), n_familia, cfg)
 
     # --- Detección de comparación de métodos (pares numéricos) ---
     n_pares_num = len(num_cols) * (len(num_cols) - 1) // 2
@@ -1277,17 +1615,11 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
     # --- Rama C: matriz correlación + multiplicidad + regresión múltiple ---
     if branch == "C":
         if len(num_cols) >= 2:
-            report["correlation_matrix"] = _correlation_matrix(df, num_cols, cfg)
-            report["warnings_globales"].append(
-                "Corrección por multiplicidad (Benjamini-Hochberg) aplicada a la matriz de "
-                "correlación: reportados p crudo y p ajustado."
-            )
+            report["correlation_matrix"] = _correlation_matrix(bivariados)
             n_celdas = len(report["correlation_matrix"].get("celdas", []))
             _marcar(report, "matriz_correlacion", f"{n_celdas} celda(s)")
-            _marcar(report, "fdr_bh", f"{cfg.FDR_METHOD} sobre {n_celdas} p-valor(es)")
         else:
             _descartar(report, "matriz_correlacion", "menos de 2 columnas numéricas")
-            _descartar(report, "fdr_bh", "no hubo matriz de correlación que corregir")
 
         if target and target in num_cols:
             predictors = [c for c in num_cols if c != target]

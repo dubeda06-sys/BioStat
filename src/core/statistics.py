@@ -321,6 +321,98 @@ def kruskal_wallis(groups):
             "group_medians": [np.median(g) for g in groups]}
 
 
+def dunn_test(groups, labels=None):
+    """Post-hoc de Dunn (1964) con corrección de Bonferroni.
+
+    Compara los RANGOS MEDIOS de cada par dentro del ranking conjunto del
+    Kruskal-Wallis, con la varianza corregida por empates:
+
+        z = (R̄ᵢ − R̄ⱼ) / √[(N(N+1)/12 − Σ(t³ − t)/(12(N − 1))) · (1/nᵢ + 1/nⱼ)]
+
+    No es lo mismo que Mann-Whitney por pares: Mann-Whitney re-rankea cada par
+    por separado y descarta la información de los demás grupos. Con dos grupos
+    z² coincide con la H de Kruskal-Wallis, que es como se lo verifica.
+    """
+    groups = [np.asarray(g, dtype=float) for g in groups]
+    groups = [g[np.isfinite(g)] for g in groups]
+    if labels is None:
+        labels = [str(i + 1) for i in range(len(groups))]
+    pares = [(g, lab) for g, lab in zip(groups, labels) if len(g) > 0]
+    if len(pares) < 2:
+        return None
+    groups = [g for g, _ in pares]
+    labels = [lab for _, lab in pares]
+    todos = np.concatenate(groups)
+    n_total = len(todos)
+    rangos = stats.rankdata(todos)
+    _, conteos = np.unique(todos, return_counts=True)
+    empates = float(np.sum(conteos ** 3 - conteos))
+    varianza = n_total * (n_total + 1) / 12.0 - empates / (12.0 * (n_total - 1))
+    cortes = np.cumsum([0] + [len(g) for g in groups])
+    medios = [float(np.mean(rangos[cortes[i]:cortes[i + 1]])) for i in range(len(groups))]
+    comparaciones = []
+    m = len(groups) * (len(groups) - 1) // 2
+    for i in range(len(groups)):
+        for j in range(i + 1, len(groups)):
+            ee = np.sqrt(varianza * (1 / len(groups[i]) + 1 / len(groups[j]))) if varianza > 0 else 0.0
+            z = (medios[i] - medios[j]) / ee if ee > 0 else 0.0
+            p = float(2 * stats.norm.sf(abs(z)))
+            comparaciones.append({"par": f"{labels[i]} vs {labels[j]}", "z": float(z),
+                                  "p": p, "p_adj": min(p * m, 1.0)})
+    return {"metodo": "Dunn (Bonferroni)", "rangos_medios": dict(zip(labels, medios)),
+            "comparaciones": comparaciones, "n_comparaciones": m}
+
+
+def welch_anova(groups):
+    """ANOVA de Welch: compara medias sin suponer varianzas iguales (pingouin).
+
+    Es la salida cuando los grupos son normales pero dispersan distinto. Kruskal-
+    Wallis no sirve ahí: supone la misma forma de distribución bajo H0, y con
+    dispersiones distintas rechaza por la dispersión, no por la posición.
+    """
+    import pandas as pd
+    import pingouin as pg
+    groups = [np.asarray(g, dtype=float) for g in groups]
+    groups = [g[np.isfinite(g)] for g in groups]
+    groups = [g for g in groups if len(g) > 0]
+    if len(groups) < 2:
+        return None
+    if any(len(g) < 2 or np.ptp(g) == 0 for g in groups):
+        return {"error": "ANOVA de Welch necesita al menos 2 valores distintos por "
+                         "grupo: pondera cada grupo por su varianza."}
+    datos = pd.DataFrame({"y": np.concatenate(groups),
+                          "g": np.repeat(np.arange(len(groups)), [len(g) for g in groups])})
+    t = pg.welch_anova(data=datos, dv="y", between="g")
+    return {"f": float(t["F"].iloc[0]), "df1": float(t["ddof1"].iloc[0]),
+            "df2": float(t["ddof2"].iloc[0]), "p": float(t["p_unc"].iloc[0]),
+            "k": len(groups)}
+
+
+def games_howell(groups, labels=None):
+    """Post-hoc de Games-Howell (pingouin): el que acompaña al ANOVA de Welch.
+
+    Cada par con su propio error estándar y grados de libertad de Welch; la
+    multiplicidad la controla el rango studentizado, sin corrección aparte.
+    """
+    import pandas as pd
+    import pingouin as pg
+    groups = [np.asarray(g, dtype=float) for g in groups]
+    groups = [g[np.isfinite(g)] for g in groups]
+    if labels is None:
+        labels = [str(i + 1) for i in range(len(groups))]
+    pares = [(g, str(lab)) for g, lab in zip(groups, labels) if len(g) > 1]
+    if len(pares) < 2:
+        return None
+    datos = pd.DataFrame({"y": np.concatenate([g for g, _ in pares]),
+                          "g": np.repeat([lab for _, lab in pares], [len(g) for g, _ in pares])})
+    t = pg.pairwise_gameshowell(data=datos, dv="y", between="g")
+    return {"metodo": "Games-Howell",
+            "comparaciones": [{"par": f"{fila['A']} vs {fila['B']}",
+                               "diferencia": float(fila["diff"]),
+                               "p_adj": float(fila["pval"])}
+                              for _, fila in t.iterrows()]}
+
+
 def friedman_test(*groups):
     """Friedman test (medidas repetidas)."""
     groups = [np.asarray(g, dtype=float) for g in groups]

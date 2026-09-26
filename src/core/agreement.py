@@ -191,25 +191,120 @@ def deming_regression(x, y, lambda_ratio=1.0):
         return {"error": "La covarianza entre los dos metodos es cero: no hay "
                          "relacion que ajustar por Deming."}
     slope, intercept = fit
+    ci_slope, ci_intercept = _ic_jackknife(x, y, slope, intercept,
+                                           lambda xs, ys: _deming_fit(xs, ys, lam))
 
-    # Jackknife leave-one-out para IC de pendiente e intercepto (Linnet).
+    y_pred = slope * x + intercept
+    ss_res = np.sum((y - y_pred) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
+    return {"slope": slope, "intercept": intercept,
+            "ci_slope": ci_slope, "ci_intercept": ci_intercept,
+            "r2": r2, "n": n, "lambda": lam,
+            "x_mean": float(np.mean(x)), "y_mean": float(np.mean(y))}
+
+
+def _ic_jackknife(x, y, slope, intercept, ajustar):
+    """IC 95% de pendiente e intercepto por jackknife (CLSI EP09c, apéndice K1).
+
+    Se deja afuera una muestra por vez y se reajusta con `ajustar`. Con las
+    pseudo-desviaciones δᵢ = N·b − (N−1)·bᵢ, el EE es √(Σ(δᵢ − δ̄)² / (N(N−1)))
+    (K7, K8), y el intervalo es la estimación del conjunto completo ± t(N−2)·EE
+    (K12). Antes se usaba t(N−1): el grado de libertad de más estrechaba el
+    intervalo, poco, pero en contra de la norma.
+    """
+    n = len(x)
     js, ji = [], []
     for k in range(n):
-        m = np.ones(n, dtype=bool); m[k] = False
-        f = _deming_fit(x[m], y[m], lam)
+        m = np.ones(n, dtype=bool)
+        m[k] = False
+        f = ajustar(x[m], y[m])
         if f is None:
             continue
-        js.append(f[0]); ji.append(f[1])
-    js, ji = np.asarray(js), np.asarray(ji)
-    if len(js) >= 2:
-        tcrit = stats.t.ppf(0.975, len(js) - 1)
-        se_slope = np.sqrt((len(js) - 1) / len(js) * np.sum((js - js.mean()) ** 2))
-        se_int = np.sqrt((len(ji) - 1) / len(ji) * np.sum((ji - ji.mean()) ** 2))
-        ci_slope = (slope - tcrit * se_slope, slope + tcrit * se_slope)
-        ci_intercept = (intercept - tcrit * se_int, intercept + tcrit * se_int)
-    else:
-        ci_slope = (np.nan, np.nan)
-        ci_intercept = (np.nan, np.nan)
+        js.append(f[0])
+        ji.append(f[1])
+    js, ji = np.asarray(js, dtype=float), np.asarray(ji, dtype=float)
+    if len(js) < 2 or n < 3:
+        return (np.nan, np.nan), (np.nan, np.nan)
+    m = len(js)
+    tcrit = stats.t.ppf(0.975, n - 2)
+    se_slope = np.sqrt((m - 1) / m * np.sum((js - js.mean()) ** 2))
+    se_int = np.sqrt((m - 1) / m * np.sum((ji - ji.mean()) ** 2))
+    return ((slope - tcrit * se_slope, slope + tcrit * se_slope),
+            (intercept - tcrit * se_int, intercept + tcrit * se_int))
+
+
+def _deming_ponderado_fit(x, y, lam, max_iter=100, tol=1e-12):
+    """Deming ponderado de CV constante (Linnet 1990; CLSI EP09c, apéndice B).
+
+    Cada punto pesa wᵢ = 1/zᵢ², con zᵢ = (X̂ᵢ + λ·Ŷᵢ)/(1 + λ) la concentración
+    verdadera estimada (B13-B15). Como X̂ e Ŷ salen de la recta, se itera: se
+    arranca con los valores medidos, se ajusta con los momentos ponderados
+    (B1-B11) y se recalculan los pesos hasta que la pendiente no se mueve.
+
+    λ = var_error(x)/var_error(y), la misma convención que `_deming_fit`.
+    Devuelve (pendiente, intercepto) o None si algún zᵢ no es positivo — el
+    peso 1/z² no existe en cero (EP09c §6.2.2) — o si no converge.
+    """
+    z = (x + lam * y) / (1 + lam)
+    if np.any(z <= 0):
+        return None
+    b_ant = None
+    for _ in range(max_iter):
+        w = 1.0 / z ** 2
+        sw = np.sum(w)
+        xw, yw = np.sum(w * x) / sw, np.sum(w * y) / sw
+        u = np.sum(w * (x - xw) ** 2)
+        q = np.sum(w * (y - yw) ** 2)
+        p = np.sum(w * (x - xw) * (y - yw))
+        if p == 0:
+            return None
+        b = ((lam * q - u) + np.sqrt((u - lam * q) ** 2 + 4 * lam * p ** 2)) / (2 * lam * p)
+        a = yw - b * xw
+        # Valor verdadero estimado de cada muestra: el punto de la recta al que
+        # Deming proyecta (x, y), con λ como métrica.
+        xh = x + (b * lam) * (y - a - b * x) / (1 + b * b * lam)
+        yh = a + b * xh
+        z = (xh + lam * yh) / (1 + lam)
+        if np.any(z <= 0):
+            return None
+        if b_ant is not None and abs(b - b_ant) <= tol * max(1.0, abs(b)):
+            return b, a
+        b_ant = b
+    return None
+
+
+def deming_ponderado(x, y, lambda_ratio=1.0):
+    """Regresión de Deming ponderada, de CV constante (CLSI EP09c, apéndice B).
+
+    La que corresponde cuando la dispersión de las diferencias crece con la
+    concentración (EP09c §6.2.2): los puntos altos, más ruidosos, pesan menos.
+    Con Deming sin ponderar esos puntos arrastran la recta. Exige valores
+    positivos en los dos métodos.
+
+    IC 95% de pendiente e intercepto por jackknife (apéndice K1), reajustando
+    la iteración completa en cada submuestra.
+
+    Devuelve las mismas claves que `deming_regression`.
+    """
+    x, y, motivo = finite_pair(x, y, min_n=3, need_variance="both",
+                               nombre_metodo="la regresion de Deming ponderada")
+    if motivo:
+        return {"error": motivo}
+    no_positivos = int(np.sum((x <= 0) | (y <= 0)))
+    if no_positivos:
+        return {"error": f"Deming ponderado pesa cada punto por 1/concentración², y "
+                         f"hay {no_positivos} par(es) con un valor ≤ 0: ese peso no "
+                         f"existe (CLSI EP09c §6.2.2)."}
+    n = len(x)
+    lam = float(lambda_ratio) if lambda_ratio and lambda_ratio > 0 else 1.0
+    fit = _deming_ponderado_fit(x, y, lam)
+    if fit is None:
+        return {"error": "La iteración de Deming ponderado no convergió con estos "
+                         "datos."}
+    slope, intercept = fit
+    ci_slope, ci_intercept = _ic_jackknife(
+        x, y, slope, intercept, lambda xs, ys: _deming_ponderado_fit(xs, ys, lam))
 
     y_pred = slope * x + intercept
     ss_res = np.sum((y - y_pred) ** 2)

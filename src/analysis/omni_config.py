@@ -17,6 +17,10 @@ class OmniConfig:
 
     # --- Tablas de contingencia ---
     FISHER_MIN_FREQ: float = 5     # frecuencia esperada mínima antes de saltar Chi²→Fisher
+    # Tablas mayores que 2×2 con esperadas chicas: p del chi-cuadrado por
+    # permutación. Semilla fija para que la misma tabla dé siempre el mismo p.
+    MONTECARLO_N: int = 9999
+    MONTECARLO_SEMILLA: int = 20260926
 
     # --- Perfilado de tipos ---
     CARDINALITY_THRESHOLD: int = 10  # corte discreta/continua y nominal/ordinal
@@ -38,9 +42,15 @@ class OmniConfig:
     # --- Multiplicidad ---
     FDR_METHOD: str = "fdr_bh"     # Benjamini-Hochberg
 
-    # --- Detección proporcional vs constante (Bland-Altman) ---
-    # p del test de pendiente (diff vs mean) bajo el cual la diferencia es proporcional
+    # --- Concordancia: dos preguntas distintas sobre las diferencias ---
+    # ¿El sesgo cambia con la concentración? p de la pendiente de la diferencia
+    # contra el eje (Bland-Altman). Es informativo: no elige la regresión.
     PROPORTIONAL_SLOPE_ALPHA: float = 0.05
+    # ¿La DISPERSIÓN de las diferencias cambia con la concentración? (CLSI
+    # EP09c §5.4: DE constante, CV constante o mixta). p de la pendiente de los
+    # residuos absolutos contra el eje (Bland y Altman 1999). Esta sí elige la
+    # escala del Bland-Altman y la regresión (EP09c §6.2).
+    VARIABILIDAD_ALPHA: float = 0.05
 
     # Umbral de "media de diferencias pequeña" relativo al rango (regla de apoyo)
     DIF_CHICA_FRAC: float = 0.05
