@@ -79,9 +79,15 @@ def log_rank_test(times1, events1, times2, events2):
     times1, events1 = times1[valid1], events1[valid1]
     valid2 = np.isfinite(times2)
     times2, events2 = times2[valid2], events2[valid2]
+    if np.any(times1 < 0) or np.any(times2 < 0):
+        return {"error": "Hay tiempos negativos: el tiempo de seguimiento no puede "
+                         "ser menor que cero. Revisa la columna de tiempo."}
 
+    # Todos los tiempos, el 0 incluido. Antes se descartaba t=0, pero los
+    # sujetos con ese tiempo seguian contados en el conjunto de riesgo de ahi en
+    # adelante: con eventos en t=0 el chi2 daba 0,001 donde lifelines da 1,705
+    # (auditoria 2026-09, A6).
     all_times = np.unique(np.concatenate([times1, times2]))
-    all_times = all_times[all_times > 0]
 
     n1 = len(times1)
     n2 = len(times2)

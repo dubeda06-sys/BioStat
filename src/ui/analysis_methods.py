@@ -845,6 +845,8 @@ class AnalysisMethodsMixin:
             return "<b>Error:</b> Minimo 3 obs por grupo."
 
         lr = log_rank_test(t1.values, e1.values.astype(int), t2.values, e2.values.astype(int))
+        if _sin_resultado(lr):
+            return _msg_error(lr, "No se pudo calcular.")
 
         km1 = kaplan_meier(t1.values, e1.values.astype(int))
         km2 = kaplan_meier(t2.values, e2.values.astype(int))
@@ -1425,10 +1427,16 @@ class AnalysisMethodsMixin:
         r = cohens_kappa(matrix)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Kappa de Cohen", "K = (Po - Pe) / (1 - Pe)", f"Kappa = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
+        self._set_formula("Formula: Kappa de Cohen",
+                          "K = (Po - Pe) / (1 - Pe)\n"
+                          "IC 95%: EE de Fleiss, Cohen y Everitt (1969)\n"
+                          "p: EE bajo H0 (kappa = 0)",
+                          f"Kappa = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
         h = self._h(f" Kappa de Cohen")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Kappa", f"{r['kappa']:.4f}"), ("Fuerza", r['strength']), ("p", f"{r['p']:.6f}")]:
+        for l, v in [("Kappa", f"{r['kappa']:.4f}"),
+                     ("IC 95%", f"{r['ci'][0]:.4f} a {r['ci'][1]:.4f}"),
+                     ("Fuerza (Altman 1991)", r['strength']), ("p", _p_html(r['p']))]:
             h += self._r(l, v)
         return h + "</table>"
 
@@ -1667,14 +1675,29 @@ class AnalysisMethodsMixin:
         ri = reference_interval(d.values)
         if ri is None:
             return "<b>Error:</b> No se pudo calcular."
-        self._set_formula("Formula: Intervalo de Referencia", "Basado en percentiles 2.5 y 97.5\nIC via bootstrap", f"Limite inf (2.5%): {ri['lower']:.4f}\nLimite sup (97.5%): {ri['upper']:.4f}")
+        self._set_formula(
+            "Formula: Intervalo de Referencia (CLSI EP28-A3c)",
+            "Limite inferior = dato de rango 0,025·(n+1), interpolado (§9.4.1)\n"
+            "Limite superior = dato de rango 0,975·(n+1), interpolado\n"
+            "IC 90% de cada limite: rangos de orden de la tabla 8 (§9.5.1), n ≥ 119",
+            f"Limite inf (2.5%): {ri['lower']:.4f}\nLimite sup (97.5%): {ri['upper']:.4f}")
         h = self._h(f" Intervalos de Referencia — {col}")
         h += "<table style='font-size:12px;'>"
+        h += self._r("n", ri['n'])
         h += self._r("Limite inferior (2.5%)", f"{ri['lower']:.4f}")
         h += self._r("Limite superior (97.5%)", f"{ri['upper']:.4f}")
-        h += self._r("IC lim inf", f"[{ri['ci_lower_low']:.4f}, {ri['ci_lower_high']:.4f}]")
-        h += self._r("IC lim sup", f"[{ri['ci_upper_low']:.4f}, {ri['ci_upper_high']:.4f}]")
+        if ri["rangos_ic"] is not None:
+            a, b = ri["rangos_ic"]
+            h += self._r("IC 90% del limite inferior",
+                         f"{ri['ci_lower_low']:.4f} a {ri['ci_lower_high']:.4f} (rangos {a} y {b})")
+            h += self._r("IC 90% del limite superior",
+                         f"{ri['ci_upper_low']:.4f} a {ri['ci_upper_high']:.4f} "
+                         f"(rangos {ri['n'] + 1 - b} y {ri['n'] + 1 - a})")
+        else:
+            h += self._r("IC de los limites", "sin IC normativo (EP28 lo da desde n = 119)")
         h += "</table>"
+        for aviso in ri.get("avisos", []):
+            h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
         return h
 
     # --- Asimetria y curtosis ---
@@ -1738,28 +1761,31 @@ class AnalysisMethodsMixin:
                 if c1 is None or c1 not in self.data.columns:
                     return "<b>Error:</b> Selecciona una columna."
                 d = self.data[c1].dropna()
-                if d.min() <= 0:
-                    return "<b>Error:</b> La media geométrica requiere datos positivos."
                 result = geometric_mean(d)
-                self._set_formula("Formula: Media Geométrica", "GM = (x1 × x2 × ... × xn)^(1/n)")
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo calcular.")
+                self._set_formula("Formula: Media Geométrica",
+                                  "GM = exp(media de ln x) = (x1 × x2 × ... × xn)^(1/n)\n"
+                                  "IC 95% = exp(media ln x ± t(n−1) · DE(ln x)/√n)")
                 h = self._h(f" Media Geométrica — {c1}")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Resultado", f"{result:.4f}")
-                h += self._r("n", len(d))
+                h += self._r("Media geométrica", f"{result['gm']:.4f}")
+                h += self._r("IC 95%", f"{result['ci95'][0]:.4f} a {result['ci95'][1]:.4f}")
+                h += self._r("n", result['n'])
                 return h + "</table>"
 
             elif func_name == "harmonic_mean":
                 if c1 is None or c1 not in self.data.columns:
                     return "<b>Error:</b> Selecciona una columna."
                 d = self.data[c1].dropna()
-                if d.min() <= 0:
-                    return "<b>Error:</b> La media armónica requiere datos positivos."
                 result = harmonic_mean(d)
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo calcular.")
                 self._set_formula("Formula: Media Armónica", "HM = n / (1/x1 + 1/x2 + ... + 1/xn)")
                 h = self._h(f" Media Armónica — {c1}")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("Resultado", f"{result:.4f}")
-                h += self._r("n", len(d))
+                h += self._r("Media armónica", f"{result['hm']:.4f}")
+                h += self._r("n", result['n'])
                 return h + "</table>"
 
             elif func_name == "ttest_1sample":
@@ -1976,11 +2002,18 @@ class AnalysisMethodsMixin:
                 if not result['groups']:
                     h += "<tr><td>Sin grupos de edad con n suficiente (≥5).</td></tr>"
                 else:
+                    def _v(x):
+                        return "—" if not np.isfinite(x) else f"{x:.2f}"
                     h += "<tr><th>Grupo</th><th>n</th><th>Media</th><th>P5</th><th>Mediana</th><th>P95</th></tr>"
                     for g in result['groups']:
                         h += (f"<tr><td>{g['age_group']}</td><td>{g['n']}</td><td>{g['mean']:.2f}</td>"
-                              f"<td>{g['p5']:.2f}</td><td>{g['median']:.2f}</td><td>{g['p95']:.2f}</td></tr>")
-                return h + "</table>"
+                              f"<td>{_v(g['p5'])}</td><td>{_v(g['median'])}</td><td>{_v(g['p95'])}</td></tr>")
+                h += "</table>"
+                if any(g.get("nota") for g in result['groups']):
+                    h += ("<p style='font-size:11px;color:#b45309;'>Los grupos con menos de 5 "
+                          "sujetos se muestran sin percentiles: con tan pocos datos no hay "
+                          "percentil 5 ni 95 que estimar.</p>")
+                return h
 
             elif func_name == "generalized_esd":
                 if c1 is None or c1 not in self.data.columns:
@@ -2190,12 +2223,18 @@ class AnalysisMethodsMixin:
             h += "<table style='font-size:12px;'>"
             h += self._r("Sujetos", result['n_subjects'])
             h += self._r("Mediciones", result['n_timepoints'])
-            h += self._r("Pendiente media", f"{result['mean_slope']:.4f}")
-            h += self._r("DE pendientes", f"{result['sd_slope']:.4f}")
-            h += self._r("Pendiente global", f"{result['overall_slope']:.4f}")
-            h += self._r("r global", f"{result['overall_r']:.4f}")
-            h += self._r("p global", f"{result['overall_p']:.6f}")
+            ic = result['ic_pendiente_media']
+            h += self._r("Pendiente media por sujeto", f"{result['mean_slope']:.4f}")
+            h += self._r("IC 95% de la pendiente media", f"{ic[0]:.4f} a {ic[1]:.4f}")
+            h += self._r("DE de las pendientes", f"{result['sd_slope']:.4f}")
+            h += self._r("¿Hay tendencia? (t sobre las pendientes)",
+                         f"t={result['t_tendencia']:.3f}, {_p_html(result['p_tendencia'])}")
             h += "</table>"
+            h += ("<p style='font-size:11px;color:#555;'>Cada sujeto aporta una sola "
+                  "pendiente: sus mediciones no son independientes entre sí, las de "
+                  "sujetos distintos sí (Matthews et al., BMJ 1990).</p>")
+            for aviso in result.get("avisos", []):
+                h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
             h += "<b style='font-size:12px;'>Medias por tiempo:</b><table style='font-size:12px;'>"
             for i, (m, s) in enumerate(zip(result['means'], result['sds'])):
                 h += self._r(f"T{i+1}", f"{m:.4f} ± {s:.4f}")

@@ -81,6 +81,12 @@ def bootstrap_correlation(x, y, n_bootstrap=10000, ci=0.95, method="pearson", se
     for _ in range(n_bootstrap):
         idx = rng.choice(n, size=n, replace=True)
         xb, yb = x[idx], y[idx]
+        # Un remuestreo con una columna constante no tiene correlacion: con n
+        # chico pasa seguido (n=5: ~16 de cada 10.000) y un solo NaN bastaba
+        # para que el percentil diera NaN y el IC saliera (nan, nan).
+        if np.ptp(xb) == 0 or np.ptp(yb) == 0:
+            corrs.append(np.nan)
+            continue
         if method == "pearson":
             r, _ = stats.pearsonr(xb, yb)
         else:
@@ -89,6 +95,17 @@ def bootstrap_correlation(x, y, n_bootstrap=10000, ci=0.95, method="pearson", se
 
     corrs = np.array(corrs)
     alpha = 1 - ci
+    invalidos = int(np.sum(~np.isfinite(corrs)))
+    validos = corrs[np.isfinite(corrs)]
+    avisos = []
+    if invalidos:
+        avisos.append(f"{invalidos} de {n_bootstrap} remuestreos salieron con una "
+                      f"columna constante y no tienen correlacion: el IC se "
+                      f"calculo con los {len(validos)} restantes.")
+    if len(validos) < 0.5 * n_bootstrap:
+        return {"error": "Mas de la mitad de los remuestreos no tienen correlacion "
+                         "definida (columnas casi constantes): el bootstrap no "
+                         "sirve con estos datos."}
 
     if method == "pearson":
         orig_r, orig_p = stats.pearsonr(x, y)
@@ -96,16 +113,18 @@ def bootstrap_correlation(x, y, n_bootstrap=10000, ci=0.95, method="pearson", se
         orig_r, orig_p = stats.spearmanr(x, y)
 
     return {
+        "avisos": avisos,
         "original_r": orig_r,
         "original_p": orig_p,
-        "bootstrap_r": np.mean(corrs),
-        "bootstrap_se": np.std(corrs),
-        "ci_lower": np.percentile(corrs, 100 * alpha / 2),
-        "ci_upper": np.percentile(corrs, 100 * (1 - alpha / 2)),
+        "bootstrap_r": np.mean(validos),
+        "bootstrap_se": np.std(validos),
+        "ci_lower": np.percentile(validos, 100 * alpha / 2),
+        "ci_upper": np.percentile(validos, 100 * (1 - alpha / 2)),
         "ci_level": ci,
         "n_bootstrap": n_bootstrap,
+        "n_invalidos": invalidos,
         "method": method,
-        "bootstrap_distribution": corrs,
+        "bootstrap_distribution": validos,
     }
 
 
@@ -152,15 +171,24 @@ def bootstrap_regression(x, y, n_bootstrap=10000, ci=0.95, seed=42):
 
     rng = np.random.RandomState(seed)
     slopes, intercepts = [], []
+    invalidos = 0
     for _ in range(n_bootstrap):
         idx = rng.choice(n, size=n, replace=True)
         xb, yb = x[idx], y[idx]
+        # Un remuestreo con X constante no define recta: polyfit devolvia una
+        # solucion de norma minima que entraba al percentil como si fuera dato.
+        if np.ptp(xb) == 0:
+            invalidos += 1
+            continue
         z = np.polyfit(xb, yb, 1)
         slopes.append(z[0])
         intercepts.append(z[1])
 
     slopes = np.array(slopes)
     intercepts = np.array(intercepts)
+    if len(slopes) < 0.5 * n_bootstrap:
+        return {"error": "Mas de la mitad de los remuestreos tienen X constante: "
+                         "el bootstrap de la recta no sirve con estos datos."}
     alpha = 1 - ci
 
     orig_z = np.polyfit(x, y, 1)

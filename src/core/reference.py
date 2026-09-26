@@ -12,13 +12,45 @@ N_MINIMO_EP28 = 120
 N_MINIMO_ABSOLUTO = 40
 
 
-def reference_interval(data, percentiles=(2.5, 97.5)):
-    """Intervalo de referencia no parametrico por percentiles (CLSI EP28-A3c).
+def _rangos_ic_ep28(n, fraccion=0.025, confianza=0.90):
+    """Rangos (base 1) del IC no parametrico de un percentil, o None si no alcanza n.
 
-    Los IC de los limites salen por bootstrap percentil (10.000 remuestreos),
-    no por los rangos de orden tabulados en la norma. Con n >= 120 los dos
-    coinciden de cerca; por debajo el bootstrap es optimista, porque remuestrea
-    de una cola que casi no tiene datos.
+    X = cuantos datos caen por debajo del percentil verdadero ~ Binomial(n, p).
+    Se busca el mayor rango a con P(X <= a-1) <= (1-conf)/2 y el menor rango b
+    con P(X >= b) <= (1-conf)/2: colas iguales. Con p = 0,025 y conf = 0,90
+    reproduce EXACTA la tabla 8 de EP28-A3c (Solberg 1987) para los 882 tamanos
+    de 119 a 1000 que tabula. Por debajo de 119 ni siquiera el dato mas chico
+    deja una cola de 5 %: no hay IC al 90 %.
+    """
+    B = stats.binom(n, fraccion)
+    cola = (1 - confianza) / 2
+    if B.cdf(0) > cola:
+        return None
+    a = max(1, int(B.ppf(cola)))
+    while a > 1 and B.cdf(a - 1) > cola:
+        a -= 1
+    while B.cdf(a) <= cola:
+        a += 1
+    b = int(B.ppf(1 - cola)) + 1
+    while B.sf(b - 1) <= cola and b > a + 1:
+        b -= 1
+    while B.sf(b - 1) > cola:
+        b += 1
+    return a, b
+
+
+def reference_interval(data, percentiles=(2.5, 97.5)):
+    """Intervalo de referencia no parametrico, como lo define CLSI EP28-A3c.
+
+    §9.4.1: el limite inferior es la observacion de rango r1 = 0,025(n+1) y el
+    superior la de r2 = 0,975(n+1), interpolando entre rangos. Es el percentil
+    "weibull" de numpy (tipo 6 de Hyndman y Fan). Antes se usaba el lineal (tipo
+    7), que con n = 120 cae en los rangos 4 y 117 en vez de 3 y 118.
+
+    §9.5.1: el IC de cada limite es un IC **90 %** por rangos de orden (tabla 8,
+    de Solberg 1987), que exige n >= 119. Antes era un bootstrap al 95 %: otro
+    nivel y otro metodo que el que se presenta en una acreditacion. Con n < 119
+    no hay IC normativo y se dice.
     """
     data = np.asarray(data, dtype=float)
     data = data[np.isfinite(data)]
@@ -27,8 +59,8 @@ def reference_interval(data, percentiles=(2.5, 97.5)):
         return None
 
     lower_p, upper_p = percentiles
-    lower = np.percentile(data, lower_p)
-    upper = np.percentile(data, upper_p)
+    lower = np.percentile(data, lower_p, method="weibull")
+    upper = np.percentile(data, upper_p, method="weibull")
 
     avisos = []
     if n < N_MINIMO_ABSOLUTO:
@@ -56,22 +88,32 @@ def reference_interval(data, percentiles=(2.5, 97.5)):
             f"superior en {n_sobre_limite}. Un solo valor atipico los mueve "
             f"entero.")
 
-    # Bootstrap CI for percentiles
-    rng = np.random.RandomState(42)
-    boot_lower = np.array([np.percentile(rng.choice(data, n, replace=True), lower_p) for _ in range(10000)])
-    boot_upper = np.array([np.percentile(rng.choice(data, n, replace=True), upper_p) for _ in range(10000)])
+    # IC 90 % de cada limite por rangos de orden (EP28 §9.5.1, tabla 8). Los
+    # rangos del limite superior son los del inferior reflejados: n+1-b, n+1-a.
+    ordenados = np.sort(data)
+    ic_inf = ic_sup = (np.nan, np.nan)
+    rangos = _rangos_ic_ep28(n, lower_p / 100) if (lower_p, upper_p) == (2.5, 97.5) else None
+    if rangos is not None:
+        a, b = rangos
+        ic_inf = (ordenados[a - 1], ordenados[b - 1])
+        ic_sup = (ordenados[n - b], ordenados[n - a])
+    else:
+        avisos.append(
+            f"Sin IC de los limites: EP28-A3c da el IC 90 % por rangos de orden a "
+            f"partir de n=119, y la norma pide {N_MINIMO_EP28} sujetos. Con n={n} "
+            f"no hay un IC que se pueda presentar como el de la norma.")
 
     return {
         "avisos": avisos,
         "lower": lower, "upper": upper, "lower_p": lower_p, "upper_p": upper_p,
-        "ci_lower_low": np.percentile(boot_lower, 2.5),
-        "ci_lower_high": np.percentile(boot_lower, 97.5),
-        "ci_upper_low": np.percentile(boot_upper, 2.5),
-        "ci_upper_high": np.percentile(boot_upper, 97.5),
+        "ci_lower_low": ic_inf[0], "ci_lower_high": ic_inf[1],
+        "ci_upper_low": ic_sup[0], "ci_upper_high": ic_sup[1],
+        "rangos_ic": rangos, "nivel_ic": 0.90,
         "n": n, "percentiles": percentiles,
         "cumple_ep28": n >= N_MINIMO_EP28,
         "n_bajo_limite": n_bajo_limite, "n_sobre_limite": n_sobre_limite,
-        "metodo_ic": "bootstrap percentil (10.000 remuestreos)",
+        "metodo_limites": "rangos 0,025(n+1) y 0,975(n+1), interpolados (EP28 §9.4.1)",
+        "metodo_ic": "IC 90 % por rangos de orden (EP28 §9.5.1, tabla 8)",
     }
 
 
@@ -88,11 +130,14 @@ def percentile_table(data, percentiles=None):
 
     result = []
     for p in percentiles:
-        if p / 100 >= 1/n and p / 100 <= (n-1)/n:
-            val = np.percentile(data, p)
+        # Rango p(n+1)/100, el mismo que dice la formula en pantalla y que usa
+        # EP28. Solo existe entre el primer y el ultimo dato.
+        if 1 <= p / 100 * (n + 1) <= n:
+            val = np.percentile(data, p, method="weibull")
             # Simple bootstrap CI
             rng = np.random.RandomState(42)
-            boot = np.array([np.percentile(rng.choice(data, n, replace=True), p) for _ in range(2000)])
+            boot = np.array([np.percentile(rng.choice(data, n, replace=True), p, method="weibull")
+                             for _ in range(2000)])
             ci_low = np.percentile(boot, 2.5)
             ci_high = np.percentile(boot, 97.5)
             result.append({"percentile": p, "value": val, "ci_low": ci_low, "ci_high": ci_high})
@@ -114,22 +159,34 @@ def age_related_reference(ages, values, age_min=None, age_max=None):
     if age_max is None:
         age_max = np.max(ages)
 
-    age_groups = np.arange(age_min, age_max + 1, max(1, int((age_max - age_min) / 10)))
+    # Los bordes tienen que pasar al maximo: con arange(min, max + 1, ancho) el
+    # ultimo borde podia quedar por debajo y las edades de arriba no caian en
+    # ningun grupo (17 de 500 sujetos, auditoria 2026-09, A7).
+    ancho = max(1, int((age_max - age_min) / 10))
+    bordes = np.arange(age_min, age_max + ancho, ancho)
+    if bordes[-1] <= age_max:
+        bordes = np.append(bordes, bordes[-1] + ancho)
 
     result = []
-    for i in range(len(age_groups) - 1):
-        mask = (ages >= age_groups[i]) & (ages < age_groups[i+1])
+    for i in range(len(bordes) - 1):
+        mask = (ages >= bordes[i]) & (ages < bordes[i+1])
         group_vals = values[mask]
+        if len(group_vals) == 0:
+            continue
+        grupo = {"age_group": f"[{bordes[i]:g}, {bordes[i+1]:g})", "n": len(group_vals),
+                 "mean": np.mean(group_vals)}
         if len(group_vals) >= 5:
-            result.append({
-                "age_group": f"{age_groups[i]}-{age_groups[i+1]}",
-                "n": len(group_vals),
+            grupo.update({
                 "p5": np.percentile(group_vals, 5),
                 "p25": np.percentile(group_vals, 25),
                 "median": np.percentile(group_vals, 50),
                 "p75": np.percentile(group_vals, 75),
                 "p95": np.percentile(group_vals, 95),
-                "mean": np.mean(group_vals),
             })
+        else:
+            # Se informa igual: sacarlo en silencio hacia desaparecer sujetos.
+            grupo.update({k: np.nan for k in ("p5", "p25", "median", "p75", "p95")})
+            grupo["nota"] = "menos de 5 sujetos: sin percentiles"
+        result.append(grupo)
 
     return {"groups": result, "n_total": len(values)}

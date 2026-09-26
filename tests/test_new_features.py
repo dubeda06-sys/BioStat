@@ -99,7 +99,10 @@ class TestSerialMeasurements:
         result = serial_measurements_summary(data)
         assert 'means' in result
         assert 'slopes' in result
-        assert 'overall_slope' in result
+        # La recta global sobre las n x k mediciones se saco a proposito: las
+        # trataba como independientes (auditoria 2026-09, A11). La tendencia se
+        # prueba sobre las pendientes individuales.
+        assert 'p_tendencia' in result and 'overall_slope' not in result
         assert len(result['means']) == 4
 
 

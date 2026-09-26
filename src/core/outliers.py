@@ -39,11 +39,16 @@ def grubbs_test(data, side="both", alpha=0.05):
     t_crit_sq = stats.t.ppf(1 - alpha / (colas * n), n - 2) ** 2
     g_crit = ((n - 1) / np.sqrt(n)) * np.sqrt(t_crit_sq / (n - 2 + t_crit_sq))
 
-    # El p sale de invertir esa relacion. El factor colas*n es una cota de
-    # Bonferroni, y una cota puede pasarse de 1: sin recortarla se informaban
-    # "probabilidades" de hasta 3.58.
-    if g < np.sqrt(n - 1):
-        t_obs = g * np.sqrt((n - 2) / (n - 1 - g ** 2))
+    # El p sale de invertir EXACTAMENTE la relacion que define G critico:
+    #     G = ((n-1)/sqrt(n)) * sqrt(t^2 / (n-2+t^2))
+    #     =>  t^2 = n (n-2) G^2 / ((n-1)^2 - n G^2)
+    # La inversion anterior omitia el factor n/(n-1) y el p no coincidia con la
+    # decision: en G = G critico declaraba outlier con p = 0,13 (n=8)
+    # (auditoria 2026-09, A5). El factor colas*n es una cota de Bonferroni y
+    # puede pasarse de 1: se recorta.
+    g_max = (n - 1) / np.sqrt(n)
+    if g < g_max:
+        t_obs = np.sqrt(n * (n - 2) * g ** 2 / ((n - 1) ** 2 - n * g ** 2))
         p = colas * n * stats.t.sf(t_obs, n - 2)
     else:
         p = 0.0

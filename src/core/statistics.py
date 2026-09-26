@@ -44,7 +44,19 @@ def descriptive_stats(data):
 
 
 def trimmed_mean(data, proportion=0.1):
-    """Media recortada."""
+    """Media recortada con su IC (Tukey y McLaughlin, 1963).
+
+    El error estandar sale de la varianza WINSORIZADA, no de la DE de los datos
+    que quedaron despues de recortar: al sacar las colas, la muestra recortada
+    tiene menos dispersion que la que corresponde a la media que se estima. Con
+    la DE recortada el IC 95 % cubria el 86 % (auditoria 2026-09, A4).
+
+        EE = s_w / ((1 - 2g) * sqrt(n)),   gl = h - 1
+
+    s_w = DE de la muestra winsorizada, g = proporcion recortada de cada cola,
+    h = n que queda despues de recortar. Mismo calculo que
+    scipy.stats.mstats.trimmed_stde y que `trimse` de Wilcox.
+    """
     data = np.asarray(data, dtype=float)
     data = data[np.isfinite(data)]
     n = len(data)
@@ -53,34 +65,69 @@ def trimmed_mean(data, proportion=0.1):
     trim_count = int(n * proportion)
     sorted_data = np.sort(data)
     trimmed = sorted_data[trim_count:n - trim_count] if trim_count > 0 else sorted_data
+    h = len(trimmed)
     mean = np.mean(trimmed)
-    se = np.std(trimmed, ddof=1) / np.sqrt(len(trimmed))
-    tcrit = stats.t.ppf(0.975, len(trimmed) - 1)
-    return {"mean": mean, "se": se, "ci95": (mean - tcrit*se, mean + tcrit*se), "n_trimmed": len(trimmed)}
+    winsorizada = sorted_data.copy()
+    if trim_count > 0:
+        winsorizada[:trim_count] = sorted_data[trim_count]
+        winsorizada[n - trim_count:] = sorted_data[n - trim_count - 1]
+    se = np.std(winsorizada, ddof=1) / ((1 - 2 * proportion) * np.sqrt(n))
+    tcrit = stats.t.ppf(0.975, h - 1)
+    return {"mean": mean, "se": se, "ci95": (mean - tcrit*se, mean + tcrit*se),
+            "n_trimmed": h, "df": h - 1}
+
+
+def _motivo_no_positivos(data, nombre):
+    k = int(np.sum(data <= 0))
+    return (f"Hay {k} valor(es) cero o negativo(s): la {nombre} no esta definida "
+            f"para ellos. No se descartan en silencio: si son errores de carga, "
+            f"corregilos; si son datos reales, esta media no corresponde.")
 
 
 def geometric_mean(data):
-    """Media geometrica."""
+    """Media geometrica con su IC 95 % (media de los logaritmos, retransformada).
+
+    Antes descartaba en silencio los ceros y los negativos y promediaba el
+    resto: [0, 2, 8, -1, 4] daba 4. Ahora rechaza y dice cuantos hay.
+    """
     data = np.asarray(data, dtype=float)
     data = data[np.isfinite(data)]
-    data = data[data > 0]
-    if len(data) == 0:
+    n = len(data)
+    if n == 0:
         return None
-    return np.exp(np.mean(np.log(data)))
+    if np.any(data <= 0):
+        return {"error": _motivo_no_positivos(data, "media geometrica")}
+    logs = np.log(data)
+    gm = float(np.exp(np.mean(logs)))
+    if n >= 2:
+        tc = stats.t.ppf(0.975, n - 1)
+        medio = tc * np.std(logs, ddof=1) / np.sqrt(n)
+        ci = (float(np.exp(np.mean(logs) - medio)), float(np.exp(np.mean(logs) + medio)))
+    else:
+        ci = (np.nan, np.nan)
+    return {"gm": gm, "ci95": ci, "n": n}
 
 
 def harmonic_mean(data):
-    """Media armonica."""
+    """Media armonica. Rechaza ceros y negativos con motivo, no los descarta."""
     data = np.asarray(data, dtype=float)
     data = data[np.isfinite(data)]
-    data = data[data > 0]
-    if len(data) == 0:
+    n = len(data)
+    if n == 0:
         return None
-    return len(data) / np.sum(1.0 / data)
+    if np.any(data <= 0):
+        return {"error": _motivo_no_positivos(data, "media armonica")}
+    return {"hm": float(n / np.sum(1.0 / data)), "n": n}
 
 
 def skewness_test(data):
-    """Test de asimetria."""
+    """Prueba de asimetria de D'Agostino (1970), la de scipy.stats.skewtest.
+
+    Antes dividia la asimetria por sqrt(6/n), el EE asintotico: con n chico ese
+    EE es demasiado grande y la prueba casi nunca rechazaba (1,2 % de rechazos
+    con datos normales y n=10, en vez del 5 %). D'Agostino transforma el
+    estadistico para que sea normal ya con n >= 8.
+    """
     data = np.asarray(data, dtype=float)
     data = data[np.isfinite(data)]
     n = len(data)
@@ -90,14 +137,18 @@ def skewness_test(data):
         return {"error": f"Todos los valores son iguales a {data[0]:g}: la "
                          f"asimetria divide por la dispersion y no esta definida."}
     skew = stats.skew(data)
-    se = np.sqrt(6 / n)
-    z = skew / se
-    p = 2 * (1 - stats.norm.cdf(abs(z)))
-    return {"skewness": skew, "se": se, "z": z, "p": p}
+    z, p = stats.skewtest(data)
+    return {"skewness": skew, "z": float(z), "p": float(p), "n": n,
+            "prueba": "D'Agostino"}
 
 
 def kurtosis_test(data):
-    """Test de curtosis."""
+    """Prueba de curtosis de Anscombe y Glynn (1983), la de scipy.stats.kurtosistest.
+
+    El EE asintotico sqrt(24/n) daba 0,1 % de rechazos con datos normales y
+    n=10: la curtosis tiene una distribucion muy asimetrica con n chico y la
+    aproximacion normal directa no sirve.
+    """
     data = np.asarray(data, dtype=float)
     data = data[np.isfinite(data)]
     n = len(data)
@@ -107,10 +158,13 @@ def kurtosis_test(data):
         return {"error": f"Todos los valores son iguales a {data[0]:g}: la "
                          f"curtosis divide por la dispersion y no esta definida."}
     kurt = stats.kurtosis(data)
-    se = np.sqrt(24 / n)
-    z = kurt / se
-    p = 2 * (1 - stats.norm.cdf(abs(z)))
-    return {"kurtosis": kurt, "se": se, "z": z, "p": p}
+    z, p = stats.kurtosistest(data)
+    avisos = []
+    if n < 20:
+        avisos.append(f"n={n}: la prueba de curtosis es poco confiable por debajo "
+                      f"de 20 datos.")
+    return {"kurtosis": kurt, "z": float(z), "p": float(p), "n": n,
+            "prueba": "Anscombe-Glynn", "avisos": avisos}
 
 
 # --- Pruebas parametricas ---
@@ -191,7 +245,12 @@ def f_test_variances(d1, d2):
     f_stat = v1 / v2 if v1 >= v2 else v2 / v1
     df1 = (len(d1)-1) if v1 >= v2 else (len(d2)-1)
     df2 = (len(d2)-1) if v1 >= v2 else (len(d1)-1)
-    p = 2 * (1 - stats.f.cdf(f_stat, df1, df2))
+    # A dos colas es el doble de la cola MAS CHICA. Poner la varianza mayor
+    # arriba no garantiza que esa cola sea la de la derecha: con grados de
+    # libertad muy desiguales la mediana de F se aleja de 1, y 2*P(F > f) llego
+    # a dar 1,008 (auditoria 2026-09, M3).
+    p = float(min(1.0, 2 * min(stats.f.sf(f_stat, df1, df2),
+                               stats.f.cdf(f_stat, df1, df2))))
     return {"f": f_stat, "p": p, "df1": df1, "df2": df2,
             "var1": v1, "var2": v2, "sd1": np.std(d1, ddof=1), "sd2": np.std(d2, ddof=1)}
 

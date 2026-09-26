@@ -50,6 +50,14 @@ def multiple_regression(X, y):
     if n < p + 2:
         return None
     X_design = np.column_stack([np.ones(n), X])
+    # Con predictoras colineales X'X no se invierte: los coeficientes no estan
+    # identificados. Antes salian EE = 0 y p = 1 en todos, sin aviso
+    # (auditoria 2026-09, M6).
+    if np.linalg.matrix_rank(X_design) < p + 1:
+        return {"error": "Las predictoras son colineales: al menos una es "
+                         "combinacion lineal de las otras (o es constante). Los "
+                         "coeficientes no se pueden separar; saca la que repite "
+                         "informacion."}
     try:
         coeffs, residuals, rank, sv = np.linalg.lstsq(X_design, y, rcond=None)
     except np.linalg.LinAlgError:

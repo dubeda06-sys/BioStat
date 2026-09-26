@@ -8,7 +8,16 @@ from src.core.guards import finite_pair
 
 
 def cohens_kappa(matrix):
-    """Kappa de Cohen para concordancia interevaluadores."""
+    """Kappa de Cohen con su IC 95 % y su p (Fleiss, Cohen y Everitt, 1969).
+
+    Dos errores estandar distintos, cada uno para lo suyo:
+      - el del IC es el de Fleiss bajo H1 (kappa como esta);
+      - el del p es el que vale bajo H0 (kappa = 0).
+    Antes el p usaba el de H1 y salia mas chico que el que corresponde (0,0020
+    contra 0,0039), y no habia IC. Los dos salen de statsmodels.
+    """
+    from statsmodels.stats.inter_rater import cohens_kappa as _sm_kappa
+
     m = np.asarray(matrix, dtype=float)
     n = np.sum(m)
     k = m.shape[0]
@@ -18,10 +27,17 @@ def cohens_kappa(matrix):
     col_sums = np.sum(m, axis=0)
     p_o = np.sum(np.diag(m)) / n
     p_e = np.sum(row_sums * col_sums) / n**2
-    kappa = (p_o - p_e) / (1 - p_e) if (1 - p_e) != 0 else 0
-    se = np.sqrt((p_o * (1 - p_o)) / (n * (1 - p_e)**2)) if (1 - p_e) != 0 else 0
-    z = kappa / se if se > 0 else 0
-    p = 2 * (1 - stats.norm.cdf(abs(z)))
+    if 1 - p_e == 0:
+        return {"error": "Todos los casos cayeron en una sola categoria para los "
+                         "dos evaluadores: el acuerdo esperado por azar es 1 y "
+                         "kappa no esta definido."}
+    sm = _sm_kappa(m)
+    kappa = float(sm.kappa)
+    se = float(sm.std_kappa)
+    se0 = float(np.sqrt(sm.var_kappa0))
+    z = kappa / se0 if se0 > 0 else 0.0
+    p = float(2 * stats.norm.sf(abs(z)))
+    ci = (float(sm.kappa_low), float(sm.kappa_upp))
     if kappa < 0.2:
         strength = "Pobre"
     elif kappa < 0.4:
@@ -32,8 +48,8 @@ def cohens_kappa(matrix):
         strength = "Bueno"
     else:
         strength = "Muy bueno"
-    return {"kappa": kappa, "se": se, "z": z, "p": p, "po": p_o, "pe": p_e,
-            "strength": strength, "n": int(n), "matrix": m}
+    return {"kappa": kappa, "se": se, "se0": se0, "z": z, "p": p, "ci": ci,
+            "po": p_o, "pe": p_e, "strength": strength, "n": int(n), "matrix": m}
 
 
 def weighted_kappa(matrix, weights="linear"):
@@ -128,7 +144,14 @@ def cronbach_alpha(data):
 
 
 def _deming_fit(x, y, lam):
-    """Ajuste de Deming (núcleo). lam = λ = var_error(x)/var_error(y)."""
+    """Ajuste de Deming (núcleo). lam = λ = var_error(x)/var_error(y).
+
+    La fórmula cerrada está escrita en términos de δ = var_error(y)/var_error(x)
+    (Deming 1943; Cornbleet y Gochman 1979), o sea δ = 1/λ. Antes se metía λ
+    directo donde va δ: con λ ≠ 1 la corrección iba para el lado contrario.
+    Contra scipy.odr con errores conocidos (DE 6 en X, 1,5 en Y) daba 1,076
+    donde corresponde 1,089 (auditoría 2026-09, A13). Con λ = 1 no cambia nada.
+    """
     n = len(x)
     mx, my = np.mean(x), np.mean(y)
     sxx = np.sum((x - mx) ** 2) / (n - 1)
@@ -136,7 +159,8 @@ def _deming_fit(x, y, lam):
     sxy = np.sum((x - mx) * (y - my)) / (n - 1)
     if sxy == 0:
         return None
-    slope = ((syy - lam * sxx) + np.sqrt((syy - lam * sxx) ** 2 + 4 * lam * sxy ** 2)) / (2 * sxy)
+    delta = 1.0 / lam
+    slope = ((syy - delta * sxx) + np.sqrt((syy - delta * sxx) ** 2 + 4 * delta * sxy ** 2)) / (2 * sxy)
     intercept = my - slope * mx
     return slope, intercept
 

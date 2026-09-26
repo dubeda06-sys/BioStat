@@ -14,16 +14,28 @@ N_RECOMENDADO = 30
 def _pendientes(m1, m2):
     """Las Sij de todos los pares i<j, ya ordenadas.
 
-    Passing & Bablok descartan dos clases de par: los que tienen xi == xj, que
-    dan pendiente infinita, y los que dan Sij == -1 exacto, que es el valor
-    que rompe la simetria del estimador.
+    CLSI EP09c, apendice I2: si xi == xj y yi != yj, el par NO se descarta, entra
+    como pendiente +inf o -inf segun el signo de la diferencia en y; solo se
+    ignora el par con xi == xj y yi == yj (0/0). Antes se descartaban todos los
+    pares verticales, y con datos redondeados —la regla en el laboratorio— la
+    pendiente cambiaba en 190 de 200 corridas (auditoria 2026-09, M9).
+
+    El signo que se le asigna al infinito depende del orden de las filas, pero
+    el estimador no: un -inf suma 1 a N y 1 a K, un +inf suma 1 a N, y en los
+    dos casos la mediana desplazada se corre medio lugar. Se sigue descartando
+    Sij == -1 exacto, como en el trabajo original de 1983.
     """
     n = len(m1)
     i, j = np.triu_indices(n, k=1)
     dx = m1[j] - m1[i]
     dy = m2[j] - m2[i]
-    usable = dx != 0
-    s = dy[usable] / dx[usable]
+    vertical = dx == 0
+    s = np.empty(dx.shape, dtype=float)
+    s[~vertical] = dy[~vertical] / dx[~vertical]
+    s[vertical & (dy > 0)] = np.inf
+    s[vertical & (dy < 0)] = -np.inf
+    indefinido = vertical & (dy == 0)          # 0/0: el unico par que se ignora
+    s = s[~indefinido]
     return np.sort(s[s != -1])
 
 
@@ -89,6 +101,14 @@ def passing_bablok(method1, method2, alpha=0.05):
                          "Passing-Bablok no aplica. Revisa si las columnas "
                          "estan invertidas o si miden cosas distintas."}
 
+    if not np.isfinite(slope):
+        # Con los pares verticales como +-inf (EP09c I2), la mediana solo cae en
+        # uno si la mayoria de los pares tiene el mismo valor en X.
+        return {"error": "El metodo de referencia repite tanto sus valores que la "
+                         "pendiente mediana cae en un par vertical (pendiente "
+                         "infinita). Hace falta un rango de concentraciones mas "
+                         "amplio en la variable 1."}
+
     intercept = np.median(m2 - slope * m1)
 
     # IC por estadisticos de orden (Passing & Bablok 1983).
@@ -106,8 +126,14 @@ def passing_bablok(method1, method2, alpha=0.05):
 
     # IC del intercepto: derivado de los limites del IC de la pendiente
     # intercepto(b) = mediana(m2 - b*m1); mayor pendiente -> menor intercepto
-    intercept_low = np.median(m2 - ci_slope[1] * m1)
-    intercept_high = np.median(m2 - ci_slope[0] * m1)
+    if np.all(np.isfinite(ci_slope)):
+        intercept_low = np.median(m2 - ci_slope[1] * m1)
+        intercept_high = np.median(m2 - ci_slope[0] * m1)
+    else:
+        avisos.append("El intervalo de la pendiente llega a un par vertical "
+                      "(valores repetidos en la variable 1): no esta acotado, y "
+                      "el del intercepto tampoco.")
+        intercept_low = intercept_high = np.nan
     ci_intercept = (intercept_low, intercept_high)
 
     residuals = m2 - (slope * m1 + intercept)
