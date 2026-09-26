@@ -476,10 +476,7 @@ calidad. Ver su `LEEME.md`.
    referencia. La pestaña QC queda con **Estadísticas** y **Tendencias**;
    `src/core/qc/__init__.py` sigue **vacío**. Si el QC vuelve, entra por el core
    con tests contra un caso publicado, no dentro del panel.
-3. **`passing_bablok` omite la corrección de desplazamiento K** (pendientes < −1).
-   Inocuo con pendientes positivas, pero no es la definición completa. Cambiarlo
-   altera resultados: **validar contra un caso publicado antes de tocarlo.**
-4. Omnianálisis (de julio, vigentes): calibrar los pesos del score de comparación
+3. Omnianálisis (de julio, vigentes): calibrar los pesos del score de comparación
    con datos reales; `PESO_UNIDAD` y `PESO_PAREADO` sin cablear; series temporales
    detectadas pero no analizadas. **El score no se marca ensayo por ensayo**: la
    auditoría dice cuántos pares se puntuaron, no el puntaje de cada uno.
@@ -488,7 +485,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 443 tests
+python -m pytest tests/ -q                       # 744 verdes (26 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
@@ -502,7 +499,7 @@ python build_exe.py                              # dist/BioStat.exe + copia al E
 | Rama | Estado |
 |---|---|
 | `develop` | **fuente de verdad** |
-| `master` | 17 commits atrás, sin correcciones de este año. `origin/HEAD` apunta acá: **un clon nuevo cae en código viejo** — usar `git clone -b develop` |
+| `master` | al día con `develop` desde el 23 ago (v1.0.0). Se adelanta solo al publicar, así que entre versiones queda atrás: `origin/HEAD` apunta acá, por eso igual conviene `git clone -b develop` |
 | `feat/medcalc-informed-agreement` | fusionada, borrable |
 | `fix/correctness-and-refactor`, `optimización-de-código-d7fdb` | viejas |
 
