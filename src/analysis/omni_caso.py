@@ -22,73 +22,19 @@ no.
 from dataclasses import dataclass, field
 
 from src.analysis.omni_analyzer import _fmt_p, _p
-
-ALPHA = 0.05
+# El lenguaje llano vive en src/resultado/lenguaje.py, compartido con el panel
+# manual: si cada lado tiene su copia, vuelven a divergir.
+from src.resultado.lenguaje import (  # noqa: F401  (se re-exportan)
+    ALPHA, ic_texto as _ic, num as _num, pendiente_concluyente,
+    probabilidad_en_palabras,
+)
 
 
 # ============================================================
 #  Lenguaje llano
 # ============================================================
-def probabilidad_en_palabras(p) -> str:
-    """Traduce un p a una frase, sin la palabra 'significativo'.
-
-    'Significativo' es el término que más se malentiende de toda la
-    estadística: se lee como 'importante' o como 'probado'. Acá se dice qué
-    mide el número y qué NO dice.
-    """
-    if p is None:
-        return "No se pudo calcular la probabilidad."
-    p = float(p)
-    if p != p:
-        return "No se pudo calcular la probabilidad."
-    if p < 0.0001:
-        veces = "menos de 1 de cada 10.000 veces"
-    elif p < 0.001:
-        veces = f"alrededor de {round(p * 10000)} de cada 10.000 veces"
-    elif p < 0.01:
-        veces = f"alrededor de {round(p * 1000)} de cada 1.000 veces"
-    else:
-        veces = f"alrededor de {round(p * 100)} de cada 100 veces"
-
-    if p < ALPHA:
-        return (
-            f"Si en realidad no hubiera ninguna diferencia, un resultado así de "
-            f"marcado aparecería {veces} solo por azar. Es lo bastante raro como "
-            f"para tomar la diferencia en serio."
-        )
-    return (
-        f"Aunque no hubiera ninguna diferencia real, un resultado así aparecería "
-        f"{veces} solo por azar. No alcanza para afirmar que hay diferencia — "
-        f"y ojo: tampoco prueba que no la haya. Puede faltar cantidad de datos."
-    )
-
-
 def _si_no(condicion: bool) -> str:
     return "Sí" if condicion else "No"
-
-
-def _num(x, decimales=4) -> str:
-    """Un número para mostrar.
-
-    Los intervalos vienen del core como tuplas de `np.float64`, y su `repr` es
-    `np.float64(1.23)`. Formateado a mano en vez de interpolar el objeto.
-    """
-    if x is None:
-        return "—"
-    try:
-        v = float(x)
-    except (TypeError, ValueError):
-        return str(x)
-    if v != v:
-        return "—"
-    return f"{v:.{decimales}g}"
-
-
-def _ic(par) -> str:
-    """Un intervalo de confianza como `1.23 a 4.56`."""
-    if not par or len(par) != 2:
-        return "—"
-    return f"{_num(par[0])} a {_num(par[1])}"
 
 
 def _normalidad_en_palabras(norm: dict) -> tuple[str, str]:
@@ -681,31 +627,10 @@ def _caso_concordancia(b: dict) -> Caso:
 
 
 def _regresion_concluyente(reg: dict) -> tuple[bool, str]:
-    """¿El intervalo de la pendiente permite concluir algo?
-
-    Un IC de pendiente que va de −3 a 5 **incluye el 1**, así que la regla
-    mecánica dice "no hay sesgo proporcional". Es falso: con ese intervalo la
-    regresión no puede descartar nada. Ausencia de evidencia no es evidencia de
-    ausencia, y con pocos datos es la trampa más fácil de comer.
-
-    Umbral: un IC de pendiente más ancho que 0,5 (o sea, ±25% alrededor del 1)
-    ya no sirve para decidir si un método está bien calibrado.
-    """
-    ic = reg.get("ic_pendiente")
-    if not ic or len(ic) != 2:
-        return True, ""
-    try:
-        ancho = abs(float(ic[1]) - float(ic[0]))
-    except (TypeError, ValueError):
-        return True, ""
-    if ancho <= 0.5:
-        return True, ""
-    return False, (
-        f"Cuidado: el intervalo de la pendiente es muy ancho ({_ic(ic)}). "
-        "Con estos datos la regresión no puede ni afirmar ni descartar un "
-        "desvío — que no lo detecte NO significa que no exista. Para concluir "
-        "algo hacen falta más muestras, o un rango de concentraciones más amplio."
-    )
+    """¿El intervalo de la pendiente permite concluir algo? Ver
+    `lenguaje.pendiente_concluyente`: un IC que incluye el 1 no prueba nada si
+    es demasiado ancho."""
+    return pendiente_concluyente(reg.get("ic_pendiente"))
 
 
 def _donde_falla_ccc(rho, cb) -> str:

@@ -28,12 +28,28 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 770 verdes (26 sep)
+python -m pytest tests/ -q        # esperar 789 verdes (26 sep)
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## 26 sep: arranca la envoltura `Resultado`
+
+Propuesta aprobada: `docs/plans/2026-09-26-envoltura-resultado.md`. Hecho el
+esqueleto en `src/resultado/` (sin Qt): `modelo` (Resultado, Entrada, Valor,
+Metodo, Supuesto, Cita), `lenguaje`, `datos` y `render_html`.
+
+- **`lenguaje.py` es la única copia** de `fmt_p`, `p_token`,
+  `probabilidad_en_palabras`, `num`, `ic_texto` y `pendiente_concluyente`. El
+  Omnianálisis las importa de ahí con sus nombres viejos (`_fmt_p`, `_p`, `_num`,
+  `_ic`); `tests/test_resultado.py` exige que sean **el mismo objeto**.
+- **`if resultado:` lanza `ResultadoComoBooleano`.** Se pregunta `.ok`.
+- **El panel acepta las dos formas**: el dispatch puede devolver HTML (lo viejo)
+  o un `Resultado`, que `_mostrar_resultado` renderiza y del que toma fórmula y
+  primera figura. Todavía **ningún análisis está migrado**: el próximo paso es la
+  familia de validación de métodos, con `citas.py` y el selector de figuras.
 
 ## 26 sep: los análisis pareados del panel manual desalineaban las filas
 
@@ -510,7 +526,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 770 verdes (26 sep); el número crece
+python -m pytest tests/ -q                       # 789 verdes (26 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

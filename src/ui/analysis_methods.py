@@ -78,6 +78,8 @@ def _msg_error(res, generico):
     return f"<b>Error:</b> {generico}"
 from src.core.passing_bablok import passing_bablok
 from src.core.survival import kaplan_meier, log_rank_test
+from src.resultado.datos import filas_completas
+from src.resultado.lenguaje import texto_descartes
 from src.core.meta_analysis import meta_analysis
 from src.core.sample_size import (
     sample_size_mean, sample_size_two_means,
@@ -452,22 +454,17 @@ class AnalysisMethodsMixin:
         `tests/test_pares_alineados.py`.
 
         Deja en `self._descartadas` cuantas filas tenian dato en alguna de las
-        columnas y no en todas. Las filas vacias del todo no cuentan: son el
-        final de la planilla, no pares rotos.
+        columnas y no en todas. La regla vive en `src/resultado/datos.py`, que
+        es lo que usan los analisis ya migrados a `Resultado`.
         """
-        unicas = list(dict.fromkeys(cols))
-        sub = self.data[unicas]
-        presentes = sub.notna()
-        self._descartadas = int((presentes.any(axis=1) & ~presentes.all(axis=1)).sum())
-        return sub.dropna()
+        completas, entrada = filas_completas(self.data, *cols)
+        self._descartadas = entrada.descartadas
+        return completas
 
     def _nota_descartes(self, n):
-        filas = "1 fila incompleta" if n == 1 else f"{n} filas incompletas"
         return ("<div style='margin-top:8px;padding:8px 10px;border-radius:6px;"
                 "background:#fdf6ec;border-left:3px solid #d97706;font-size:12px;'>"
-                f"<b>Se dejaron afuera {filas}:</b> tenían dato en una de las "
-                "columnas del análisis y vacío en otra. Cada fila se compara "
-                "consigo misma, así que una fila a medias no puede entrar.</div>")
+                f"{texto_descartes(n)}</div>")
 
     def _desc(self, col):
         if col not in self.data.columns:

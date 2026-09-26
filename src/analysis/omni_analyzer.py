@@ -13,6 +13,7 @@ import pandas as pd
 from scipy import stats
 
 from src.analysis.omni_config import OmniConfig, DEFAULT_CONFIG
+from src.resultado.lenguaje import fmt_p, p_token
 from src.core.statistics import (
     descriptive_stats, normality_test, anova_oneway, kruskal_wallis,
     chi_square_test, fisher_exact_test, pearson_r, spearman_rho,
@@ -42,30 +43,10 @@ EJECUTADO = "ejecutado"
 DESCARTADO = "descartado"
 
 
-def _fmt_p(p):
-    """p para mostrar. Redondeado a 4 decimales, 3e-9 sale como `0.0`.
-
-    Un p impreso como "0.0" se lee como "p exactamente cero", que no existe.
-    Debajo del limite de resolucion se informa como desigualdad.
-    """
-    if p is None:
-        return "n/d"
-    p = float(p)
-    if p != p:  # NaN
-        return "n/d"
-    if p < 0.0001:
-        return "<0.0001"
-    return f"{p:.4f}"
-
-
-def _p(p):
-    """El token completo: `p=0.0345` o `p<0.0001`.
-
-    Concatenar el `=` a mano dejaba `p=<0.0001`, con el igual y el menor
-    pegados. El signo es parte del token, asi que lo arma esta funcion.
-    """
-    texto = _fmt_p(p)
-    return f"p{texto}" if texto.startswith("<") else f"p={texto}"
+# Como se escribe un p: vive en src/resultado/lenguaje.py, compartido con el
+# panel manual. Los nombres viejos quedan para no tocar a los llamadores.
+_fmt_p = fmt_p
+_p = p_token
 
 
 def _marcar(destino: dict, id_: str, detalle: str = ""):

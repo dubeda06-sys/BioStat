@@ -14,6 +14,7 @@ from src.ui.grafico_editable import GraficoEditable
 import matplotlib.pyplot as plt
 
 from src.ui.icons import Icons
+from src.resultado import Resultado, render_html
 from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 from src.core.passing_bablok import passing_bablok
@@ -623,10 +624,28 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         fn = dispatch.get(at)
         if fn:
             self._descartadas = 0
-            html = fn()
+            salida = fn()
+            # Conviven dos formas mientras dura la migracion: los analisis viejos
+            # devuelven su HTML armado a mano; los migrados, un Resultado que
+            # trae los descartes en su Entrada y se renderiza en un solo lugar.
+            if isinstance(salida, Resultado):
+                self._mostrar_resultado(salida)
+                return
             if self._descartadas:
-                html += self._nota_descartes(self._descartadas)
-            self.txt_results.setHtml(html)
+                salida += self._nota_descartes(self._descartadas)
+            self.txt_results.setHtml(salida)
+
+    def _mostrar_resultado(self, res):
+        self.txt_results.setHtml(render_html(res))
+        if not res.ok:
+            return
+        if res.formula:
+            titulo = res.metodo.nombre if res.metodo else res.titulo
+            self._set_formula(f"Formula: {titulo}", res.formula)
+        # Por ahora se muestra la primera figura; el selector para ver las demas
+        # entra con el primer analisis que traiga mas de una (Bland-Altman + CCC).
+        if res.figuras:
+            self._show_fig(res.figuras[0]())
 
     def _vaciar_grafico(self):
         """Saca lo que haya en el area de grafico y lo devuelve.

@@ -2,7 +2,10 @@
 
 > **2026-09-26.** Aprobada, con las cuatro recomendaciones del final. Es el paso
 > **A** de «MedCalc pero guiado» (ver `docs/HANDOFF.md`, *Hacia dónde va*).
-> Hecho: el arreglo de pares (paso 1). El resto está por implementar.
+> Hecho: el arreglo de pares (paso 1) y el esqueleto (paso 2: `modelo`,
+> `lenguaje`, `datos`, `render_html` y el panel aceptando un `Resultado`).
+> `citas.py` entra con el paso 3, junto con las fichas de cada análisis: una
+> tabla vacía no prueba nada.
 
 ## Qué hay hoy (leído del código, no del HANDOFF)
 

@@ -1,0 +1,43 @@
+"""De la hoja a los arreglos que recibe el core, contando lo que se descarta.
+
+Un análisis pareado compara cada fila consigo misma. El panel limpiaba cada
+columna por separado y después las cortaba al mismo largo: con una celda vacía,
+desde ahí cada valor se comparaba con el del paciente siguiente
+(`tests/test_pares_alineados.py`). Este módulo es el único lugar donde se decide
+qué filas entran.
+"""
+from __future__ import annotations
+
+import pandas as pd
+
+from src.resultado.modelo import Entrada
+
+
+def columnas_faltantes(df: pd.DataFrame, *cols) -> str | None:
+    """Motivo de rechazo si alguna columna no está en la hoja, o None."""
+    faltan = [c for c in dict.fromkeys(cols) if c not in df.columns]
+    if not faltan:
+        return None
+    if len(faltan) == 1:
+        return f"La columna «{faltan[0]}» no está en la hoja."
+    return "Las columnas " + ", ".join(f"«{c}»" for c in faltan) + " no están en la hoja."
+
+
+def filas_completas(df: pd.DataFrame, *cols) -> tuple[pd.DataFrame, Entrada]:
+    """Las filas con dato en TODAS las columnas pedidas, sin reindexar.
+
+    Devuelve también la `Entrada` con cuántas filas incompletas quedaron afuera:
+    las que tenían dato en alguna columna y no en todas. Las filas vacías del
+    todo no cuentan, porque son el final de la planilla y no pares rotos; avisar
+    por ellas haría que el aviso saliera siempre, y un aviso que sale siempre
+    enseña a no leerlo.
+
+    Una columna repetida (el mismo método elegido dos veces) entra una sola vez.
+    """
+    unicas = list(dict.fromkeys(cols))
+    sub = df[unicas]
+    presentes = sub.notna()
+    descartadas = int((presentes.any(axis=1) & ~presentes.all(axis=1)).sum())
+    completas = sub.dropna()
+    return completas, Entrada(columnas=tuple(unicas), n=len(completas),
+                              descartadas=descartadas)
