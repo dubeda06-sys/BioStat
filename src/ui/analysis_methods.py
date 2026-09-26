@@ -437,6 +437,38 @@ ANALYSIS_LEGENDS = {
 class AnalysisMethodsMixin:
     """Métodos de cálculo+render de cada análisis (mixin de AnalysisPanel)."""
 
+    # Filas incompletas que dejo afuera el ultimo `_filas_completas`. `_run` lo
+    # pone en cero antes de cada analisis y lo informa despues.
+    _descartadas = 0
+
+    def _filas_completas(self, *cols):
+        """Las filas con dato en TODAS las columnas pedidas, sin reindexar.
+
+        Un analisis pareado compara cada fila consigo misma. El panel hacia
+        `data[c1].dropna()` y `data[c2].dropna()` por separado y despues cortaba
+        las dos al mismo largo: con una sola celda vacia, desde ahi cada valor
+        se comparaba con el del paciente siguiente (un Bland-Altman de 20 pares
+        con un hueco daba limites de +-90 en vez de +-2,4, sin aviso). Ver
+        `tests/test_pares_alineados.py`.
+
+        Deja en `self._descartadas` cuantas filas tenian dato en alguna de las
+        columnas y no en todas. Las filas vacias del todo no cuentan: son el
+        final de la planilla, no pares rotos.
+        """
+        unicas = list(dict.fromkeys(cols))
+        sub = self.data[unicas]
+        presentes = sub.notna()
+        self._descartadas = int((presentes.any(axis=1) & ~presentes.all(axis=1)).sum())
+        return sub.dropna()
+
+    def _nota_descartes(self, n):
+        filas = "1 fila incompleta" if n == 1 else f"{n} filas incompletas"
+        return ("<div style='margin-top:8px;padding:8px 10px;border-radius:6px;"
+                "background:#fdf6ec;border-left:3px solid #d97706;font-size:12px;'>"
+                f"<b>Se dejaron afuera {filas}:</b> tenían dato en una de las "
+                "columnas del análisis y vacío en otra. Cada fila se compara "
+                "consigo misma, así que una fila a medias no puede entrar.</div>")
+
     def _desc(self, col):
         if col not in self.data.columns:
             return f"<b>Error:</b> '{col}' no encontrada."
@@ -467,12 +499,13 @@ class AnalysisMethodsMixin:
     def _t_paired(self, c1, c2, a):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
+        pares = self._filas_completas(c1, c2)
+        d1, d2 = pares[c1], pares[c2]
+        n = len(pares)
         if n < 2:
             return "<b>Error:</b> Minimo 2 pares."
         
-        result = ttest_paired(d1[:n], d2[:n])
+        result = ttest_paired(d1, d2)
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
         
@@ -614,10 +647,9 @@ class AnalysisMethodsMixin:
         if score_col not in self.data.columns:
             return f"<b>Error:</b> '{score_col}' no encontrada."
 
-        y_true = self.data[label_col].dropna()
-        y_score = self.data[score_col].dropna()
-        n = min(len(y_true), len(y_score))
-        y_true, y_score = y_true.values[:n], y_score.values[:n]
+        pares = self._filas_completas(score_col, label_col)
+        y_true, y_score = pares[label_col].values, pares[score_col].values
+        n = len(pares)
 
         unique = np.unique(y_true)
         if not all(u in [0, 1] for u in unique):
@@ -700,8 +732,9 @@ class AnalysisMethodsMixin:
         """
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
+        pares = self._filas_completas(c1, c2)
+        d1, d2 = pares[c1], pares[c2]
+        n = len(pares)
         if n < 3:
             return "<b>Error:</b> Minimo 3 pares."
 
@@ -710,7 +743,7 @@ class AnalysisMethodsMixin:
         eje = opciones.get("referencia", "promedio")
         referencia = eje if eje in ("x", "y") else None
 
-        result = bland_altman_analysis(d1.values[:n], d2.values[:n],
+        result = bland_altman_analysis(d1.values, d2.values,
                                        reference=referencia)
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
@@ -832,12 +865,13 @@ class AnalysisMethodsMixin:
     def _passing(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
+        pares = self._filas_completas(c1, c2)
+        d1, d2 = pares[c1], pares[c2]
+        n = len(pares)
         if n < 3:
             return "<b>Error:</b> Minimo 3 pares."
 
-        result = passing_bablok(d1.values[:n], d2.values[:n])
+        result = passing_bablok(d1.values, d2.values)
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
 
@@ -896,13 +930,12 @@ class AnalysisMethodsMixin:
     def _kaplan_meier(self, time_col, event_col):
         if time_col not in self.data.columns or event_col not in self.data.columns:
             return "<b>Error:</b> Selecciona columna de tiempo y de evento (1=event, 0=censura)."
-        t = self.data[time_col].dropna()
-        e = self.data[event_col].dropna()
-        n = min(len(t), len(e))
-        if n < 5:
+        pares = self._filas_completas(time_col, event_col)
+        t, e = pares[time_col], pares[event_col]
+        if len(pares) < 5:
             return "<b>Error:</b> Minimo 5 observaciones."
 
-        km = kaplan_meier(t.values[:n], e.values[:n].astype(int))
+        km = kaplan_meier(t.values, e.values.astype(int))
         if _sin_resultado(km):
             return _msg_error(km, "No se pudo calcular.")
 
@@ -988,13 +1021,13 @@ class AnalysisMethodsMixin:
     def _meta(self, effect_col, se_col):
         if effect_col not in self.data.columns or se_col not in self.data.columns:
             return "<b>Error:</b> Selecciona columna de efectos y de error estandar."
-        eff = self.data[effect_col].dropna().values
-        se = self.data[se_col].dropna().values
-        n = min(len(eff), len(se))
+        pares = self._filas_completas(effect_col, se_col)
+        eff, se = pares[effect_col].values, pares[se_col].values
+        n = len(pares)
         if n < 2:
             return "<b>Error:</b> Minimo 2 estudios."
 
-        result = meta_analysis(eff[:n], se[:n])
+        result = meta_analysis(eff, se)
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
 
@@ -1186,8 +1219,9 @@ class AnalysisMethodsMixin:
     def _boot_corr(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
+        pares = self._filas_completas(c1, c2)
+        d1, d2 = pares[c1], pares[c2]
+        n = len(pares)
         if n < 5:
             return "<b>Error:</b> Minimo 5 pares."
 
@@ -1197,7 +1231,7 @@ class AnalysisMethodsMixin:
             f"n = {n}\nB = 10000 remuestreos\nMetodo = Pearson"
         )
 
-        result = bootstrap_correlation(d1.values[:n], d2.values[:n])
+        result = bootstrap_correlation(d1.values, d2.values)
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
 
@@ -1383,9 +1417,10 @@ class AnalysisMethodsMixin:
     def _wilcoxon(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
-        r = wilcoxon_signed_rank(d1.values[:n], d2.values[:n])
+        pares = self._filas_completas(c1, c2)
+        d1, d2 = pares[c1], pares[c2]
+        n = len(pares)
+        r = wilcoxon_signed_rank(d1.values, d2.values)
         if _sin_resultado(r):
             return _msg_error(r, "Minimo 5 pares con diferencias != 0.")
         self._set_formula("Formula: Wilcoxon Signed-Rank", "W = suma de rangos de |diferencias| con signo", f"W = {r['w']:.1f}\np = {r['p']:.6f}\nn = {r['n']}")
@@ -1400,17 +1435,17 @@ class AnalysisMethodsMixin:
         nums = self.data.select_dtypes(include="number").columns
         if len(nums) < 2:
             return "<b>Error:</b> Minimo 2 columnas numericas."
-        d1 = self.data[nums[0]].dropna()
-        d2 = self.data[nums[1]].dropna()
-        n = min(len(d1), len(d2))
+        pares = self._filas_completas(nums[0], nums[1])
+        d1, d2 = pares[nums[0]], pares[nums[1]]
+        n = len(pares)
         if n < 4:
             return "<b>Error:</b> Minimo 4 datos."
-        cats1 = np.unique(d1.values[:n])
-        cats2 = np.unique(d2.values[:n])
+        cats1 = np.unique(d1.values)
+        cats2 = np.unique(d2.values)
         if len(cats1) > 10 or len(cats2) > 10:
             return "<b>Error:</b> Chi-cuadrado es para datos categoricos (max 10 categorias por variable)."
         matrix = np.zeros((len(cats1), len(cats2)))
-        for v1, v2 in zip(d1.values[:n], d2.values[:n]):
+        for v1, v2 in zip(d1.values, d2.values):
             i = np.where(cats1 == v1)[0][0]
             j = np.where(cats2 == v2)[0][0]
             matrix[i, j] += 1
@@ -1478,8 +1513,12 @@ class AnalysisMethodsMixin:
 
     # --- Friedman ---
     def _friedman(self):
-        nums = self.data.select_dtypes(include="number").columns
-        groups = [self.data[c].dropna().values for c in nums if len(self.data[c].dropna()) > 0]
+        nums = [c for c in self.data.select_dtypes(include="number").columns
+                if self.data[c].notna().any()]
+        # Cada fila es un sujeto medido en todas las condiciones: solo entran
+        # los sujetos con todas sus mediciones.
+        sujetos = self._filas_completas(*nums) if nums else self.data[[]]
+        groups = [sujetos[c].values for c in nums]
         if len(groups) < 3:
             return "<b>Error:</b> Minimo 3 condiciones."
         r = friedman_test(*groups)
@@ -1538,11 +1577,12 @@ class AnalysisMethodsMixin:
     def _icc(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(d1), len(d2))
+        pares = self._filas_completas(c1, c2)
+        d1, d2 = pares[c1], pares[c2]
+        n = len(pares)
         if n < 3:
             return "<b>Error:</b> Minimo 3 pares."
-        data = np.column_stack([d1.values[:n], d2.values[:n]])
+        data = np.column_stack([d1.values, d2.values])
         r = intraclass_correlation(data)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
@@ -1574,9 +1614,8 @@ class AnalysisMethodsMixin:
     def _reg_lineal(self, c1, c2):
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
-        x, y = self.data[c1].dropna(), self.data[c2].dropna()
-        n = min(len(x), len(y))
-        r = linear_regression(x.values[:n], y.values[:n])
+        pares = self._filas_completas(c1, c2)
+        r = linear_regression(pares[c1].values, pares[c2].values)
         if _sin_resultado(r):
             return _msg_error(r, "Minimo 3 datos.")
         self._set_formula("Formula: Regresion Lineal", "y = b0 + b1*x\nb1 = S(x-xbar)(y-ybar) / S(x-xbar)^2", f"y = {r['intercept']:.4f} + {r['slope']:.4f}*x\nR2 = {r['r2']:.4f}\np = {r['p_slope']:.6f}")
@@ -1897,9 +1936,8 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> Selecciona 2 columnas."
                 if c1 not in self.data.columns or c2 not in self.data.columns:
                     return "<b>Error:</b> Columnas no encontradas."
-                d1 = self.data[c1].dropna()
-                d2 = self.data[c2].dropna()
-                result = sign_test(d1, d2)
+                pares = self._filas_completas(c1, c2)
+                result = sign_test(pares[c1], pares[c2])
                 self._set_formula("Formula: Sign Test", "p = Σ C(n,k) × 0.5^n para k ≤ observados")
                 h = self._h(f" Sign Test — {c1} vs {c2}")
                 h += "<table style='font-size:12px;'>"
@@ -1922,10 +1960,9 @@ class AnalysisMethodsMixin:
             elif func_name == "weighted_kappa":
                 if self.data.shape[1] < 2:
                     return "<b>Error:</b> Se necesitan 2 columnas categóricas."
-                d1 = self.data.iloc[:, 0].dropna()
-                d2 = self.data.iloc[:, 1].dropna()
-                min_len = min(len(d1), len(d2))
-                d1, d2 = d1[:min_len], d2[:min_len]
+                col_a, col_b = self.data.columns[0], self.data.columns[1]
+                pares = self._filas_completas(col_a, col_b)
+                d1, d2 = pares[col_a], pares[col_b]
                 cats = sorted(set(d1) | set(d2))
                 n = len(cats)
                 matrix = np.zeros((n, n))
@@ -1947,10 +1984,8 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> Selecciona 2 columnas."
                 if c1 not in self.data.columns or c2 not in self.data.columns:
                     return "<b>Error:</b> Columnas no encontradas."
-                x = self.data[c1].dropna().values
-                y = self.data[c2].dropna().values
-                min_len = min(len(x), len(y))
-                x, y = x[:min_len], y[:min_len]
+                pares = self._filas_completas(c1, c2)
+                x, y = pares[c1].values, pares[c2].values
                 result = deming_regression(x, y)
                 self._set_formula("Formula: Deming Regression", "y = β₀ + β₁x (ajustada para error en ambas variables)")
                 h = self._h(f" Deming Regression — {c1} vs {c2}")
@@ -1965,10 +2000,8 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> Selecciona 2 columnas."
                 if c1 not in self.data.columns or c2 not in self.data.columns:
                     return "<b>Error:</b> Columnas no encontradas."
-                d1 = self.data[c1].dropna().values
-                d2 = self.data[c2].dropna().values
-                min_len = min(len(d1), len(d2))
-                d1, d2 = d1[:min_len], d2[:min_len]
+                pares = self._filas_completas(c1, c2)
+                d1, d2 = pares[c1].values, pares[c2].values
                 result = cv_from_duplicates(d1, d2)
                 self._set_formula("Formula: CV desde Duplicatas", "CV = (DE / Media) × 100%")
                 h = self._h(f" CV desde Duplicatas")
@@ -2074,10 +2107,9 @@ class AnalysisMethodsMixin:
             elif func_name == "age_related":
                 if self.data.shape[1] < 2:
                     return "<b>Error:</b> Se necesitan 2 columnas: edad, valor."
-                ages = self.data.iloc[:, 0].dropna().values
-                values = self.data.iloc[:, 1].dropna().values
-                min_len = min(len(ages), len(values))
-                ages, values = ages[:min_len], values[:min_len]
+                col_edad, col_valor = self.data.columns[0], self.data.columns[1]
+                pares = self._filas_completas(col_edad, col_valor)
+                ages, values = pares[col_edad].values, pares[col_valor].values
                 result = age_related_reference(ages, values)
                 self._set_formula("Formula: Intervalos por Edad", "Intervalos basados en percentiles por grupo de edad")
                 h = self._h(f" Intervalos de Referencia por Edad")
@@ -2123,10 +2155,8 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> Selecciona 2 columnas."
                 if c1 not in self.data.columns or c2 not in self.data.columns:
                     return "<b>Error:</b> Columnas no encontradas."
-                x = self.data[c1].dropna().values
-                y = self.data[c2].dropna().values
-                min_len = min(len(x), len(y))
-                x, y = x[:min_len], y[:min_len]
+                pares = self._filas_completas(c1, c2)
+                x, y = pares[c1].values, pares[c2].values
                 result = bootstrap_regression(x, y)
                 self._set_formula("Formula: Bootstrap Regresión", "IC para coeficientes de regresión")
                 h = self._h(f" Bootstrap (Regresión) — {c1} vs {c2}")
@@ -2141,7 +2171,8 @@ class AnalysisMethodsMixin:
                     return "<b>Error:</b> Selecciona 2 columnas para calcular r."
                 if c1 not in self.data.columns or c2 not in self.data.columns:
                     return "<b>Error:</b> Columnas no encontradas."
-                r_result = pearson_r(self.data[c1].dropna(), self.data[c2].dropna())
+                pares = self._filas_completas(c1, c2)
+                r_result = pearson_r(pares[c1], pares[c2])
                 r = abs(r_result['r'])
                 result = sample_size_correlation(r)
                 self._set_formula("Formula: Tamaño Muestral (Correlación)", "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3")
@@ -2228,11 +2259,12 @@ class AnalysisMethodsMixin:
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
         try:
-            times = self.data[c1].dropna().values
-            events = self.data[c2].dropna().values
-            covariates = self.data.iloc[:, 3:].dropna().values if self.data.shape[1] > 2 else np.ones((len(times), 1))
-            min_len = min(len(times), len(events), covariates.shape[0])
-            result = cox_regression(times[:min_len], events[:min_len], covariates[:min_len])
+            cols_cov = list(self.data.columns[3:]) if self.data.shape[1] > 2 else []
+            filas = self._filas_completas(c1, c2, *cols_cov)
+            times = filas[c1].values
+            events = filas[c2].values
+            covariates = filas[cols_cov].values if cols_cov else np.ones((len(times), 1))
+            result = cox_regression(times, events, covariates)
             self._set_formula("Formula: Cox PH", "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)")
             h = self._h(f" Cox Regression")
             h += "<table style='font-size:12px;'>"
@@ -2253,10 +2285,10 @@ class AnalysisMethodsMixin:
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
         try:
-            X = self.data[c1].dropna().values.reshape(-1, 1)
-            y = self.data[c2].dropna().values
-            min_len = min(len(X), len(y))
-            result = probit_regression(X[:min_len], y[:min_len])
+            pares = self._filas_completas(c1, c2)
+            X = pares[c1].values.reshape(-1, 1)
+            y = pares[c2].values
+            result = probit_regression(X, y)
             self._set_formula("Formula: Probit", "P(Y=1) = Φ(β₀ + β₁x)")
             h = self._h(f" Probit Regression — {c1} → {c2}")
             h += "<table style='font-size:12px;'>"
@@ -2319,10 +2351,11 @@ class AnalysisMethodsMixin:
         if score_col is None or score_col not in self.data.columns:
             return "<b>Error:</b> Selecciona Variable 1 (scores)."
         try:
-            y_true = self.data[label_col].dropna().values
-            y_score = self.data[score_col].dropna().values
-            n = min(len(y_true), len(y_score))
-            result = youden_data(y_true[:n], y_score[:n])
+            pares = self._filas_completas(score_col, label_col)
+            y_true = pares[label_col].values
+            y_score = pares[score_col].values
+            n = len(pares)
+            result = youden_data(y_true, y_score)
             if _sin_resultado(result):
                 return _msg_error(result, "No se pudo calcular.")
             

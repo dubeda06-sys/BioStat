@@ -622,7 +622,11 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         }
         fn = dispatch.get(at)
         if fn:
-            self.txt_results.setHtml(fn())
+            self._descartadas = 0
+            html = fn()
+            if self._descartadas:
+                html += self._nota_descartes(self._descartadas)
+            self.txt_results.setHtml(html)
 
     def _vaciar_grafico(self):
         """Saca lo que haya en el area de grafico y lo devuelve.

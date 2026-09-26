@@ -28,12 +28,37 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 744 verdes
+python -m pytest tests/ -q        # esperar 770 verdes (26 sep)
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## 26 sep: los análisis pareados del panel manual desalineaban las filas
+
+> [!bug] Informes del panel manual con celdas vacías: pueden estar mal
+> El panel hacía `data[c1].dropna()` y `data[c2].dropna()` **por separado** y
+> después cortaba las dos al mismo largo. Con una sola celda vacía, desde esa
+> fila cada valor se comparaba con el del paciente siguiente. Un Bland-Altman
+> de 20 pares con un hueco daba LoA de **−92 a 90** donde corresponden −2,4 a
+> 2,5, sin aviso.
+>
+> Afectaba a **22 análisis**: t pareado, Wilcoxon, sign test, Bland-Altman,
+> Passing-Bablok, Deming, CV de duplicados, ICC, kappa ponderado, regresión
+> lineal, bootstrap de correlación y de regresión, tamaño muestral por
+> correlación, ROC, Youden, probit, Kaplan-Meier, Cox, meta-análisis,
+> chi-cuadrado, Friedman e intervalos por edad. Con la hoja completa, los
+> números eran correctos. El Omnianálisis nunca tuvo el problema.
+>
+> Ahora todos pasan por `_filas_completas(*cols)` y el informe dice cuántas
+> filas incompletas quedaron afuera (las vacías del todo, que son el final de la
+> planilla, no cuentan). `tests/test_pares_alineados.py` corre cada análisis con
+> huecos y sin ellos y exige **el mismo informe, texto por texto**.
+>
+> **Cualquier análisis pareado nuevo usa `_filas_completas`.** La envoltura
+> `Resultado` (`docs/plans/2026-09-26-envoltura-resultado.md`) lo va a absorber
+> en `src/resultado/datos.py`.
 
 ## Los gráficos se editan, y el CCC dejó de repetir al Passing-Bablok
 
@@ -485,7 +510,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 744 verdes (26 sep); el número crece
+python -m pytest tests/ -q                       # 770 verdes (26 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
