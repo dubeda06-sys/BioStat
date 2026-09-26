@@ -37,6 +37,10 @@ class RandomForestClassifier:
     def get_feature_importance(self):
         return self._model.feature_importances_
 
+    def validacion_cruzada(self, X, y, k=5):
+        """Exactitud por validacion cruzada estratificada. Ver _validar."""
+        return _validar(self._model, X, y, k, clasificacion=True)
+
 
 class RandomForestRegressor:
     def __init__(self, n_trees=100, max_depth=8, min_samples_split=5,
@@ -59,3 +63,41 @@ class RandomForestRegressor:
 
     def get_feature_importance(self):
         return self._model.feature_importances_
+
+    def validacion_cruzada(self, X, y, k=5):
+        """R2 por validacion cruzada. Ver _validar."""
+        return _validar(self._model, X, y, k, clasificacion=False)
+
+
+def _validar(modelo, X, y, k, clasificacion):
+    """Desempeno sobre datos que el modelo NO vio al entrenarse.
+
+    `score(X, y)` sobre los mismos datos del ajuste es optimista hasta el
+    absurdo: con 5 predictoras de ruido puro daba exactitud 0,95, y la
+    validacion cruzada da 0,56 (azar = 0,50) (auditoria 2026-09, K8). Se ajusta
+    un clon en k-1 particiones y se evalua en la que quedo afuera, k veces.
+
+    Returns: dict con media, de, k y el nombre de la metrica, o error.
+    """
+    import numpy as np
+    from sklearn.base import clone
+    from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score
+
+    y = np.asarray(y)
+    if clasificacion:
+        _, cuentas = np.unique(y, return_counts=True)
+        k = int(min(k, cuentas.min()))
+        if k < 2:
+            return {"error": "Alguna clase tiene un solo caso: no se puede validar."}
+        particion = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
+        metrica = "exactitud"
+    else:
+        k = int(min(k, len(y) // 2))
+        if k < 2:
+            return {"error": "Muy pocos casos para validar."}
+        particion = KFold(n_splits=k, shuffle=True, random_state=42)
+        metrica = "R2"
+    puntajes = cross_val_score(clone(modelo), X, y, cv=particion,
+                               scoring="accuracy" if clasificacion else "r2")
+    return {"media": float(np.mean(puntajes)), "de": float(np.std(puntajes, ddof=1)),
+            "k": k, "metrica": metrica}

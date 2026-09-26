@@ -133,11 +133,15 @@ def cronbach_alpha(data):
         return None
     n_items = data.shape[1]
     n_subjects = data.shape[0]
+    if n_items < 2:
+        return {"error": "El alfa de Cronbach necesita al menos 2 items."}
     item_variances = np.var(data, axis=0, ddof=1)
     total_variance = np.var(np.sum(data, axis=1), ddof=1)
     sum_var = np.sum(item_variances)
     if total_variance == 0:
-        return {"alpha": 0, "n_items": n_items, "n_subjects": n_subjects}
+        # Antes devolvia alfa = 0: un numero inventado donde no hay ninguno.
+        return {"error": "La suma de los items es igual en todos los sujetos: la "
+                         "varianza total es cero y el alfa no esta definido."}
     alpha = (n_items / (n_items - 1)) * (1 - sum_var / total_variance)
     return {"alpha": alpha, "n_items": n_items, "n_subjects": n_subjects,
             "item_variances": item_variances.tolist()}

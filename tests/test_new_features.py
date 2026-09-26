@@ -73,13 +73,21 @@ class TestCoxRegression:
 class TestProbit:
     def test_basic_probit(self):
         from src.core.probit import probit_regression
-        X = np.array([[1], [2], [3], [4], [5], [6], [7], [8]])
-        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        X = np.array([[1], [2], [3], [4], [5], [6], [7], [8], [9], [10]])
+        y = np.array([0, 0, 1, 0, 0, 1, 0, 1, 1, 1])
         result = probit_regression(X, y)
         assert 'coefficients' in result
         assert 'p_values' in result
         assert 'predictions' in result
         assert len(result['coefficients']) == 2
+
+    def test_separacion_completa_se_rechaza(self):
+        """X = 1..8 con y = 0 hasta 4 y 1 desde 5 separa perfecto: el maximo de
+        verosimilitud no existe. Antes devolvia coeficientes y p de todos modos."""
+        from src.core.probit import probit_regression
+        X = np.array([[1], [2], [3], [4], [5], [6], [7], [8]])
+        y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        assert "error" in probit_regression(X, y)
 
 
 class TestCMH:
@@ -146,13 +154,18 @@ class TestPlots:
         assert result['values'][-1] == 25
 
     def test_mountain_plot_data(self):
+        """Un mountain plot es la acumulada PLEGADA de las diferencias entre dos
+        metodos (Krouwer y Monti 1995). La version anterior era un histograma de
+        una columna con una normal ajustada (auditoria 2026-09, A12)."""
         from src.core.plots import mountain_plot_data
-        data = np.random.normal(0, 1, 100)
-        result = mountain_plot_data(data)
-        assert 'x' in result
-        assert 'y_density' in result
-        assert 'mean' in result
-        assert 'sd' in result
+        rng = np.random.default_rng(0)
+        a = rng.normal(100, 10, 100)
+        b = a + rng.normal(1.5, 2, 100)
+        result = mountain_plot_data(a, b)
+        assert result['n'] == 100
+        assert np.all(np.diff(result['diferencias']) >= 0)
+        assert result['percentil_plegado'].max() <= 50
+        assert result['mediana'] == np.median(a - b)
 
 
 class TestBlandAltmanMultiple:

@@ -108,44 +108,37 @@ def waterfall_data(values, labels=None):
     }
 
 
-def mountain_plot_data(data, n_bins=50):
+def mountain_plot_data(method1, method2):
+    """Mountain plot: la distribucion acumulada PLEGADA de las diferencias entre
+    dos metodos (Krouwer y Monti, 1995; CLSI EP09).
+
+    Se ordenan las diferencias d = metodo 1 - metodo 2, a cada una se le asigna
+    su percentil (rango / (n + 1)) y los percentiles de arriba de 50 se pliegan
+    (100 - percentil). El pico cae en la mediana de las diferencias; lo ancho de
+    la montana es cuanto difieren los metodos. Dos metodos intercambiables dan
+    una montana angosta centrada en 0.
+
+    Antes esto era un histograma de UNA columna con una normal ajustada: no
+    tenia nada de mountain plot (auditoria 2026-09, A12).
     """
-    Prepare data for mountain plot (folded normal distribution).
+    m1 = np.asarray(method1, dtype=float)
+    m2 = np.asarray(method2, dtype=float)
+    validos = np.isfinite(m1) & np.isfinite(m2)
+    d = np.sort(m1[validos] - m2[validos])
+    n = len(d)
+    if n < 5:
+        return {"error": f"Se necesitan al menos 5 pares completos; hay {n}."}
 
-    Args:
-        data: array of values
-        n_bins: number of bins for histogram
-
-    Returns:
-        dict with x, y, and reference lines
-    """
-    data = np.asarray(data, dtype=float)
-    data = data[np.isfinite(data)]
-
-    if len(data) < 5:
-        return None
-
-    mean = np.mean(data)
-    sd = np.std(data, ddof=1)
-
-    x_min = mean - 4 * sd
-    x_max = mean + 4 * sd
-    x = np.linspace(x_min, x_max, 200)
-
-    y_density = stats.norm.pdf(x, mean, sd)
-
-    hist, bin_edges = np.histogram(data, bins=n_bins, density=True)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-
+    percentil = 100.0 * np.arange(1, n + 1) / (n + 1)
+    plegado = np.where(percentil <= 50, percentil, 100 - percentil)
     return {
-        'x': x,
-        'y_density': y_density,
-        'hist_x': bin_centers,
-        'hist_y': hist,
-        'mean': mean,
-        'sd': sd,
-        'median': np.median(data),
-        'q25': np.percentile(data, 25),
-        'q75': np.percentile(data, 75),
-        'n': len(data)
+        'diferencias': d,
+        'percentil': percentil,
+        'percentil_plegado': plegado,
+        'mediana': float(np.median(d)),
+        'p2_5': float(np.percentile(d, 2.5, method="weibull")) if n >= 39 else np.nan,
+        'p97_5': float(np.percentile(d, 97.5, method="weibull")) if n >= 39 else np.nan,
+        'p25': float(np.percentile(d, 25, method="weibull")),
+        'p75': float(np.percentile(d, 75, method="weibull")),
+        'n': n,
     }

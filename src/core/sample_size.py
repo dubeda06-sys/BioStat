@@ -135,7 +135,10 @@ def sample_size_proportions(p1, p2, alpha=0.05, power=0.80):
     """
     if p1 == p2:
         return None
-    
+    if not (0 < p1 < 1 and 0 < p2 < 1):
+        return {"error": f"p1={p1} y p2={p2} tienen que ser proporciones entre 0 y 1 "
+                         f"(sin incluirlos)."}
+
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     z_beta = stats.norm.ppf(power)
 
@@ -182,6 +185,16 @@ def sample_size_correlation(r, alpha=0.05, power=0.80):
         "alpha": alpha,
         "power": power,
     }
+
+
+def power_two_means(n_por_grupo, delta, sd, alpha=0.05):
+    """Poder exacto (t no central) para dos grupos independientes de n cada uno."""
+    if sd == 0 or n_por_grupo is None or n_por_grupo < 2:
+        return None
+    efecto = abs(delta) / abs(sd)
+    return {"n_por_grupo": int(n_por_grupo),
+            "power": _poder_dos_muestras(int(n_por_grupo), int(n_por_grupo), efecto, alpha),
+            "delta": delta, "sd": sd, "alpha": alpha, "effect_size": delta / sd}
 
 
 def power_analysis(n, delta, sd, alpha=0.05):

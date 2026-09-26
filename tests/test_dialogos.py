@@ -45,8 +45,29 @@ def test_una_sola_variable(app):
 
 
 def test_analisis_sobre_toda_la_hoja_no_pide_columnas(app):
-    d = DialogoAnalisis("Chi-cuadrado", COLUMNAS)
+    # CMH lee la hoja como tablas 2x2 apiladas (una fila por estrato). Chi-cuadrado
+    # dejo de estar aca: ahora usa las dos variables elegidas (auditoria K3).
+    d = DialogoAnalisis("CMH test", COLUMNAS)
     assert d.combo_col1 is None and d.combo_col2 is None and d.combo_col3 is None
+
+
+def test_chi_cuadrado_pide_las_dos_variables(app):
+    d = DialogoAnalisis("Chi-cuadrado", COLUMNAS)
+    assert d.combo_col1 is not None and d.combo_col2 is not None
+
+
+def test_friedman_pide_una_lista_de_columnas_tildables(app):
+    d = DialogoAnalisis("Friedman", COLUMNAS, columnas_numericas=["Metodo_A", "Metodo_B", "Edad"])
+    assert d.lista_columnas is not None and d.lista_columnas.count() == 3
+    d.lista_columnas.item(2).setCheckState(d.lista_columnas.item(2).checkState().Unchecked)
+    assert d.seleccion()["columnas"] == ["Metodo_A", "Metodo_B"]
+
+
+def test_el_tamano_muestral_pide_sus_parametros(app):
+    d = DialogoAnalisis("Tamano muestral (2 medias)", COLUMNAS)
+    assert set(d.inputs_parametro) == {"delta", "sd", "ratio", "alpha", "poder"}
+    d.inputs_parametro["delta"].setText("2,5")
+    assert d.seleccion()["parametros"]["delta"] == "2,5"
 
 
 def test_la_segunda_variable_arranca_en_la_segunda_columna(app):
@@ -64,7 +85,10 @@ def test_la_tercera_variable_es_opcional(app):
 def test_seleccion_devuelve_siempre_las_mismas_claves(app):
     """El panel lee estas claves siempre; si alguna falta, revienta al indexar."""
     d = DialogoAnalisis("Chi-cuadrado", COLUMNAS)
-    assert set(d.seleccion()) == {"c1", "c2", "c3", "alpha", "opciones"}
+    assert set(d.seleccion()) == {"c1", "c2", "c3", "alpha", "opciones",
+                                  "columnas", "parametros"}
+    # Sin lista de columnas: None (no "ninguna tildada"); sin parametros: {}.
+    assert d.seleccion()["columnas"] is None and d.seleccion()["parametros"] == {}
 
 
 def test_un_analisis_sin_opciones_devuelve_el_diccionario_vacio(app):

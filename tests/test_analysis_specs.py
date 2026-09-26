@@ -54,10 +54,19 @@ def test_solo_se_declaran_variables_conocidas():
 
 
 def test_sobre_toda_la_hoja_ignora_el_alfa():
-    # ANOVA una via solo consume alpha: sigue trabajando sobre toda la hoja.
-    assert variables("ANOVA una via") == ("alpha",)
-    assert sobre_toda_la_hoja("ANOVA una via")
+    # La ANOVA dejo de tomar toda la hoja: respuesta y grupo (auditoria K2).
+    assert variables("ANOVA una via") == ("c1", "c2", "alpha")
+    assert not sobre_toda_la_hoja("ANOVA una via")
     assert not sobre_toda_la_hoja("Bland-Altman")
+    assert sobre_toda_la_hoja("CMH test")
+
+
+def test_las_listas_y_los_parametros_son_de_analisis_que_existen():
+    from src.ui.analysis_specs import MULTI, PARAMETROS
+    real = _dispatch_real()
+    assert set(MULTI) <= set(real) and set(PARAMETROS) <= set(real)
+    # Una lista o unos parametros no son "toda la hoja": el dialogo los pide.
+    assert not any(sobre_toda_la_hoja(a) for a in list(MULTI) + list(PARAMETROS))
 
 
 def test_un_analisis_desconocido_no_pide_nada():

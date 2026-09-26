@@ -54,6 +54,35 @@ def auc(fpr, tpr):
     return np.trapezoid(tpr, fpr) if hasattr(np, 'trapezoid') else np.trapz(tpr, fpr)
 
 
+def auc_delong(y_true, y_score, conf=0.95):
+    """AUC con su error estandar de DeLong, DeLong y Clarke-Pearson (1988).
+
+    Es el que usa MedCalc por defecto. Sale de los "valores de colocacion": para
+    cada enfermo, la fraccion de sanos a los que supera (los empates cuentan
+    medio), y para cada sano, la fraccion de enfermos que lo superan. El AUC es
+    el promedio de cualquiera de las dos, y su varianza es la suma de las
+    varianzas de esos promedios. Antes la curva ROC se informaba sin IC.
+
+    Returns: dict con auc, se, ci (normal, recortado a [0, 1]), n_pos, n_neg.
+    """
+    from scipy import stats
+    y = np.asarray(y_true)
+    s = np.asarray(y_score, dtype=float)
+    pos, neg = s[y == 1], s[y == 0]
+    m, n = len(pos), len(neg)
+    if m < 2 or n < 2:
+        return {"error": "Hacen falta al menos 2 enfermos y 2 sanos para el error "
+                         "estandar del AUC."}
+    psi = (pos[:, None] > neg[None, :]) + 0.5 * (pos[:, None] == neg[None, :])
+    v10 = psi.mean(axis=1)
+    v01 = psi.mean(axis=0)
+    area = float(psi.mean())
+    se = float(np.sqrt(np.var(v10, ddof=1) / m + np.var(v01, ddof=1) / n))
+    z = stats.norm.ppf(1 - (1 - conf) / 2)
+    ci = (max(0.0, area - z * se), min(1.0, area + z * se))
+    return {"auc": area, "se": se, "ci": ci, "n_pos": m, "n_neg": n}
+
+
 def optimal_threshold(fpr, tpr, thresholds):
     """Encuentra el umbral optimo usando el indice de Youden (J = sens + esp - 1).
 

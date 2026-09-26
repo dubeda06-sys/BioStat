@@ -372,12 +372,24 @@ def fisher_exact_test(a, b, c, d):
 
 
 def mcnemar_test(b, c):
-    """McNemar test para proporciones apareadas (tabla 2x2)."""
+    """McNemar para proporciones apareadas (b y c = pares discordantes).
+
+    Con menos de 25 discordantes el chi2 con correccion de continuidad es una
+    aproximacion pobre: se usa la binomial exacta (la que usa statsmodels con
+    exact=True). Con 25 o mas, el chi2 corregido de Edwards.
+    """
+    b, c = int(b), int(c)
     if b + c == 0:
-        return {"chi2": 0, "p": 1.0, "b": b, "c": c}
-    chi2 = (abs(b - c) - 1)**2 / (b + c) if (b + c) > 0 else 0
-    p = 1 - stats.chi2.cdf(chi2, df=1)
-    return {"chi2": chi2, "p": p, "b": b, "c": c, "discordant": b + c}
+        return {"chi2": 0.0, "p": 1.0, "b": b, "c": c, "discordant": 0,
+                "metodo": "sin pares discordantes"}
+    chi2 = (abs(b - c) - 1)**2 / (b + c)
+    p_chi2 = float(stats.chi2.sf(chi2, df=1))
+    p_exacto = float(min(1.0, stats.binomtest(min(b, c), b + c, 0.5).pvalue))
+    exacto = b + c < 25
+    return {"chi2": chi2, "p": p_exacto if exacto else p_chi2,
+            "p_chi2": p_chi2, "p_exacto": p_exacto,
+            "metodo": "binomial exacta" if exacto else "chi2 con correccion de Edwards",
+            "b": b, "c": c, "discordant": b + c}
 
 
 # --- Correlacion ---

@@ -225,6 +225,27 @@ def concordance_correlation(method1, method2):
     }
 
 
+def bland_altman_contra_referencia(referencia, metodos):
+    """Cada metodo contra UNO de referencia, como hace MedCalc (Krouwer 2008).
+
+    Args:
+        referencia: valores del metodo de referencia.
+        metodos: {nombre: valores} de los metodos a comparar.
+
+    Returns:
+        {nombre: resultado de bland_altman_analysis(metodo, referencia,
+        reference="y")}. Las diferencias son metodo - referencia (candidato
+        menos comparativo, como en EP09c) y se grafican contra la referencia.
+
+    `bland_altman_multiple` compara todos contra todos, sin referencia y sin IC
+    de los limites (auditoria 2026-09, M16); este es el que usa el panel.
+    """
+    ref = np.asarray(referencia, dtype=float)
+    return {nombre: bland_altman_analysis(np.asarray(valores, dtype=float), ref,
+                                          reference="y")
+            for nombre, valores in metodos.items()}
+
+
 def bland_altman_multiple(data, method_labels=None):
     """
     Bland-Altman analysis for multiple methods/measurements.

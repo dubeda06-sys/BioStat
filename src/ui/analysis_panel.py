@@ -74,7 +74,7 @@ from src.ui.help_text import ANALYSIS_HELP
 ANALYSIS_LEGENDS = {
     "Estadisticas descriptivas": {
         "legend": "Proporciona un resumen numérico fundamental (media, mediana, DE, etc.). Úselo en la fase inicial del análisis para entender la distribución y calidad de los datos numéricos antes de aplicar pruebas inferenciales.",
-        "formula": "Media: x̄ = Σxi / n\nDE: s = √[Σ(xi - x̄)² / (n-1)]\nCV%: (s / x̄) × 100"
+        "formula": "Media: x̄ = Σxi / n\nDE: s = √[Σ(xi − x̄)² / (n−1)]\nIC 95%: x̄ ± t(n−1)·s/√n\nCV%: (s / x̄) × 100"
     },
     "t-test pareado": {
         "legend": "Compara las medias de dos mediciones realizadas en los mismos individuos (ej. antes y después de un tratamiento). Requiere que las diferencias entre pares sigan una distribución normal.",
@@ -110,7 +110,7 @@ ANALYSIS_LEGENDS = {
     },
     "Passing-Bablok": {
         "legend": "Regresión lineal robusta utilizada para comparar dos métodos analíticos. No es sensible a valores atípicos y permite determinar si hay errores sistemáticos constantes (intercepto) o proporcionales (pendiente).",
-        "formula": "y = β₀ + β₁x\nPendiente = 1 y β₀ = 0 → concordancia"
+        "formula": "y = β₀ + β₁x (mediana desplazada de las pendientes por pares)\nIC de la pendiente con el 1 y del intercepto con el 0 → no se detecta sesgo;\ncon un IC muy ancho no se puede afirmar nada"
     },
     "Kaplan-Meier": {
         "legend": "Estima la probabilidad de que los pacientes sobrevivan a lo largo del tiempo sin experimentar un evento (ej. muerte o recaída). Requiere datos de tiempo de seguimiento y el estado final (evento o censurado).",
@@ -118,7 +118,7 @@ ANALYSIS_LEGENDS = {
     },
     "Log-rank test": {
         "legend": "Compara estadísticamente dos o más curvas de supervivencia de Kaplan-Meier. Úselo para evaluar si un tratamiento mejora el tiempo de supervivencia frente a un grupo control.",
-        "formula": "χ² = (O₁ - E₁)² / E₁ + (O₂ - E₂)² / E₂\ndonde O = observados, E = esperados"
+        "formula": "χ² = (O₁ − E₁)² / V\nO₁ = eventos observados en el grupo 1, E₁ = esperados,\nV = Σ d·n₁·n₂·(n − d) / (n²(n − 1)) en cada tiempo de evento"
     },
     "Meta-analisis": {
         "legend": "Sintetiza matemáticamente los resultados de múltiples estudios independientes. Úselo para obtener una estimación global y más potente del tamaño del efecto (ej. odds ratio global) de una intervención.",
@@ -126,11 +126,11 @@ ANALYSIS_LEGENDS = {
     },
     "Tamano muestral (1 media)": {
         "legend": "Calcula cuántos pacientes necesita reclutar para demostrar que la media de su muestra difiere de un valor de referencia conocido, considerando la potencia y significancia deseadas.",
-        "formula": "n = [(Z_α/2 + Z_β) × σ / δ]²\ndonde δ = diferencia a detectar, σ = DE"
+        "formula": "El n más chico cuyo poder EXACTO llega al pedido\n(t no central, gl = n − 1, λ = (δ/σ)·√n)"
     },
     "Tamano muestral (2 medias)": {
         "legend": "Calcula la cantidad de pacientes necesarios para detectar una diferencia clínica importante entre dos grupos independientes. Es crucial para el diseño de ensayos clínicos.",
-        "formula": "n₁ = [(Z_α/2 + Z_β) × σ / δ]² × (1 + 1/r)\nn₂ = n₁ × r"
+        "formula": "El n₁ más chico cuyo poder EXACTO llega al pedido, n₂ = r·n₁\n(t no central, λ = (δ/σ)/√(1/n₁ + 1/n₂))"
     },
     "Tamano muestral (2 proporciones)": {
         "legend": "Determina la muestra necesaria para comparar tasas de éxito o prevalencia entre dos grupos (ej. porcentaje de curación con droga A vs droga B).",
@@ -178,7 +178,7 @@ ANALYSIS_LEGENDS = {
     },
     "McNemar": {
         "legend": "Analiza cambios en proporciones para datos pareados. Ideal para estudios antes-después donde el resultado es categórico (ej. positivo/negativo antes y después de tratamiento).",
-        "formula": "χ² = (b - c)² / (b + c)\ndonde b y c son las discordancias"
+        "formula": "b + c < 25: binomial exacta;  si no, χ² = (|b − c| − 1)² / (b + c)\nb y c = pares discordantes"
     },
     "Kruskal-Wallis": {
         "legend": "El equivalente no paramétrico de ANOVA de una vía. Permite comparar las medianas de tres o más grupos independientes cuando no se puede asumir normalidad poblacional.",
@@ -198,7 +198,7 @@ ANALYSIS_LEGENDS = {
     },
     "ICC": {
         "legend": "Coeficiente de Correlación Intraclase. Mide la fiabilidad y concordancia de mediciones continuas realizadas por diferentes evaluadores o equipos sobre la misma muestra.",
-        "formula": "ICC = (MS_entre - MS_dentro) / (MS_entre + (k-1)×MS_dentro)\nk = número de mediciones"
+        "formula": "ICC(A,1) = (MS_suj − MS_err) / (MS_suj + (k−1)·MS_err + k·(MS_met − MS_err)/n)\ndos vías, acuerdo absoluto; k = número de métodos"
     },
     "Cronbach alfa": {
         "legend": "Mide la consistencia interna o fiabilidad de un test o cuestionario compuesto por múltiples ítems (ej. escalas psicométricas de dolor o calidad de vida).",
@@ -238,15 +238,15 @@ ANALYSIS_LEGENDS = {
     },
     "Intervalos de referencia": {
         "legend": "Calcula los valores esperados para una población sana (generalmente percentiles 2.5 y 97.5). Indispensable para establecer rangos normales de laboratorio para nuevos analitos.",
-        "formula": "Límite inferior = Percentil 2.5\nLímite superior = Percentil 97.5\nIC Bootstrap para precisión"
+        "formula": "Límites: datos de rango 0,025·(n+1) y 0,975·(n+1) (CLSI EP28 §9.4.1)\nIC 90% de cada límite por rangos de orden (tabla 8), n ≥ 119"
     },
     "Asimetria y curtosis": {
         "legend": "Métricas que evalúan formalmente la forma de la distribución de los datos. Desviaciones significativas de 0 indican que los datos están sesgados (colas asimétricas) o son muy apuntados.",
-        "formula": "Sesgo = Σ(xi - x̄)³ / (n × s³)\nCurtosis = Σ(xi - x̄)⁴ / (n × s⁴) - 3"
+        "formula": "g1 = m₃/m₂^1,5;  g2 = m₄/m₂² − 3\nPruebas: D'Agostino (asimetría) y Anscombe-Glynn (curtosis)"
     },
     "Media recortada": {
         "legend": "Calcula la media descartando un porcentaje (ej. 5%) de los valores más extremos superiores e inferiores. Proporciona un estimado robusto de la tendencia central resistente a outliers.",
-        "formula": "Media recortada = (1/(n-2k)) × Σxᵢ\ndonde k = n × proporción recortada"
+        "formula": "Media recortada = promedio sin el 10% de cada cola\nEE = DE winsorizada / ((1 − 2·0,1)·√n)  (Tukey-McLaughlin)"
     },
     "Correlacion parcial": {
         "legend": "Mide la relación lineal entre dos variables continuas mientras se elimina (controla) matemáticamente el efecto de una tercera variable de confusión.",
@@ -282,7 +282,7 @@ ANALYSIS_LEGENDS = {
     },
     "CV duplicatas": {
         "legend": "Calcula el Coeficiente de Variación analítico a partir de muestras procesadas en duplicado. Es clave para validar la repetibilidad intralaboratorio de un ensayo.",
-        "formula": "CV = (DE × √2 / Media) × 100%\nCV intra = variabilidad dentro del ensayo"
+        "formula": "d = medición 1 − medición 2;  DE intraserie = DE(d) / √2\nCV = DE intraserie / media general × 100"
     },
     "Likelihood Ratios": {
         "legend": "Razones de verosimilitud (LR+ y LR-) que indican cuánto cambia la probabilidad post-prueba de una enfermedad. LR+ alto (>10) confirma; LR- bajo (<0.1) descarta firmemente.",
@@ -302,7 +302,7 @@ ANALYSIS_LEGENDS = {
     },
     "Tabla de percentiles": {
         "legend": "Genera una tabla completa de cuantiles (ej. p5, p10, p50, p90, p95) con sus respectivos intervalos de confianza. Útil para curvas de crecimiento pediátrico.",
-        "formula": "Pₖ = valor en posición k×(n+1)/100\nIC Bootstrap para precisión"
+        "formula": "Pₖ = valor en la posición k·(n+1)/100, interpolado\nIC por bootstrap"
     },
     "Edad-relacionada": {
         "legend": "Permite segmentar y calcular intervalos de referencia específicos para distintos grupos etarios o factores continuos. Clave en analitos como hormonas pediátricas.",
@@ -330,11 +330,11 @@ ANALYSIS_LEGENDS = {
     },
     "ANCOVA": {
         "legend": "Análisis de covarianza. Compara grupos ajustando por variables continuas de confusión (covariables, ej. edad basal). Aumenta el poder estadístico al reducir el error residual.",
-        "formula": "F = MS_ajustado / MS_error\nη² = SS_grupo / (SS_grupo + SS_error)"
+        "formula": "y = b₀ + grupo + b·covariable; F del grupo con SS tipo II\nη² parcial = SS_grupo / (SS_grupo + SS_error)"
     },
     "Medidas repetidas": {
         "legend": "Compara promedios de la misma variable medida en múltiples ocasiones en los mismos sujetos. Aplica correcciones automáticas (Greenhouse-Geisser) para violaciones de esfericidad.",
-        "formula": "F = MS_tiempo / MS_error\nCorrección GG: ε = (Σλᵢ)² / (k-1)×Σλᵢ²"
+        "formula": "F = MS_tiempo / MS_error\nGG: ε = (Σλᵢ)² / ((k−1)·Σλᵢ²), λ = autovalores de la covarianza doblemente centrada"
     },
     "Cox regression": {
         "legend": "Modelo de riesgos proporcionales. Estima cómo múltiples factores de riesgo influyen simultáneamente en el tiempo de supervivencia de los pacientes frente a un evento clínico.",
@@ -350,7 +350,7 @@ ANALYSIS_LEGENDS = {
     },
     "Mediciones seriales": {
         "legend": "Resumen longitudinal de mediciones en pacientes (ej. curvas de glucosa). Permite calcular y analizar métricas como el Área Bajo la Curva (AUC), Cmax o Tmax individual.",
-        "formula": "Pendiente = regresión lineal tiempo vs valor\nPendiente global = pendiente promedio"
+        "formula": "Pendiente de cada sujeto contra el tiempo\nTendencia: t de una muestra sobre las pendientes (Matthews et al. 1990)"
     },
     "Youden plot": {
         "legend": "Representación gráfica avanzada de la sensibilidad frente a la especificidad. Ayuda a seleccionar visualmente el punto de corte óptimo que maximiza el Índice de Youden.",
@@ -366,7 +366,7 @@ ANALYSIS_LEGENDS = {
     },
     "Mountain plot": {
         "legend": "También conocido como gráfico de distribución plegada (folded empirical CDF). Muestra de forma muy sensible las diferencias de distribución o sesgos entre dos métodos clínicos.",
-        "formula": "f(x) = φ((x-μ)/σ) / σ\nSymmetric around median"
+        "formula": "d = método 1 − método 2, ordenadas\npercentil = 100·rango/(n+1); por encima de 50 se pliega: 100 − percentil"
     },
     "Bland-Altman múltiple": {
         "legend": "Adaptación del método de Bland-Altman para cuando se tienen mediciones repetidas en los mismos sujetos para ambos métodos. Considera la varianza intra-sujeto e inter-sujeto.",
@@ -502,6 +502,11 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
 
     def _on_analysis_changed(self, text):
         self.lbl_help.setText(ANALYSIS_HELP.get(text, ""))
+        # Lo que dejo el dialogo es de UN analisis: al cambiar de analisis no
+        # puede quedar colgado para el siguiente.
+        self.opciones_metodo = {}
+        self.columnas_elegidas = None
+        self.parametros = {}
         
         legend_info = ANALYSIS_LEGENDS.get(text, {})
         if legend_info:
@@ -528,6 +533,11 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
     # Decisiones de metodo que deja el dialogo (ver analysis_specs.OPCIONES).
     # Vacio = cada analisis usa sus valores por defecto.
     opciones_metodo: dict = {}
+    # Columnas tildadas en el dialogo (analysis_specs.MULTI). None = no hubo
+    # dialogo: se usan todas las numericas y el informe las nombra.
+    columnas_elegidas = None
+    # Parametros numericos del dialogo (analysis_specs.PARAMETROS), como texto.
+    parametros: dict = {}
 
     def _run(self):
         if self.data is None:
@@ -547,7 +557,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Estadisticas descriptivas": lambda: self._desc(c1),
             "t-test pareado": lambda: self._t_paired(c1, c2, alpha),
             "t-test independiente": lambda: self._t_ind(c1, c2, alpha),
-            "ANOVA una via": lambda: self._anova(alpha),
+            "ANOVA una via": lambda: self._anova(c1, c2, alpha),
             "Correlacion de Pearson": lambda: self._corr_p(c1, c2),
             "Correlacion de Spearman": lambda: self._corr_s(c1, c2),
             "Shapiro-Wilk": lambda: self._shapiro(c1),
@@ -564,25 +574,25 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Bootstrap (media)": lambda: self._boot_mean(c1),
             "Bootstrap (diferencia)": lambda: self._boot_diff(c1, c2),
             "Bootstrap (correlacion)": lambda: self._boot_corr(c1, c2),
-            "Random Forest (clasificacion)": lambda: self._rf_class(c1, c2),
-            "Random Forest (regresion)": lambda: self._rf_regress(c1, c2),
+            "Random Forest (clasificacion)": lambda: self._rf_class(c1),
+            "Random Forest (regresion)": lambda: self._rf_regress(c1),
             "Mann-Whitney U": lambda: self._mannwhitney(c1, c2),
             "Wilcoxon pareado": lambda: self._wilcoxon(c1, c2),
-            "Chi-cuadrado": lambda: self._chi2(),
-            "Fisher exact": lambda: self._fisher(),
-            "McNemar": lambda: self._mcnemar(),
-            "Kruskal-Wallis": lambda: self._kruskal(),
+            "Chi-cuadrado": lambda: self._chi2(c1, c2),
+            "Fisher exact": lambda: self._fisher(c1, c2),
+            "McNemar": lambda: self._mcnemar(c1, c2),
+            "Kruskal-Wallis": lambda: self._kruskal(c1, c2),
             "Friedman": lambda: self._friedman(),
             "F-test (varianzas)": lambda: self._ftest(c1, c2),
-            "Kappa": lambda: self._kappa(),
+            "Kappa": lambda: self._kappa(c1, c2),
             "ICC": lambda: self._icc(c1, c2),
             "Cronbach alfa": lambda: self._cronbach(),
             "Regresion lineal": lambda: self._reg_lineal(c1, c2),
-            "Regresion multiple": lambda: self._reg_multiple(),
-            "Regresion logistica": lambda: self._reg_logistica(),
-            "Odds Ratio": lambda: self._odds_ratio(),
-            "Riesgo Relativo": lambda: self._riesgo_relativo(),
-            "Diagnostic test": lambda: self._diag_test(),
+            "Regresion multiple": lambda: self._reg_multiple(c1),
+            "Regresion logistica": lambda: self._reg_logistica(c1),
+            "Odds Ratio": lambda: self._odds_ratio(c1, c2),
+            "Riesgo Relativo": lambda: self._riesgo_relativo(c1, c2),
+            "Diagnostic test": lambda: self._diag_test(c1, c2),
             "Outliers (Grubbs)": lambda: self._outliers_grubbs(c1),
             "Outliers (Tukey)": lambda: self._outliers_tukey(c1),
             "Intervalos de referencia": lambda: self._ref_interval(c1),
@@ -592,18 +602,18 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Media geometrica": lambda: self._run_core("geometric_mean", c1),
             "Media armonica": lambda: self._run_core("harmonic_mean", c1),
             "t-test 1 muestra": lambda: self._run_core("ttest_1sample", c1),
-            "ANOVA una via (core)": lambda: self._run_core("anova_oneway"),
+            "ANOVA una via (core)": lambda: self._anova(c1, c2, alpha),
             "Sign test": lambda: self._run_core("sign_test", c1, c2),
             "Cochran Q": lambda: self._run_core("cochran_q"),
-            "Kappa ponderado": lambda: self._run_core("weighted_kappa"),
+            "Kappa ponderado": lambda: self._run_core("weighted_kappa", c1, c2),
             "Deming regression": lambda: self._run_core("deming", c1, c2),
             "CV duplicatas": lambda: self._run_core("cv_duplicates", c1, c2),
-            "Likelihood Ratios": lambda: self._run_core("likelihood_ratios"),
+            "Likelihood Ratios": lambda: self._run_core("likelihood_ratios", c1, c2),
             "Comparar 2 medias": lambda: self._run_core("compare_means"),
             "Comparar 2 proporciones": lambda: self._run_core("compare_props"),
             "Comparar 2 AUC": lambda: self._run_core("compare_auc"),
             "Tabla de percentiles": lambda: self._run_core("percentile_table", c1),
-            "Edad-relacionada": lambda: self._run_core("age_related"),
+            "Edad-relacionada": lambda: self._run_core("age_related", c1, c2),
             "Outliers (ESD)": lambda: self._run_core("generalized_esd", c1),
             "Bootstrap (mediana)": lambda: self._run_core("bootstrap_median", c1),
             "Bootstrap (regresion)": lambda: self._run_core("bootstrap_regression", c1, c2),
@@ -618,8 +628,8 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Youden plot": lambda: self._run_youden(c1, c3),
             "Polar plot": lambda: self._run_polar(),
             "Waterfall chart": lambda: self._run_waterfall(c1),
-            "Mountain plot": lambda: self._run_mountain(c1),
-            "Bland-Altman múltiple": lambda: self._run_bland_multi(),
+            "Mountain plot": lambda: self._run_mountain(c1, c2),
+            "Bland-Altman múltiple": lambda: self._run_bland_multi(c1),
         }
         fn = dispatch.get(at)
         if fn:
@@ -714,10 +724,22 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
     def _r(self, l, v):
         return f"<tr><td style='padding:2px 12px 2px 0;color:#8892a4;'>{l}</td><td style='padding:2px 0;font-weight:600;'>{v}</td></tr>"
 
-    def _ok(self, yes, msg_yes="SIGNIFICATIVO", msg_no="NO SIGNIFICATIVO"):
+    def _ok(self, yes, msg_yes="Se detectó diferencia", msg_no="No se detectó diferencia"):
+        """El veredicto de una prueba, en castellano llano.
+
+        Sin la palabra «significativo», que se lee como «importante»: lo mismo
+        que ya decidio el Omnianalisis (decision 2 de la propuesta de Resultado).
+        Y el caso negativo dice que no detectar no es probar que no hay.
+        """
         if yes:
-            return f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> {msg_yes}</b></div>"
-        return f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> {msg_no}</b></div>"
+            return (f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#ecfdf5;"
+                    f"border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{msg_yes}</b> "
+                    f"(p &lt; α)<br><span style='font-size:11px;'>Que sea detectable no dice que "
+                    f"sea grande: el tamaño lo dan la diferencia y su intervalo.</span></div>")
+        return (f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#fef9ee;"
+                f"border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{msg_no}</b> (p ≥ α)"
+                f"<br><span style='font-size:11px;'>No detectarlo no prueba que no exista: con "
+                f"pocos datos puede pasar desapercibido.</span></div>")
 
     def _set_formula(self, title, formula_text, steps=None):
         """Muestra formula y pasos en el recuadro de auditoria."""

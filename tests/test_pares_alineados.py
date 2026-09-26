@@ -145,10 +145,10 @@ CASOS = [
      lambda p: p._run_core("sample_size_corr", "A", "B")),
     ("probit", _hoja_general, ["A", "L"], lambda p: p._run_probit("A", "L")),
     ("Youden", _hoja_general, ["A", "L"], lambda p: p._run_youden("A", "L")),
-    ("chi-cuadrado", _hoja_categorica, ["X", "Y"], lambda p: p._chi2()),
-    ("kappa ponderado", _hoja_categorica, ["X", "Y"], lambda p: p._run_core("weighted_kappa")),
+    ("chi-cuadrado", _hoja_categorica, ["X", "Y"], lambda p: p._chi2("X", "Y")),
+    ("kappa ponderado", _hoja_categorica, ["X", "Y"], lambda p: p._run_core("weighted_kappa", "X", "Y")),
     ("Friedman", _hoja_tres_condiciones, ["C1", "C2", "C3"], lambda p: p._friedman()),
-    ("intervalos por edad", _hoja_edad, ["Edad", "Valor"], lambda p: p._run_core("age_related")),
+    ("intervalos por edad", _hoja_edad, ["Edad", "Valor"], lambda p: p._run_core("age_related", "Edad", "Valor")),
     ("Cox", _hoja_cox, ["T", "E", "Z"], lambda p: p._run_cox("T", "E")),
 ]
 

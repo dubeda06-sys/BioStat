@@ -44,9 +44,16 @@ def probit_regression(X, y):
                          f"suele ser separacion completa — una predictora separa "
                          f"perfectamente los 0 de los 1."}
 
+    # statsmodels ya no lanza una excepcion ante la separacion completa: devuelve
+    # un ajuste sin convergencia con EE del orden de 1e8. Un resultado asi no se
+    # informa como si fuera uno.
+    predichas = np.asarray(modelo.predict(diseno), dtype=float)
+    separa = np.all((predichas < 1e-6) | (predichas > 1 - 1e-6))
+    if not modelo.mle_retvals.get("converged", True) or separa:
+        return {"error": "El probit no converge: una predictora separa perfectamente "
+                         "los 0 de los 1 (separacion completa) o casi. Con esos datos "
+                         "el coeficiente tiende a infinito y no hay estimacion que dar."}
     avisos = []
-    if not modelo.mle_retvals.get("converged", True):
-        avisos.append("El ajuste no convergio: los coeficientes y sus p no son confiables.")
 
     return {
         "avisos": avisos,

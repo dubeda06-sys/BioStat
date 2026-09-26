@@ -11,11 +11,13 @@ hoja en vez de sobre columnas sueltas.
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout,
-    QLabel, QLineEdit, QVBoxLayout,
+    QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout,
 )
 
 from src.ui import previews
-from src.ui.analysis_specs import opciones, sobre_toda_la_hoja, variables
+from src.ui.analysis_specs import (
+    multi, opciones, parametros, sobre_toda_la_hoja, variables,
+)
 from src.ui.help_text import ANALYSIS_HELP
 
 SIN_COLUMNA = "(ninguna)"
@@ -24,10 +26,15 @@ SIN_COLUMNA = "(ninguna)"
 class DialogoAnalisis(QDialog):
     """Pide las variables de un analisis. `seleccion()` devuelve lo elegido."""
 
-    def __init__(self, analisis, columnas, parent=None, alpha="0.05"):
+    def __init__(self, analisis, columnas, parent=None, alpha="0.05",
+                 columnas_numericas=None):
         super().__init__(parent)
         self.analisis = analisis
         self.columnas = list(columnas)
+        # La lista tildable solo ofrece columnas numericas; si quien abre el
+        # dialogo no las distingue, se ofrecen todas.
+        self.columnas_numericas = (list(columnas_numericas) if columnas_numericas is not None
+                                   else list(columnas))
         self.setWindowTitle(analisis)
         self.setModal(True)
         self.setMinimumWidth(620)
@@ -114,6 +121,37 @@ class DialogoAnalisis(QDialog):
                 pie.setObjectName("ayudaOpcion")
                 form.addRow("", pie)
 
+        # Lista de columnas: se tildan las que entran. Arranca con todas las
+        # numericas tildadas menos las ya elegidas como Variable 1, para que se
+        # vea de entrada que entra y se pueda sacar lo que no corresponde (un ID,
+        # una edad) antes de correr.
+        self.lista_columnas = None
+        spec_multi = multi(self.analisis)
+        if spec_multi is not None:
+            self.lista_columnas = QListWidget()
+            self.lista_columnas.setMaximumHeight(150)
+            elegida = self.combo_col1.currentText() if self.combo_col1 is not None else None
+            for col in self.columnas_numericas:
+                item = QListWidgetItem(col)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Unchecked if col == elegida
+                                   else Qt.CheckState.Checked)
+                self.lista_columnas.addItem(item)
+            form.addRow(f"{spec_multi.etiqueta}:", self.lista_columnas)
+            texto = f"Mínimo {spec_multi.minimo}. " + spec_multi.ayuda
+            pie = QLabel(texto.strip())
+            pie.setWordWrap(True)
+            pie.setObjectName("ayudaOpcion")
+            form.addRow("", pie)
+
+        # Parametros numericos (tamano de muestra, poder).
+        self.inputs_parametro = {}
+        for par in parametros(self.analisis):
+            campo = QLineEdit(f"{par.defecto:g}")
+            campo.setMaximumWidth(120)
+            self.inputs_parametro[par.clave] = campo
+            form.addRow(f"{par.etiqueta}:", campo)
+
         if sobre_toda_la_hoja(self.analisis):
             aviso = QLabel(
                 "Este analisis toma la hoja completa: usa todas las columnas "
@@ -158,4 +196,12 @@ class DialogoAnalisis(QDialog):
             # es el que entiende el analisis.
             "opciones": {clave: combo.currentData()
                          for clave, combo in self.combos_opcion.items()},
+            # None = el analisis no usa lista; [] = usa lista y no se tildo nada.
+            "columnas": (None if self.lista_columnas is None else
+                         [self.lista_columnas.item(i).text()
+                          for i in range(self.lista_columnas.count())
+                          if self.lista_columnas.item(i).checkState() == Qt.CheckState.Checked]),
+            # Texto crudo: el analisis lo valida y dice que esta mal si algo no
+            # es un numero, en vez de que el dialogo lo trague en silencio.
+            "parametros": {clave: campo.text() for clave, campo in self.inputs_parametro.items()},
         }

@@ -76,7 +76,15 @@ def _msg_error(res, generico):
     if isinstance(res, dict) and res.get("error"):
         return f"<b>No se puede calcular:</b> {res['error']}"
     return f"<b>Error:</b> {generico}"
+from html import escape
+
+import pandas as pd
+
 from src.core.passing_bablok import passing_bablok
+from src.core.roc import auc_delong
+from src.core.bland_altman import bland_altman_contra_referencia
+from src.core.sample_size import power_two_means
+from src.ui.analysis_specs import parametros as spec_parametros
 from src.core.survival import kaplan_meier, log_rank_test
 from src.resultado.datos import filas_completas
 from src.resultado.constructores import bland_altman
@@ -133,308 +141,6 @@ plt.rcParams.update({
 
 from src.ui.help_text import ANALYSIS_HELP
 
-ANALYSIS_LEGENDS = {
-    "Estadisticas descriptivas": {
-        "legend": "Proporciona un resumen numérico fundamental (media, mediana, DE, etc.). Úselo en la fase inicial del análisis para entender la distribución y calidad de los datos numéricos antes de aplicar pruebas inferenciales.",
-        "formula": "Media: x̄ = Σxi / n\nDE: s = √[Σ(xi - x̄)² / (n-1)]\nCV%: (s / x̄) × 100"
-    },
-    "t-test pareado": {
-        "legend": "Compara las medias de dos mediciones realizadas en los mismos individuos (ej. antes y después de un tratamiento). Requiere que las diferencias entre pares sigan una distribución normal.",
-        "formula": "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipótesis nula)"
-    },
-    "t-test independiente": {
-        "legend": "Compara las medias de dos grupos completamente distintos (ej. pacientes sanos vs enfermos). Requiere que los datos sean numéricos continuos y aproximadamente normales en cada grupo.",
-        "formula": "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamaño"
-    },
-    "ANOVA una via": {
-        "legend": "Compara las medias de tres o más grupos independientes para ver si hay diferencias significativas entre ellos. Úselo cuando tiene una variable categórica de múltiples niveles y una respuesta numérica continua.",
-        "formula": "F = MS_entre / MS_dentro\nMS_entre = SS_entre / (k-1)\nMS_dentro = SS_dentro / (N-k)"
-    },
-    "Correlacion de Pearson": {
-        "legend": "Mide la fuerza de la relación lineal entre dos variables continuas (ej. concentración de dos analitos). Exige que ambas variables sigan una distribución normal y su relación sea lineal.",
-        "formula": "r = Σ[(xi - x̄)(yi - ȳ)] / √[Σ(xi - x̄)² × Σ(yi - ȳ)²]\nt = r × √(n-2) / √(1-r²)"
-    },
-    "Correlacion de Spearman": {
-        "legend": "Mide la relación monótona entre dos variables utilizando sus rangos. Es la alternativa no paramétrica a Pearson, ideal cuando los datos tienen valores atípicos (outliers) o no son normales.",
-        "formula": "ρ = 1 - (6 × Σd²) / (n × (n² - 1))\ndonde d = diferencia de rangos"
-    },
-    "Shapiro-Wilk": {
-        "legend": "Evalúa formalmente si un conjunto de datos sigue una distribución normal gaussiana. Es el primer paso recomendado (p < 0.05 indica no normalidad) antes de elegir entre pruebas paramétricas o no paramétricas.",
-        "formula": "W = (Σaᵢxᵢ)² / Σ(xi - x̄)²\ndonde xᵢ son los datos ordenados"
-    },
-    "Curva ROC": {
-        "legend": "Evalúa el rendimiento de un biomarcador o prueba diagnóstica. Muestra el equilibrio entre sensibilidad y especificidad a distintos puntos de corte. Requiere un resultado binario (enfermo/sano) y un valor numérico.",
-        "formula": "Sensibilidad = TP / (TP + FN)\nEspecificidad = TN / (TN + FP)\nAUC = ∫ Sensibilidad d(1-Especificidad)"
-    },
-    "Bland-Altman": {
-        "legend": "El estándar de oro para comparar dos métodos de medición clínica (ej. un analizador nuevo vs el de referencia). Evalúa si existe un sesgo sistemático y define los límites de concordancia clínica.",
-        "formula": "Sesgo = Media(diferencias)\nLoA = Sesgo ± 1.96 × DE(diferencias)\n% Sesgo = (Sesgo / Media Método 1) × 100"
-    },
-    "Passing-Bablok": {
-        "legend": "Regresión lineal robusta utilizada para comparar dos métodos analíticos. No es sensible a valores atípicos y permite determinar si hay errores sistemáticos constantes (intercepto) o proporcionales (pendiente).",
-        "formula": "y = β₀ + β₁x\nPendiente = 1 y β₀ = 0 → concordancia"
-    },
-    "Kaplan-Meier": {
-        "legend": "Estima la probabilidad de que los pacientes sobrevivan a lo largo del tiempo sin experimentar un evento (ej. muerte o recaída). Requiere datos de tiempo de seguimiento y el estado final (evento o censurado).",
-        "formula": "S(t) = Π[(nᵢ - dᵢ) / nᵢ]\ndonde nᵢ = en riesgo, dᵢ = eventos"
-    },
-    "Log-rank test": {
-        "legend": "Compara estadísticamente dos o más curvas de supervivencia de Kaplan-Meier. Úselo para evaluar si un tratamiento mejora el tiempo de supervivencia frente a un grupo control.",
-        "formula": "χ² = (O₁ - E₁)² / E₁ + (O₂ - E₂)² / E₂\ndonde O = observados, E = esperados"
-    },
-    "Meta-analisis": {
-        "legend": "Sintetiza matemáticamente los resultados de múltiples estudios independientes. Úselo para obtener una estimación global y más potente del tamaño del efecto (ej. odds ratio global) de una intervención.",
-        "formula": "EF = Σ(wᵢ × EFᵢ) / Σ(wᵢ)\nwᵢ = 1 / SEᵢ²\nI² = (Q - df) / Q × 100%"
-    },
-    "Tamano muestral (1 media)": {
-        "legend": "Calcula cuántos pacientes necesita reclutar para demostrar que la media de su muestra difiere de un valor de referencia conocido, considerando la potencia y significancia deseadas.",
-        "formula": "n = [(Z_α/2 + Z_β) × σ / δ]²\ndonde δ = diferencia a detectar, σ = DE"
-    },
-    "Tamano muestral (2 medias)": {
-        "legend": "Calcula la cantidad de pacientes necesarios para detectar una diferencia clínica importante entre dos grupos independientes. Es crucial para el diseño de ensayos clínicos.",
-        "formula": "n₁ = [(Z_α/2 + Z_β) × σ / δ]² × (1 + 1/r)\nn₂ = n₁ × r"
-    },
-    "Tamano muestral (2 proporciones)": {
-        "legend": "Determina la muestra necesaria para comparar tasas de éxito o prevalencia entre dos grupos (ej. porcentaje de curación con droga A vs droga B).",
-        "formula": "n = [Z_α/2 × √(2p̄(1-p̄)) + Z_β × √(p₁(1-p₁) + p₂(1-p₂))]² / (p₁ - p₂)²"
-    },
-    "Poder estadistico": {
-        "legend": "Analiza retrospectivamente si un estudio que no encontró diferencias significativas tenía el tamaño muestral suficiente (potencia > 80%) para haberlas detectado si existieran.",
-        "formula": "Poder = 1 - β = P(rechazar H₀ | H₁ es verdadera)\nncp = δ × √n / σ"
-    },
-    "Bootstrap (media)": {
-        "legend": "Técnica de remuestreo computacional para calcular intervalos de confianza de la media. Excelente alternativa cuando los datos no cumplen los supuestos de normalidad tradicional.",
-        "formula": "IC = [θ*_(α/2), θ*_(1-α/2)]\ndonde θ* son los percentiles de B remuestreos"
-    },
-    "Bootstrap (diferencia)": {
-        "legend": "Calcula el intervalo de confianza para la diferencia de medias mediante remuestreo. Muy útil cuando se comparan grupos pequeños con distribuciones desconocidas o asimétricas.",
-        "formula": "IC = [θ*_(α/2), θ*_(1-α/2)]\nθ* = diferencia media de B remuestreos"
-    },
-    "Bootstrap (correlacion)": {
-        "legend": "Estima la robustez de un coeficiente de correlación mediante remuestreo repetido, ideal cuando se sospecha que unos pocos puntos pueden estar influenciando excesivamente el resultado.",
-        "formula": "IC = [r*_(α/2), r*_(1-α/2)]\nr* = correlación de B remuestreos"
-    },
-    "Random Forest (clasificacion)": {
-        "legend": "Algoritmo de machine learning que utiliza múltiples árboles de decisión para clasificar pacientes en categorías (ej. alto riesgo / bajo riesgo) basado en múltiples variables predictoras complejas.",
-        "formula": "ŷ = mode(.Tree₁(x), Tree₂(x), ..., Tree_B(x))\nImportancia = reducción en impureza Gini"
-    },
-    "Random Forest (regresion)": {
-        "legend": "Modelo predictivo avanzado que estima un valor numérico continuo usando múltiples árboles. Puede capturar interacciones complejas no lineales entre las variables del paciente.",
-        "formula": "ŷ = (1/B) × Σ Treeᵦ(x)\nMSE = (1/n) × Σ(yᵢ - ŷᵢ)²"
-    },
-    "Mann-Whitney U": {
-        "legend": "Prueba no paramétrica equivalente al t-test independiente. Úsela para comparar dos grupos cuando los datos no son normales, son ordinales, o existen valores atípicos extremos.",
-        "formula": "U = n₁ × n₂ + n₁(n₁+1)/2 - R₁\ndonde R₁ = suma de rangos del grupo 1"
-    },
-    "Wilcoxon pareado": {
-        "legend": "Prueba no paramétrica para muestras relacionadas (antes/después). Es la alternativa al t-test pareado cuando las diferencias no se distribuyen normalmente.",
-        "formula": "W = Σ Rᵢ⁺\ndonde Rᵢ⁺ = rangos de diferencias positivas"
-    },
-    "Chi-cuadrado": {
-        "legend": "Prueba de asociación para dos variables categóricas (ej. grupo sanguíneo y presencia de enfermedad). Requiere que las frecuencias esperadas en la tabla de contingencia sean suficientes (>5).",
-        "formula": "χ² = Σ[(Oᵢⱼ - Eᵢⱼ)² / Eᵢⱼ]\nEᵢⱼ = (Filaᵢ × Columnaⱼ) / Total"
-    },
-    "Fisher exact": {
-        "legend": "Alternativa exacta al Chi-cuadrado para tablas 2x2. Es indispensable cuando se tienen muestras muy pequeñas o frecuencias esperadas menores a 5 celdas.",
-        "formula": "P = (a+b)!(c+d)!(a+c)!(b+d)! / (a!b!c!d!n!)"
-    },
-    "McNemar": {
-        "legend": "Analiza cambios en proporciones para datos pareados. Ideal para estudios antes-después donde el resultado es categórico (ej. positivo/negativo antes y después de tratamiento).",
-        "formula": "χ² = (b - c)² / (b + c)\ndonde b y c son las discordancias"
-    },
-    "Kruskal-Wallis": {
-        "legend": "El equivalente no paramétrico de ANOVA de una vía. Permite comparar las medianas de tres o más grupos independientes cuando no se puede asumir normalidad poblacional.",
-        "formula": "H = (12 / (n(n+1))) × Σ(Rᵢ²/nᵢ) - 3(n+1)\ndonde Rᵢ = suma de rangos del grupo i"
-    },
-    "Friedman": {
-        "legend": "Alternativa no paramétrica para ANOVA de medidas repetidas. Se usa cuando se evalúa a los mismos pacientes en 3 o más momentos distintos (ej. basal, mes 1, mes 6) sin asumir normalidad.",
-        "formula": "Q = (12 / (nk(k+1))) × ΣRⱼ² - 3n(k+1)\ndonde Rⱼ = suma de rangos de la condición j"
-    },
-    "F-test (varianzas)": {
-        "legend": "Compara las varianzas de dos poblaciones para determinar si son significativamente diferentes. Es útil para evaluar si dos métodos analíticos tienen la misma precisión.",
-        "formula": "F = s₁² / s₂²\ndonde s₁² > s₂² (mayor varianza numerador)"
-    },
-    "Kappa": {
-        "legend": "Evalúa el grado de concordancia entre dos observadores o métodos al clasificar datos categóricos (ej. dos patólogos leyendo biopsias), corrigiendo la coincidencia debida al azar.",
-        "formula": "κ = (Pₒ - Pₑ) / (1 - Pₑ)\nPₒ = concordancia observada\nPₑ = concordancia esperada por azar"
-    },
-    "ICC": {
-        "legend": "Coeficiente de Correlación Intraclase. Mide la fiabilidad y concordancia de mediciones continuas realizadas por diferentes evaluadores o equipos sobre la misma muestra.",
-        "formula": "ICC = (MS_entre - MS_dentro) / (MS_entre + (k-1)×MS_dentro)\nk = número de mediciones"
-    },
-    "Cronbach alfa": {
-        "legend": "Mide la consistencia interna o fiabilidad de un test o cuestionario compuesto por múltiples ítems (ej. escalas psicométricas de dolor o calidad de vida).",
-        "formula": "α = (k / (k-1)) × (1 - Σσᵢ² / σₜ²)\nk = número de ítems, σᵢ² = varianza de cada ítem"
-    },
-    "Regresion lineal": {
-        "legend": "Modela matemáticamente cómo una variable numérica (dependiente) cambia en función de otra (independiente). Úselo para predecir valores o establecer tendencias de calibración.",
-        "formula": "ŷ = β₀ + β₁x\nβ₁ = Σ[(xi - x̄)(yi - ȳ)] / Σ(xi - x̄)²\nβ₀ = ȳ - β₁x̄"
-    },
-    "Regresion multiple": {
-        "legend": "Extensión de la regresión lineal que predice un resultado numérico usando múltiples variables independientes simultáneamente, controlando posibles factores de confusión.",
-        "formula": "ŷ = β₀ + β₁x₁ + β₂x₂ + ... + βₚxₚ\nβ = (X'X)⁻¹X'y"
-    },
-    "Regresion logistica": {
-        "legend": "Estima la probabilidad de que ocurra un evento binario (ej. mortalidad: sí/no) basándose en una o más variables predictoras clínicas (edad, sexo, biomarcadores).",
-        "formula": "ln(p/(1-p)) = β₀ + β₁x₁ + ... + βₚxₚ\np = 1 / (1 + e^-(β₀ + Σβᵢxᵢ))"
-    },
-    "Odds Ratio": {
-        "legend": "Mide las probabilidades relativas de que ocurra un evento bajo cierta exposición frente a su ausencia. Es la medida estándar de asociación en estudios retrospectivos de casos y controles.",
-        "formula": "OR = (a × d) / (b × c)\nln(OR) ± 1.96 × SE(ln(OR))"
-    },
-    "Riesgo Relativo": {
-        "legend": "Calcula el riesgo de un evento en el grupo expuesto comparado con el grupo no expuesto. Aplicable en estudios prospectivos de cohortes o ensayos clínicos controlados.",
-        "formula": "RR = [a/(a+b)] / [c/(c+d)]\nARR = Riesgo_expuesto - Riesgo_no_expuesto\nNNT = 1/ARR"
-    },
-    "Diagnostic test": {
-        "legend": "Evalúa la utilidad clínica de una prueba. Requiere resultados de la prueba y el estándar de oro para calcular Sensibilidad, Especificidad y Valores Predictivos (VPP, VPN).",
-        "formula": "Sens = TP/(TP+FN)\nSpec = TN/(TN+FP)\nPPV = TP/(TP+FP)\nNPV = TN/(TN+FN)"
-    },
-    "Outliers (Grubbs)": {
-        "legend": "Detecta si el valor más extremo en un conjunto de datos es un valor atípico estadísticamente significativo. Asume que el resto de los datos se distribuye normalmente.",
-        "formula": "G = |x_max - x̄| / s\nValor crítico: t_(α/2n) × √((n-1)² / (n(n-2+t²)))"
-    },
-    "Outliers (Tukey)": {
-        "legend": "Identifica valores atípicos utilizando rangos intercuartílicos (IQR). Es más robusto que Grubbs y no requiere que los datos sigan estrictamente una distribución normal.",
-        "formula": "IQR = Q₇₅ - Q₂₅\nLímite inferior = Q₂₅ - 1.5×IQR\nLímite superior = Q₇₅ + 1.5×IQR"
-    },
-    "Intervalos de referencia": {
-        "legend": "Calcula los valores esperados para una población sana (generalmente percentiles 2.5 y 97.5). Indispensable para establecer rangos normales de laboratorio para nuevos analitos.",
-        "formula": "Límite inferior = Percentil 2.5\nLímite superior = Percentil 97.5\nIC Bootstrap para precisión"
-    },
-    "Asimetria y curtosis": {
-        "legend": "Métricas que evalúan formalmente la forma de la distribución de los datos. Desviaciones significativas de 0 indican que los datos están sesgados (colas asimétricas) o son muy apuntados.",
-        "formula": "Sesgo = Σ(xi - x̄)³ / (n × s³)\nCurtosis = Σ(xi - x̄)⁴ / (n × s⁴) - 3"
-    },
-    "Media recortada": {
-        "legend": "Calcula la media descartando un porcentaje (ej. 5%) de los valores más extremos superiores e inferiores. Proporciona un estimado robusto de la tendencia central resistente a outliers.",
-        "formula": "Media recortada = (1/(n-2k)) × Σxᵢ\ndonde k = n × proporción recortada"
-    },
-    "Correlacion parcial": {
-        "legend": "Mide la relación lineal entre dos variables continuas mientras se elimina (controla) matemáticamente el efecto de una tercera variable de confusión.",
-        "formula": "r_xy.z = (r_xy - r_xz × r_yz) / √[(1-r_xz²)(1-r_yz²)]"
-    },
-    "Media geometrica": {
-        "legend": "Medida de tendencia central adecuada para datos que crecen exponencialmente o están fuertemente sesgados a la derecha (ej. títulos de anticuerpos o cargas virales).",
-        "formula": "GM = (x₁ × x₂ × ... × xₙ)^(1/n)\nGM = exp[(1/n) × Σln(xᵢ)]"
-    },
-    "Media armonica": {
-        "legend": "Promedio utilizado frecuentemente para analizar tasas y proporciones. Es útil cuando se trabaja con promedios de velocidades o tiempos de procesamiento de laboratorio.",
-        "formula": "HM = n / (1/x₁ + 1/x₂ + ... + 1/xₙ)\nHM = n / Σ(1/xᵢ)"
-    },
-    "t-test 1 muestra": {
-        "legend": "Compara la media observada de su muestra frente a un valor teórico conocido o establecido previamente. Úselo para verificar si sus datos se desvían de un estándar.",
-        "formula": "t = (x̄ - μ₀) / (s / √n)\ngl = n - 1"
-    },
-    "Sign test": {
-        "legend": "Alternativa muy simple al Wilcoxon pareado que solo evalúa la dirección del cambio (positivo o negativo) sin considerar la magnitud. Es extremadamente robusto a outliers.",
-        "formula": "p = 2 × Σ C(n,k) × 0.5ⁿ para k ≤ min(n_pos, n_neg)"
-    },
-    "Cochran Q": {
-        "legend": "Extensión de la prueba de McNemar para comparar 3 o más tratamientos en datos dicotómicos relacionados (ej. éxito/fracaso de 3 terapias diferentes en los mismos pacientes).",
-        "formula": "Q = (k-1) × [k × ΣC² - T²] / [k × T - ΣR²]\nk = condiciones, T = total de éxitos"
-    },
-    "Kappa ponderado": {
-        "legend": "Versión del índice Kappa que penaliza los desacuerdos entre evaluadores dependiendo de su magnitud. Esencial para categorías ordinales (ej. grados tumorales I, II, III).",
-        "formula": "κ_w = 1 - (Σ wᵢⱼ × Oᵢⱼ) / (Σ wᵢⱼ × Eᵢⱼ)\nwᵢⱼ = |i-j|/(k-1) (lineal)"
-    },
-    "Deming regression": {
-        "legend": "Regresión lineal avanzada que asume que existen errores de medición tanto en X como en Y. Es el método recomendado (junto con Passing-Bablok) para comparar métodos de laboratorio.",
-        "formula": "y = β₀ + β₁x\nβ₁ = (s_y - δ×s_x + √((s_y-δ×s_x)² + 4δ×s_xy²)) / (2×s_xy)"
-    },
-    "CV duplicatas": {
-        "legend": "Calcula el Coeficiente de Variación analítico a partir de muestras procesadas en duplicado. Es clave para validar la repetibilidad intralaboratorio de un ensayo.",
-        "formula": "CV = (DE × √2 / Media) × 100%\nCV intra = variabilidad dentro del ensayo"
-    },
-    "Likelihood Ratios": {
-        "legend": "Razones de verosimilitud (LR+ y LR-) que indican cuánto cambia la probabilidad post-prueba de una enfermedad. LR+ alto (>10) confirma; LR- bajo (<0.1) descarta firmemente.",
-        "formula": "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec\nPre-odds × LR = Post-odds"
-    },
-    "Comparar 2 medias": {
-        "legend": "Calcula diferencias significativas entre dos grupos ingresando directamente datos resumidos (media, DE, n) sin necesidad de tener los datos crudos originales.",
-        "formula": "t = (m₁ - m₂) / √(s₁²/n₁ + s₂²/n₂)\ngl = Welch-Satterthwaite"
-    },
-    "Comparar 2 proporciones": {
-        "legend": "Evalúa diferencias entre tasas de éxito utilizando datos agrupados (casos/totales) en lugar de variables binarias individuales a nivel de paciente.",
-        "formula": "z = (p₁ - p₂) / √[p̄(1-p̄)(1/n₁ + 1/n₂)]\np̄ = (p₁n₁ + p₂n₂)/(n₁+n₂)"
-    },
-    "Comparar 2 AUC": {
-        "legend": "Prueba estadística formal (ej. método DeLong) para determinar si un biomarcador es significativamente mejor que otro al comparar las áreas bajo sus curvas ROC.",
-        "formula": "z = (AUC₁ - AUC₂) / √(SE₁² + SE₂²)"
-    },
-    "Tabla de percentiles": {
-        "legend": "Genera una tabla completa de cuantiles (ej. p5, p10, p50, p90, p95) con sus respectivos intervalos de confianza. Útil para curvas de crecimiento pediátrico.",
-        "formula": "Pₖ = valor en posición k×(n+1)/100\nIC Bootstrap para precisión"
-    },
-    "Edad-relacionada": {
-        "legend": "Permite segmentar y calcular intervalos de referencia específicos para distintos grupos etarios o factores continuos. Clave en analitos como hormonas pediátricas.",
-        "formula": "Intervalos por grupo de edad usando percentiles"
-    },
-    "Outliers (ESD)": {
-        "legend": "Prueba de Desviación Estudentizada Extrema Generalizada (Rosner). Detecta progresivamente múltiples outliers simultáneos en una serie, superando el límite de Grubbs.",
-        "formula": "Rᵢ = |x_i - x̄| / s\nλᵢ = valor crítico de t para cada paso"
-    },
-    "Bootstrap (mediana)": {
-        "legend": "Remuestreo para calcular el intervalo de confianza de la mediana. Extremadamente útil en datos fuertemente asimétricos como tiempos de hospitalización.",
-        "formula": "IC = [mediana*_(α/2), mediana*_(1-α/2)]"
-    },
-    "Bootstrap (regresion)": {
-        "legend": "Genera estimaciones robustas e intervalos empíricos para las pendientes de regresión. Se emplea cuando se violan los supuestos de homocedasticidad o normalidad de los residuos.",
-        "formula": "IC para β = [β*_(α/2), β*_(1-α/2)]"
-    },
-    "Tamaño muestral (correlacion)": {
-        "legend": "Determina el número de sujetos necesarios para detectar si un coeficiente de correlación específico es estadísticamente diferente de cero.",
-        "formula": "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3"
-    },
-    "ANOVA dos vias": {
-        "legend": "Analiza simultáneamente el efecto de dos variables categóricas independientes sobre una respuesta continua. También evalúa si existe interacción entre los factores.",
-        "formula": "F_factor = MS_factor / MS_error\nF_interacción = MS_AB / MS_error"
-    },
-    "ANCOVA": {
-        "legend": "Análisis de covarianza. Compara grupos ajustando por variables continuas de confusión (covariables, ej. edad basal). Aumenta el poder estadístico al reducir el error residual.",
-        "formula": "F = MS_ajustado / MS_error\nη² = SS_grupo / (SS_grupo + SS_error)"
-    },
-    "Medidas repetidas": {
-        "legend": "Compara promedios de la misma variable medida en múltiples ocasiones en los mismos sujetos. Aplica correcciones automáticas (Greenhouse-Geisser) para violaciones de esfericidad.",
-        "formula": "F = MS_tiempo / MS_error\nCorrección GG: ε = (Σλᵢ)² / (k-1)×Σλᵢ²"
-    },
-    "Cox regression": {
-        "legend": "Modelo de riesgos proporcionales. Estima cómo múltiples factores de riesgo influyen simultáneamente en el tiempo de supervivencia de los pacientes frente a un evento clínico.",
-        "formula": "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)\nHR = exp(βᵢ)"
-    },
-    "Probit regression": {
-        "legend": "Modelo predictivo para respuestas binomiales basado en la distribución normal acumulada. Utilizado frecuentemente en toxicología y farmacología (ej. análisis dosis-respuesta y LD50).",
-        "formula": "P(Y=1) = Φ(β₀ + β₁x)\nΦ = CDF normal estándar"
-    },
-    "CMH test": {
-        "legend": "Test de Cochran-Mantel-Haenszel. Permite analizar la asociación en tablas de contingencia 2x2 controlando (estratificando) por una tercera variable de confusión multicategórica.",
-        "formula": "CMH = (Σ(aᵢ - n₁ᵢm₁ᵢ/nᵢ))² / Σ(var_i)"
-    },
-    "Mediciones seriales": {
-        "legend": "Resumen longitudinal de mediciones en pacientes (ej. curvas de glucosa). Permite calcular y analizar métricas como el Área Bajo la Curva (AUC), Cmax o Tmax individual.",
-        "formula": "Pendiente = regresión lineal tiempo vs valor\nPendiente global = pendiente promedio"
-    },
-    "Youden plot": {
-        "legend": "Representación gráfica avanzada de la sensibilidad frente a la especificidad. Ayuda a seleccionar visualmente el punto de corte óptimo que maximiza el Índice de Youden.",
-        "formula": "J = Sensibilidad + Especificidad - 1\nUmbral óptimo = argmax(J)"
-    },
-    "Polar plot": {
-        "legend": "Gráfico de radar utilizado para visualizar y comparar simultáneamente múltiples parámetros (ej. panel de citocinas) entre grupos o estados de la enfermedad.",
-        "formula": "Ángulos = 2π × i/k\nejes = cada variable normalizada"
-    },
-    "Waterfall chart": {
-        "legend": "Visualiza los cambios secuenciales positivos y negativos frente a un valor basal. Frecuentemente usado en oncología para mostrar la reducción o progresión del tamaño tumoral en pacientes.",
-        "formula": "Acumulado = Σ(valores parciales)\nTotal = suma final"
-    },
-    "Mountain plot": {
-        "legend": "También conocido como gráfico de distribución plegada (folded empirical CDF). Muestra de forma muy sensible las diferencias de distribución o sesgos entre dos métodos clínicos.",
-        "formula": "f(x) = φ((x-μ)/σ) / σ\nSymmetric around median"
-    },
-    "Bland-Altman múltiple": {
-        "legend": "Adaptación del método de Bland-Altman para cuando se tienen mediciones repetidas en los mismos sujetos para ambos métodos. Considera la varianza intra-sujeto e inter-sujeto.",
-        "formula": "Para cada par: Sesgo ± 1.96 × DE(diferencias)"
-    },
-}
 
 
 class AnalysisMethodsMixin:
@@ -467,6 +173,206 @@ class AnalysisMethodsMixin:
                 "background:#fdf6ec;border-left:3px solid #d97706;font-size:12px;'>"
                 f"{texto_descartes(n)}</div>")
 
+    # ------------------------------------------------------------ entrada
+    def _columnas_multi(self, excluir=()):
+        """Columnas de un analisis que usa una lista (analysis_specs.MULTI).
+
+        Devuelve (columnas, del_dialogo). Desde el dialogo, las tildadas; sin
+        dialogo, todas las numericas de la hoja, y el informe las nombra para que
+        se vea si se colo un ID o una edad. Antes se usaban todas en silencio
+        (auditoria 2026-09, K2).
+        """
+        numericas = list(self.data.select_dtypes(include="number").columns)
+        elegidas = getattr(self, "columnas_elegidas", None)
+        if elegidas is not None:
+            return [c for c in elegidas if c in numericas and c not in excluir], True
+        return [c for c in numericas if c not in excluir], False
+
+    def _nota_columnas(self, columnas, del_dialogo):
+        lista = escape(", ".join(str(c) for c in columnas))
+        if del_dialogo:
+            return f"<p style='font-size:11px;color:#555;'>Columnas usadas: {lista}.</p>"
+        return ("<p style='font-size:11px;color:#b45309;'>Se usaron <b>todas</b> las "
+                f"columnas numéricas de la hoja: {lista}. Si alguna no corresponde (un "
+                "número de muestra, una edad), abrí el análisis desde el menú "
+                "<b>Estadísticas</b> y destildala.</p>")
+
+    def _param(self, analisis, clave):
+        """Parametro numerico: el del dialogo, o el de ejemplo si no hubo dialogo."""
+        spec = {p.clave: p for p in spec_parametros(analisis)}[clave]
+        crudo = (getattr(self, "parametros", None) or {}).get(clave)
+        if crudo is None or str(crudo).strip() == "":
+            return spec.defecto
+        try:
+            valor = float(str(crudo).strip().replace(",", "."))
+        except ValueError:
+            raise ValueError(f"«{spec.etiqueta}» tiene que ser un número; se escribió «{crudo}».")
+        if not spec.minimo <= valor <= spec.maximo:
+            raise ValueError(f"«{spec.etiqueta}» = {valor:g} está fuera de rango "
+                             f"({spec.minimo:g} a {spec.maximo:g}).")
+        return int(round(valor)) if spec.entero else valor
+
+    def _nota_parametros(self):
+        if getattr(self, "parametros", None):
+            return ""
+        return ("<p style='font-size:11px;color:#b45309;'>Son los valores de ejemplo. Para "
+                "calcular con los tuyos, abrí este análisis desde el menú "
+                "<b>Estadísticas</b>: el diálogo los pide.</p>")
+
+    def _avisos_html(self, avisos):
+        return "".join(f"<p style='font-size:11px;color:#b45309;'>{a}</p>" for a in avisos if a)
+
+    _POSITIVOS = {"1", "1.0", "si", "sí", "s", "positivo", "positiva", "pos", "+", "yes",
+                  "y", "true", "verdadero", "reactivo", "detectado", "presente", "enfermo",
+                  "expuesto", "evento", "anormal", "caso"}
+
+    def _niveles_binarios(self, serie, nombre):
+        """(positivo, negativo, aviso) de una variable con dos valores, o (None, None, motivo)."""
+        valores = list(pd.unique(serie))
+        if len(valores) != 2:
+            return None, None, (f"«{escape(str(nombre))}» tiene {len(valores)} valor(es) "
+                                "distinto(s); para una tabla 2×2 hacen falta exactamente 2 "
+                                "(por ejemplo 0/1).")
+        if all(isinstance(v, (int, float, np.integer, np.floating)) for v in valores):
+            bajo, alto = sorted(valores, key=float)
+            if (float(bajo), float(alto)) == (0.0, 1.0):
+                return alto, bajo, ""
+            return alto, bajo, (f"«{escape(str(nombre))}» no está codificada 0/1: se tomó "
+                                f"{float(alto):g} como positivo y {float(bajo):g} como "
+                                "negativo. Si es al revés, recodificá a 0/1.")
+        texto = [str(v).strip().lower() for v in valores]
+        es_pos = [i for i, t in enumerate(texto) if t in self._POSITIVOS]
+        if len(es_pos) == 1:
+            i = es_pos[0]
+            return valores[i], valores[1 - i], ""
+        pos, neg = sorted(valores, key=str)
+        return pos, neg, (f"No se reconoce cuál valor de «{escape(str(nombre))}» es el "
+                          f"positivo: se tomó «{escape(str(pos))}». Si es al revés, "
+                          "recodificá a 0/1.")
+
+    def _tabla_2x2(self, c1, c2):
+        """Tabla 2×2 a partir de las variables elegidas.
+
+        Lo normal: dos columnas de datos crudos, una fila por sujeto. Si la
+        seleccion tiene exactamente 2 filas de conteos enteros que no son todos
+        0/1, se lee como tabla ya armada, y el informe dice cual de las dos
+        lecturas uso. Antes Fisher, McNemar, OR, RR y la prueba diagnostica
+        tomaban SIEMPRE las dos primeras filas de la hoja como conteos: sobre
+        datos crudos, Fisher daba p = 1 donde el real es p < 0,000001
+        (auditoria 2026-09, K3).
+
+        Returns: (a, b, c, d, filas, columnas, lectura, avisos) o str (HTML de error).
+        """
+        for c in (c1, c2):
+            if c is None or c not in self.data.columns:
+                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
+        if c1 == c2:
+            return "<b>Error:</b> Variable 1 y Variable 2 son la misma columna."
+        pares = self._filas_completas(c1, c2)
+        v1, v2 = pares[c1], pares[c2]
+        if len(pares) == 2:
+            try:
+                cuentas = np.array([[float(v1.iloc[0]), float(v2.iloc[0])],
+                                    [float(v1.iloc[1]), float(v2.iloc[1])]])
+            except (TypeError, ValueError):
+                cuentas = None
+            if (cuentas is not None and np.all(cuentas >= 0)
+                    and np.allclose(cuentas, np.round(cuentas))
+                    and not set(cuentas.ravel()) <= {0.0, 1.0}):
+                a, b, c, d = (int(x) for x in cuentas.ravel())
+                return (a, b, c, d, ("fila 1", "fila 2"),
+                        (escape(str(c1)), escape(str(c2))),
+                        (f"Se leyó como <b>tabla de conteos ya armada</b> (2 filas): "
+                         f"[{a}, {b}] / [{c}, {d}]."), [])
+        pos1, neg1, av1 = self._niveles_binarios(v1, c1)
+        if pos1 is None:
+            return f"<b>Error:</b> {av1}"
+        pos2, neg2, av2 = self._niveles_binarios(v2, c2)
+        if pos2 is None:
+            return f"<b>Error:</b> {av2}"
+        a = int(np.sum((v1 == pos1) & (v2 == pos2)))
+        b = int(np.sum((v1 == pos1) & (v2 == neg2)))
+        c = int(np.sum((v1 == neg1) & (v2 == pos2)))
+        d = int(np.sum((v1 == neg1) & (v2 == neg2)))
+        n1, n2 = escape(str(c1)), escape(str(c2))
+        lectura = (f"Tabla armada con {len(pares)} filas, una por sujeto: filas = «{n1}» "
+                   f"({escape(str(pos1))} / {escape(str(neg1))}), columnas = «{n2}» "
+                   f"({escape(str(pos2))} / {escape(str(neg2))}).")
+        return (a, b, c, d, (f"{n1} = {escape(str(pos1))}", f"{n1} = {escape(str(neg1))}"),
+                (f"{n2} = {escape(str(pos2))}", f"{n2} = {escape(str(neg2))}"),
+                lectura, [x for x in (av1, av2) if x])
+
+    def _html_tabla_2x2(self, a, b, c, d, filas, columnas):
+        celda = "padding:2px 10px;text-align:center;"
+        return ("<table style='font-size:12px;border-collapse:collapse;margin:4px 0;'>"
+                f"<tr><td></td><td style='{celda}'><b>{columnas[0]}</b></td>"
+                f"<td style='{celda}'><b>{columnas[1]}</b></td></tr>"
+                f"<tr><td><b>{filas[0]}</b></td><td style='{celda}'>{a}</td>"
+                f"<td style='{celda}'>{b}</td></tr>"
+                f"<tr><td><b>{filas[1]}</b></td><td style='{celda}'>{c}</td>"
+                f"<td style='{celda}'>{d}</td></tr></table>")
+
+    def _tabla_rxc(self, c1, c2, max_niveles=10):
+        """Tabla de contingencia r×c de las dos variables elegidas (datos crudos)."""
+        for c in (c1, c2):
+            if c is None or c not in self.data.columns:
+                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
+        if c1 == c2:
+            return "<b>Error:</b> Variable 1 y Variable 2 son la misma columna."
+        pares = self._filas_completas(c1, c2)
+        tabla = pd.crosstab(pares[c1], pares[c2])
+        if tabla.shape[0] > max_niveles or tabla.shape[1] > max_niveles:
+            return (f"<b>Error:</b> «{escape(str(c1))}» tiene {tabla.shape[0]} categorías y "
+                    f"«{escape(str(c2))}» {tabla.shape[1]}: esta prueba es para variables "
+                    f"categóricas (hasta {max_niveles} categorías cada una).")
+        if tabla.shape[0] < 2 or tabla.shape[1] < 2:
+            return "<b>Error:</b> cada variable necesita al menos 2 categorías con datos."
+        return tabla
+
+    def _html_tabla_rxc(self, tabla):
+        celda = "padding:2px 8px;text-align:center;"
+        h = "<table style='font-size:12px;border-collapse:collapse;margin:4px 0;'><tr><td></td>"
+        h += "".join(f"<td style='{celda}'><b>{escape(str(c))}</b></td>" for c in tabla.columns)
+        h += "</tr>"
+        for idx, fila in tabla.iterrows():
+            h += f"<tr><td><b>{escape(str(idx))}</b></td>"
+            h += "".join(f"<td style='{celda}'>{int(v)}</td>" for v in fila.values)
+            h += "</tr>"
+        return h + "</table>"
+
+    def _grupos_largo(self, c1, c2):
+        """Grupos en formato largo: c1 = respuesta numerica, c2 = grupo.
+
+        Returns: (etiquetas, [arrays], lectura) o str (HTML de error).
+        """
+        for c in (c1, c2):
+            if c is None or c not in self.data.columns:
+                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
+        if c1 == c2:
+            return "<b>Error:</b> Variable 1 (respuesta) y Variable 2 (grupo) son la misma columna."
+        pares = self._filas_completas(c1, c2)
+        y = pd.to_numeric(pares[c1], errors="coerce")
+        if y.isna().any():
+            return f"<b>Error:</b> «{escape(str(c1))}» (la respuesta) tiene valores no numéricos."
+        grupos = [(str(k), g.to_numpy(dtype=float)) for k, g in y.groupby(pares[c2])]
+        k, n = len(grupos), len(pares)
+        if k < 2:
+            return f"<b>Error:</b> «{escape(str(c2))}» (el grupo) tiene un solo valor."
+        if k > 20 or k > n / 2:
+            return (f"<b>Error:</b> «{escape(str(c2))}» tiene {k} valores distintos para {n} "
+                    "filas: parece una medición, no un código de grupo. La Variable 1 es la "
+                    "respuesta y la Variable 2 el grupo (por ejemplo 1, 2, 3 o A, B, C).")
+        return [g[0] for g in grupos], [g[1] for g in grupos]
+
+    def _html_grupos(self, etiquetas, datos):
+        h = ("<table style='font-size:12px;'><tr><td><b>Grupo</b></td><td><b>n</b></td>"
+             "<td><b>Media</b></td><td><b>DE</b></td><td><b>Mediana</b></td></tr>")
+        for e, g in zip(etiquetas, datos):
+            de = f"{np.std(g, ddof=1):.4f}" if len(g) > 1 else "—"
+            h += (f"<tr><td>{escape(e)}</td><td>{len(g)}</td><td>{np.mean(g):.4f}</td>"
+                  f"<td>{de}</td><td>{np.median(g):.4f}</td></tr>")
+        return h + "</table>"
+
     def _desc(self, col):
         if col not in self.data.columns:
             return f"<b>Error:</b> '{col}' no encontrada."
@@ -477,7 +383,7 @@ class AnalysisMethodsMixin:
         result = descriptive_stats(d)
         self._set_formula(
             "Formula: Estadisticas Descriptivas",
-            "Media: x̄ = Σxi / n\nDE: s = √(Σ(xi - x̄)² / (n-1))\nSE: SE = s / √n\nIC95%: x̄ ± 1.96 × SE\nCV%: (s / x̄) × 100"
+            "Media: x̄ = Σxi / n\nDE: s = √(Σ(xi - x̄)² / (n-1))\nSE: SE = s / √n\nIC95%: x̄ ± t(n−1) × SE\nCV%: (s / x̄) × 100"
         )
         
         h = self._h(f" Descriptivas — {col}")
@@ -547,21 +453,45 @@ class AnalysisMethodsMixin:
         return h + "</table>" + self._ok(result['p'] < a)
 
     # --- ANOVA ---
-    def _anova(self, a):
-        nums = self.data.select_dtypes(include="number").columns
-        groups = [self.data[c].dropna().values for c in nums if len(self.data[c].dropna()) > 0]
-        names = [c for c in nums if len(self.data[c].dropna()) > 0]
-        if len(groups) < 2:
-            return "<b>Error:</b> >= 2 grupos numericos requeridos."
-        
-        result = anova_oneway(groups)
-        self._set_formula("Formula: ANOVA Una Vía", "F = MS_between / MS_within")
-        
-        h = self._h(f" ANOVA una via")
+    def _anova(self, c1, c2, a):
+        """ANOVA de una via en formato largo: Variable 1 = respuesta, Variable 2 = grupo.
+
+        Antes tomaba cada columna numerica de la hoja como un grupo sin mirar las
+        variables elegidas: con una hoja Valor + Grupo comparaba los valores
+        contra los codigos de grupo y daba F = 7460 donde el p real es 0,79
+        (auditoria 2026-09, K2).
+        """
+        grupos = self._grupos_largo(c1, c2)
+        if isinstance(grupos, str):
+            return grupos
+        etiquetas, datos = grupos
+        result = anova_oneway(datos)
+        if _sin_resultado(result):
+            return _msg_error(result, "No se pudo calcular.")
+        self._set_formula("Formula: ANOVA Una Vía",
+                          "F = MS_entre / MS_dentro\nMS_entre = SS_entre / (k−1)\n"
+                          "MS_dentro = SS_dentro / (N−k)")
+        h = self._h(f" ANOVA una vía — {escape(str(c1))} por {escape(str(c2))}")
+        h += self._html_grupos(etiquetas, datos)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Grupos", ", ".join(names)), ("F", f"{result['F']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < a)
+        h += self._r("F", f"{result['F']:.4f} (gl {result['df_between']}, {result['df_within']})")
+        h += self._r("p", _p_html(result['p']))
+        avisos = []
+        if all(len(g) >= 2 for g in datos):
+            lev_p = float(stats.levene(*datos).pvalue)
+            h += self._r("Levene (varianzas iguales)", _p_html(lev_p))
+            if lev_p < 0.05:
+                import pingouin as pg
+                largo = pd.DataFrame({"y": np.concatenate(datos),
+                                      "g": np.repeat(etiquetas, [len(g) for g in datos])})
+                welch = pg.welch_anova(data=largo, dv="y", between="g")
+                p_w = float(welch["p_unc"].iloc[0])
+                h += self._r("ANOVA de Welch", f"F={float(welch['F'].iloc[0]):.4f}, {_p_html(p_w)}")
+                avisos.append("Las varianzas difieren (Levene): la F clásica supone varianzas "
+                              "iguales. Vale la ANOVA de Welch, que no lo supone.")
+                result = dict(result, p=p_w)
+        h += "</table>" + self._avisos_html(avisos)
+        return h + self._ok(result['p'] < a)
 
     # --- Pearson ---
     def _corr_p(self, c1, c2):
@@ -589,7 +519,7 @@ class AnalysisMethodsMixin:
                       ("r", f"{result['r']:.4f}"), ("R2", f"{result['r2']:.4f}"),
                       ("p", f"{result['p']:.6f}"), ("Fuerza", s)]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < 0.05)
+        return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó correlación", "No se detectó correlación")
 
     # --- Spearman ---
     def _corr_s(self, c1, c2):
@@ -603,39 +533,42 @@ class AnalysisMethodsMixin:
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
         
-        self._set_formula("Formula: Spearman", "rho = 1 - (6 × Σd²) / (n × (n² - 1))")
+        self._set_formula("Formula: Spearman", "ρ = correlación de Pearson entre los rangos\n(sin empates equivale a 1 − 6·Σd² / (n(n² − 1)))")
         
         h = self._h(f" Spearman")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']), ("rho", f"{result['rho']:.4f}"), ("p", f"{result['p']:.6f}")]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < 0.05)
+        return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó correlación", "No se detectó correlación")
 
     # --- Shapiro-Wilk ---
     def _shapiro(self, col):
         if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
+            return f"<b>Error:</b> '{escape(str(col))}' no encontrada."
         d = self.data[col].dropna()
         if len(d) < 3:
             return "<b>Error:</b> Minimo 3 datos."
         if len(d) > 5000:
             d = d.sample(5000, random_state=42)
-        
         result = normality_test(d)
         if _sin_resultado(result):
             return _msg_error(result, "No se pudo calcular.")
-        
-        self._set_formula("Formula: Shapiro-Wilk", "W = (Σa_i x_i)² / Σ(x_i - x̄)²")
-        
-        h = self._h(f" Shapiro-Wilk — {col}")
+        self._set_formula("Formula: Shapiro-Wilk", "W = (Σ aᵢ·x₍ᵢ₎)² / Σ (xᵢ − x̄)²,  x₍ᵢ₎ = datos ordenados")
+        h = self._h(f" Shapiro-Wilk — {escape(str(col))}")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("n", result['n']), ("W", f"{result['statistic']:.4f}"), ("p", f"{result['p']:.6f}")]:
+        for l, v in [("n", result['n']), ("W", f"{result['statistic']:.4f}"), ("p", _p_html(result['p']))]:
             h += self._r(l, v)
         h += "</table>"
         if result['p'] < 0.05:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'> NO es normal (p<0.05)</b><br>Usa pruebas no parametricas.</div>"
+            h += ("<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;"
+                  "border-left:3px solid #ef4444;'><b style='color:#dc2626;'>Se aparta de la "
+                  "normal (p &lt; 0,05)</b><br>Conviene una prueba que no suponga normalidad.</div>")
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Es normal (p>=0.05)</b><br>Puedes usar pruebas parametricas.</div>"
+            # No rechazar no es probar: con n chico casi nada rechaza.
+            h += ("<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;"
+                  "border-left:3px solid #22c55e;'><b style='color:#16a34a;'>No se detectó un "
+                  "apartamiento de la normal (p ≥ 0,05)</b><br>Eso no prueba que sea normal: "
+                  "con pocos datos la prueba casi nunca rechaza. Mirá también el histograma.</div>")
         return h
 
     # --- Curva ROC ---
@@ -662,30 +595,50 @@ class AnalysisMethodsMixin:
         opt_t, youden, sens, fpr_opt = optimal_threshold(fpr, tpr, thresh)
         spec_opt = 1 - fpr_opt
         stats_diag = diagnostic_stats(y_true, y_score, opt_t)
+        dl = auc_delong(y_true, y_score)
+        self._set_formula("Formula: Curva ROC",
+                          "AUC = área bajo la curva (trapecios, con los empates agrupados)\n"
+                          "EE del AUC: DeLong, DeLong y Clarke-Pearson (1988); IC 95% = AUC ± 1,96·EE\n"
+                          "Umbral óptimo: máximo índice de Youden, J = Sens + Espec − 1")
 
-        h = self._h(f" Curva ROC — {score_col}")
+        h = self._h(f" Curva ROC — {escape(str(score_col))}")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Variable (score)", score_col), ("Variable (etiqueta)", label_col),
-                      ("Observaciones", n), ("AUC", f"{a:.4f}"),
-                      ("Umbral optimo", f"{opt_t:.4f}"),
-                      ("Sensibilidad", f"{sens:.4f}"),
-                      ("Especificidad", f"{spec_opt:.4f}"),
-                      ("Indice de Youden", f"{youden:.4f}")]:
+        filas = [("Variable (score)", escape(str(score_col))),
+                 ("Variable (etiqueta)", escape(str(label_col))),
+                 ("Observaciones", n), ("AUC", f"{a:.4f}")]
+        if not _sin_resultado(dl):
+            filas += [("EE (DeLong)", f"{dl['se']:.4f}"),
+                      ("IC 95% del AUC", f"{dl['ci'][0]:.4f} a {dl['ci'][1]:.4f}")]
+        filas += [("Umbral optimo", f"{opt_t:.4f}"), ("Sensibilidad", f"{sens:.4f}"),
+                  ("Especificidad", f"{spec_opt:.4f}"), ("Indice de Youden", f"{youden:.4f}")]
+        for l, v in filas:
             h += self._r(l, v)
         h += "</table>"
 
-        if a >= 0.9:
-            grade = "EXCELENTE"
-        elif a >= 0.8:
-            grade = "BUENA"
-        elif a >= 0.7:
-            grade = "ACEPTABLE"
-        elif a >= 0.6:
-            grade = "REGULAR"
+        if a < 0.5:
+            # Un AUC de 0,06 no es una prueba "pobre": discrimina casi perfecto,
+            # pero al reves. Llamarla pobre esconde que la etiqueta o el sentido
+            # de la prueba estan invertidos (auditoria 2026-09, A9).
+            h += ("<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fdf6ec;"
+                  "border-left:3px solid #d97706;font-size:12px;'><b>La curva sale invertida "
+                  f"(AUC = {a:.3f} &lt; 0,5).</b> En estos datos los valores ALTOS corresponden "
+                  f"a los negativos: leída al revés, el AUC sería {1 - a:.3f}. Revisá si 1 es de "
+                  "verdad el enfermo en la etiqueta, o si la prueba baja con la enfermedad.</div>")
         else:
-            grade = "POBRE"
-
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> <b>Interpretacion:</b> AUC={a:.3f} = {grade}. AUC=1.0 es perfecto, AUC=0.5 es como azar.</div>"
+            if a >= 0.9:
+                grade = "excelente"
+            elif a >= 0.8:
+                grade = "buena"
+            elif a >= 0.7:
+                grade = "aceptable"
+            elif a >= 0.6:
+                grade = "regular"
+            else:
+                grade = "pobre"
+            h += (f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;"
+                  f"font-size:12px;'> <b>Interpretación:</b> AUC = {a:.3f}, discriminación {grade}. "
+                  "AUC = 1 es perfecta; 0,5, lo mismo que tirar una moneda. Mirá el IC: con "
+                  "pocos casos puede ir de pobre a excelente.</div>")
 
         if stats_diag:
             h += "<b style='font-size:12px;'>Matriz de confusion (umbral optimo):</b><table style='font-size:12px;'>"
@@ -861,7 +814,7 @@ class AnalysisMethodsMixin:
                       ("Esperado (G1)", f"{lr['expected']:.2f}")]:
             h += self._r(l, v)
         h += "</table>"
-        h += self._ok(lr['p'] < 0.05, "CURVAS DIFERENTES", "CURVAS SIMILARES")
+        h += self._ok(lr['p'] < 0.05, "Se detectó diferencia entre las curvas", "No se detectó diferencia entre las curvas")
 
         fig, ax = plt.subplots(figsize=(9, 6))
         ax.step(km1["times"], km1["survival"], where='post', color='#4f6ef7', lw=2, label=str(groups[0]))
@@ -932,56 +885,103 @@ class AnalysisMethodsMixin:
 
     # --- Tamano muestral (1 media) ---
     def _ss_mean(self):
-        h = self._h(f" Tamano Muestral — 1 media")
-        h += "<div style='padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;margin-bottom:12px;'>"
-        h += f" Calcula cuantas observaciones necesitas para detectar una diferencia dada."
-        h += "</div>"
-        h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
-        h += "<b>Formula:</b> n = ((Z_alpha + Z_beta) × SD / delta)²<br><br>"
-        h += "Ejemplo: Para detectar diferencia de 5 con DE=10, alpha=0.05, poder=0.80:<br>"
-        r = sample_size_mean(5, 10)
-        h += f"<b>n = {r['n_per_group']} observaciones</b> (tamano de efecto d={r['effect_size']:.2f})"
-        h += "</div>"
-        h += "<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>"
-        h += f" <b>Tip:</b> Para tu propio calculo, usa: sample_size_mean(delta, sd, alpha, power)"
-        h += "</div>"
-        return h
+        """Tamaño muestral para comparar una media con un valor de referencia."""
+        nombre = "Tamano muestral (1 media)"
+        try:
+            delta, sd = self._param(nombre, "delta"), self._param(nombre, "sd")
+            alfa, poder = self._param(nombre, "alpha"), self._param(nombre, "poder")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        r = sample_size_mean(delta, sd, alfa, poder)
+        if _sin_resultado(r):
+            return _msg_error(r, "La diferencia a detectar no puede ser 0.")
+        self._set_formula("Formula: Tamaño muestral — 1 media",
+                          "El n más chico cuyo poder EXACTO llega al pedido:\n"
+                          "poder = P(|T| > t crítico), T ~ t no central(gl = n−1, λ = (Δ/DE)·√n)")
+        h = self._h(" Tamaño Muestral — 1 media")
+        h += "<table style='font-size:12px;'>"
+        for l, v in [("Diferencia a detectar (Δ)", f"{delta:g}"), ("DE esperada", f"{sd:g}"),
+                     ("Alfa (dos colas)", f"{alfa:g}"), ("Poder buscado", f"{poder:g}"),
+                     ("Tamaño del efecto (Δ/DE)", f"{r['effect_size']:.3f}"),
+                     ("n necesario", f"<b>{r['n_per_group']}</b>"),
+                     ("Poder real con ese n", f"{r['power_real']:.3f}")]:
+            h += self._r(l, v)
+        return h + "</table>" + self._nota_parametros()
 
     # --- Tamano muestral (2 medias) ---
     def _ss_two_means(self):
-        h = self._h(f" Tamano Muestral — 2 medias")
-        r = sample_size_two_means(5, 10)
-        h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
-        h += "<b>Formula:</b> n = ((Z_alpha + Z_beta) × SD / delta)² × (1 + 1/ratio)<br><br>"
-        h += f"Ejemplo: Delta=5, DE=10, alpha=0.05, poder=0.80<br>"
-        h += f"<b>n = {r['n_group1']} por grupo</b> ({r['n_total']} total, d={r['effect_size']:.2f})"
-        h += "</div>"
-        return h
+        """Tamaño muestral para comparar dos medias independientes."""
+        nombre = "Tamano muestral (2 medias)"
+        try:
+            delta, sd = self._param(nombre, "delta"), self._param(nombre, "sd")
+            ratio = self._param(nombre, "ratio")
+            alfa, poder = self._param(nombre, "alpha"), self._param(nombre, "poder")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        r = sample_size_two_means(delta, sd, alfa, poder, ratio)
+        if _sin_resultado(r):
+            return _msg_error(r, "La diferencia a detectar no puede ser 0.")
+        self._set_formula("Formula: Tamaño muestral — 2 medias",
+                          "El n1 más chico cuyo poder EXACTO llega al pedido, con n2 = ratio·n1:\n"
+                          "T ~ t no central(gl = n1+n2−2, λ = (Δ/DE)/√(1/n1 + 1/n2))")
+        h = self._h(" Tamaño Muestral — 2 medias")
+        h += "<table style='font-size:12px;'>"
+        for l, v in [("Diferencia a detectar (Δ)", f"{delta:g}"), ("DE común", f"{sd:g}"),
+                     ("Razón n2/n1", f"{ratio:g}"), ("Alfa (dos colas)", f"{alfa:g}"),
+                     ("Poder buscado", f"{poder:g}"),
+                     ("n grupo 1", f"<b>{r['n_group1']}</b>"), ("n grupo 2", f"<b>{r['n_group2']}</b>"),
+                     ("n total", r['n_total'])]:
+            h += self._r(l, v)
+        return h + "</table>" + self._nota_parametros()
 
     # --- Tamano muestral (2 proporciones) ---
     def _ss_prop(self):
-        h = self._h(f" Tamano Muestral — 2 proporciones")
-        r = sample_size_proportions(0.3, 0.5)
-        h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
-        h += "<b>Formula:</b> basada en la prueba Z para diferencias de proporciones<br><br>"
-        h += f"Ejemplo: p1=0.3, p2=0.5, alpha=0.05, poder=0.80<br>"
-        h += f"<b>n = {r['n_per_group']} por grupo</b> ({r['n_total']} total)"
-        h += "</div>"
-        return h
+        """Tamaño muestral para comparar dos proporciones."""
+        nombre = "Tamano muestral (2 proporciones)"
+        try:
+            p1, p2 = self._param(nombre, "p1"), self._param(nombre, "p2")
+            alfa, poder = self._param(nombre, "alpha"), self._param(nombre, "poder")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        r = sample_size_proportions(p1, p2, alfa, poder)
+        if _sin_resultado(r):
+            return _msg_error(r, "Las dos proporciones no pueden ser iguales.")
+        self._set_formula("Formula: Tamaño muestral — 2 proporciones",
+                          "n por grupo = [z(α/2)·√(2·p̄·q̄) + z(β)·√(p1q1 + p2q2)]² / (p1 − p2)²\n"
+                          "(Fleiss, sin corrección de continuidad)")
+        h = self._h(" Tamaño Muestral — 2 proporciones")
+        h += "<table style='font-size:12px;'>"
+        for l, v in [("p1", f"{p1:g}"), ("p2", f"{p2:g}"), ("Alfa (dos colas)", f"{alfa:g}"),
+                     ("Poder buscado", f"{poder:g}"),
+                     ("n por grupo", f"<b>{r['n_per_group']}</b>"), ("n total", r['n_total'])]:
+            h += self._r(l, v)
+        return h + "</table>" + self._nota_parametros()
 
     # --- Poder estadistico ---
     def _power(self):
-        h = self._h(f" Poder Estadistico")
-        r = power_analysis(100, 5, 10)
-        h += "<div style='padding:12px;border-radius:8px;background:#f8f9fa;font-size:13px;'>"
-        h += "Calcula la probabilidad de detectar un efecto real dado un tamano de muestra.<br><br>"
-        h += f"Ejemplo: n=100, delta=5, DE=10, alpha=0.05<br>"
-        h += f"<b>Poder = {r['power']:.1%}</b> (tamano de efecto d={r['effect_size']:.2f})"
-        h += "</div>"
-        h += "<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'>"
-        h += f" <b>Interpretacion:</b> Un poder >= 80% (0.80) es generalmente aceptable."
-        h += "</div>"
-        return h
+        """Poder de una prueba t, para una muestra/pareada o dos grupos."""
+        nombre = "Poder estadistico"
+        try:
+            n, delta = self._param(nombre, "n"), self._param(nombre, "delta")
+            sd, alfa = self._param(nombre, "sd"), self._param(nombre, "alpha")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        dos = (self.opciones_metodo or {}).get("diseno") == "dos"
+        r = power_two_means(n, delta, sd, alfa) if dos else power_analysis(n, delta, sd, alfa)
+        if _sin_resultado(r):
+            return _msg_error(r, "No se pudo calcular.")
+        self._set_formula("Formula: Poder de la prueba t",
+                          "poder = P(|T| > t crítico) con T ~ t no central\n"
+                          + ("gl = 2n − 2, λ = (Δ/DE)·√(n/2)" if dos else "gl = n − 1, λ = (Δ/DE)·√n"))
+        h = self._h(" Poder Estadístico — " + ("dos grupos independientes" if dos
+                                               else "una muestra o datos pareados"))
+        h += "<table style='font-size:12px;'>"
+        for l, v in [("n" + (" por grupo" if dos else ""), n), ("Diferencia (Δ)", f"{delta:g}"),
+                     ("DE", f"{sd:g}"), ("Alfa (dos colas)", f"{alfa:g}"),
+                     ("Tamaño del efecto (Δ/DE)", f"{r['effect_size']:.3f}"),
+                     ("Poder", f"<b>{r['power']:.1%}</b>")]:
+            h += self._r(l, v)
+        return h + "</table>" + self._nota_parametros()
 
     # --- Bootstrap (media) ---
     def _boot_mean(self, col):
@@ -1060,9 +1060,9 @@ class AnalysisMethodsMixin:
 
         includes_zero = result['ci_lower'] <= 0 <= result['ci_upper']
         if includes_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> IC incluye 0 — Sin diferencia significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> El IC incluye el 0: no se detectó diferencia</b><br><span style='font-size:11px;'>No detectarla no prueba que no exista.</span></div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> IC NO incluye 0 — Diferencia significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> El IC no incluye el 0: se detectó diferencia</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#4f6ef7')
@@ -1108,9 +1108,9 @@ class AnalysisMethodsMixin:
 
         includes_zero = result['ci_lower'] <= 0 <= result['ci_upper']
         if includes_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> IC incluye 0 — Sin correlacion significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> El IC incluye el 0: no se detectó correlación</b><br><span style='font-size:11px;'>No detectarla no prueba que no exista.</span></div>"
         else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> IC NO incluye 0 — Correlacion significativa</b></div>"
+            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> El IC no incluye el 0: se detectó correlación</b></div>"
 
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#8b5cf6')
@@ -1125,56 +1125,51 @@ class AnalysisMethodsMixin:
         return h
 
     # --- Random Forest (clasificacion) ---
-    def _rf_class(self, target_col, feature_cols_str=None):
+    def _rf_class(self, target_col):
+        """Random Forest (clasificación): Variable 1 = clase; predictoras = las tildadas."""
         if target_col not in self.data.columns:
-            return f"<b>Error:</b> '{target_col}' no encontrada."
-
-        nums = self.data.select_dtypes(include="number").columns.tolist()
-        if target_col in nums:
-            nums.remove(target_col)
+            return f"<b>Error:</b> '{escape(str(target_col))}' no encontrada."
+        nums, del_dialogo = self._columnas_multi(excluir=(target_col,))
         if len(nums) < 1:
-            return "<b>Error:</b> Se necesitan al menos 1 variable predictora numerica."
-
-        X = self.data[nums].dropna()
-        y = self.data.loc[X.index, target_col]
-
-        valid = y.notna()
-        X, y = X[valid].values, y[valid].values
-
+            return "<b>Error:</b> Se necesita al menos 1 predictora numérica."
+        filas = self._filas_completas(target_col, *nums)
+        X, y = filas[nums].values, filas[target_col].values
         if len(np.unique(y)) < 2:
-            return "<b>Error:</b> Target debe tener al menos 2 clases."
-        # El clasificador requiere un target categórico (clases discretas).
+            return "<b>Error:</b> La clase tiene que tener al menos 2 valores."
         if not np.all(y == y.astype(int)) or len(np.unique(y)) > 20:
-            return ("<b>Error:</b> El target de clasificación debe ser categórico "
-                    "(pocas clases discretas, ej. 0/1). Para una variable continua "
-                    "usa <b>Random Forest (regresión)</b>.")
-
+            return ("<b>Error:</b> La clase tiene que ser categórica (pocas clases discretas, "
+                    "ej. 0/1). Para una variable continua usá <b>Random Forest (regresión)</b>.")
         self._set_formula(
             "Formula: Random Forest (Clasificacion)",
-            "1. Para cada arbol:\n   a. Remuestrear datos con reemplazo (bagging)\n   b. En cada nodo, probar sqrt(p) features\n   c. Elegir mejor split por Gini\n2. Clasificacion = voto mayoritario de B arboles\n3. Gini = 1 - Σ(pi²)",
-            f"n_arboles = 100\nn_features = sqrt({len(nums)}) = {int(np.sqrt(len(nums)))}\nFeatures: {', '.join(nums[:5])}\nTarget: {target_col}"
-        )
-
+            "1. Cada árbol: remuestreo con reemplazo; en cada nodo, √p predictoras al azar; corte por Gini\n"
+            "2. Clase = voto mayoritario de 100 árboles\n"
+            "3. Desempeño: exactitud por validación cruzada estratificada (k particiones)",
+            f"Predictoras: {', '.join(str(c) for c in nums[:5])}\nClase: {target_col}")
         rf = RandomForestClassifier(n_trees=100, max_depth=8, random_state=42)
         rf.fit(X, y)
-        acc = rf.score(X, y)
+        cv = rf.validacion_cruzada(X, y)
         importances = rf.get_feature_importance()
-
-        h = self._h(f" Random Forest — Clasificacion")
+        h = self._h(" Random Forest — Clasificación")
         h += "<table style='font-size:12px;'>"
-        h += self._r("Target", target_col)
-        h += self._r("Features", len(nums))
+        h += self._r("Clase", escape(str(target_col)))
         h += self._r("Observaciones", len(y))
         h += self._r("Clases", len(np.unique(y)))
-        h += self._r("Accuracy (train)", f"{acc:.4f}")
+        if _sin_resultado(cv):
+            h += self._r("Exactitud por validación cruzada", cv.get("error", "—"))
+        else:
+            h += self._r(f"Exactitud por validación cruzada (k={cv['k']})",
+                         f"{cv['media']:.4f} ± {cv['de']:.4f}")
+        h += self._r("Exactitud sobre los datos de entrenamiento (optimista)", f"{rf.score(X, y):.4f}")
         h += "</table>"
-
+        h += ("<p style='font-size:11px;color:#555;'>La exactitud que vale es la de validación "
+              "cruzada: la de entrenamiento mide al modelo sobre los mismos casos con que se "
+              "ajustó y con ruido puro da cerca de 1.</p>")
         h += "<b style='font-size:12px;'>Importancia de Variables:</b><table style='font-size:12px;'>"
         sorted_idx = np.argsort(importances)[::-1]
         for i in sorted_idx[:8]:
             bar = "█" * int(importances[i] * 50)
-            h += self._r(nums[i], f"{importances[i]:.4f} {bar}")
-        h += "</table>"
+            h += self._r(escape(str(nums[i])), f"{importances[i]:.4f} {bar}")
+        h += "</table>" + self._nota_columnas(nums, del_dialogo)
 
         fig, ax = plt.subplots(figsize=(8, max(3, min(8, len(nums)) * 0.5)))
         top_n = min(8, len(nums))
@@ -1187,72 +1182,60 @@ class AnalysisMethodsMixin:
         ax.invert_yaxis()
         fig.tight_layout()
         self._show_fig(fig)
-
         return h
 
     # --- Random Forest (regresion) ---
-    def _rf_regress(self, target_col, feature_cols_str=None):
+    def _rf_regress(self, target_col):
+        """Random Forest (regresión): Variable 1 = respuesta; predictoras = las tildadas."""
         if target_col not in self.data.columns:
-            return f"<b>Error:</b> '{target_col}' no encontrada."
-
-        nums = self.data.select_dtypes(include="number").columns.tolist()
-        if target_col in nums:
-            nums.remove(target_col)
+            return f"<b>Error:</b> '{escape(str(target_col))}' no encontrada."
+        nums, del_dialogo = self._columnas_multi(excluir=(target_col,))
         if len(nums) < 1:
-            return "<b>Error:</b> Se necesitan al menos 1 feature numerico."
-
-        X = self.data[nums].dropna()
-        y = self.data.loc[X.index, target_col].dropna()
-        common = X.index.intersection(y.index)
-        X, y = X.loc[common].values, y.loc[common].values
-
+            return "<b>Error:</b> Se necesita al menos 1 predictora numérica."
+        filas = self._filas_completas(target_col, *nums)
+        X, y = filas[nums].values, filas[target_col].values
         if len(y) < 10:
             return "<b>Error:</b> Minimo 10 observaciones."
-
         self._set_formula(
             "Formula: Random Forest (Regresion)",
-            "1. Para cada arbol:\n   a. Remuestrear datos con reemplazo\n   b. Mejor split por varianza minimizada\n2. Prediccion = promedio de B arboles\n3. Varianza = (1/n) × Σ(yi - ȳ)²",
-            f"n_arboles = 100\nFeatures: {', '.join(nums[:5])}\nTarget: {target_col}\nn = {len(y)}"
-        )
-
+            "1. Cada árbol: remuestreo con reemplazo; corte que minimiza la varianza\n"
+            "2. Predicción = promedio de 100 árboles\n"
+            "3. Desempeño: R² por validación cruzada (k particiones)",
+            f"Predictoras: {', '.join(str(c) for c in nums[:5])}\nRespuesta: {target_col}\nn = {len(y)}")
         rf = RandomForestRegressor(n_trees=100, max_depth=8, random_state=42)
         rf.fit(X, y)
-        r2 = rf.score(X, y)
+        cv = rf.validacion_cruzada(X, y)
+        r2_train = rf.score(X, y)
         y_pred = rf.predict(X)
-        rmse = np.sqrt(np.mean((y - y_pred)**2))
-        mae = np.mean(np.abs(y - y_pred))
-
-        h = self._h(f" Random Forest — Regresion")
+        h = self._h(" Random Forest — Regresión")
         h += "<table style='font-size:12px;'>"
-        h += self._r("Target", target_col)
-        h += self._r("Features", len(nums))
+        h += self._r("Respuesta", escape(str(target_col)))
         h += self._r("Observaciones", len(y))
-        h += self._r("R²", f"{r2:.4f}")
-        h += self._r("RMSE", f"{rmse:.4f}")
-        h += self._r("MAE", f"{mae:.4f}")
-        h += "</table>"
+        if _sin_resultado(cv):
+            h += self._r("R² por validación cruzada", cv.get("error", "—"))
+        else:
+            h += self._r(f"R² por validación cruzada (k={cv['k']})", f"{cv['media']:.4f} ± {cv['de']:.4f}")
+        h += self._r("R² sobre los datos de entrenamiento (optimista)", f"{r2_train:.4f}")
+        h += "</table>" + self._nota_columnas(nums, del_dialogo)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
-
         ax1.scatter(y, y_pred, alpha=0.5, c='#4f6ef7', edgecolors='white', s=50)
         lims = [min(y.min(), y_pred.min()), max(y.max(), y_pred.max())]
-        ax1.plot(lims, lims, '--', color='#ef4444', lw=1.5, label='Prediccion perfecta')
+        ax1.plot(lims, lims, '--', color='#ef4444', lw=1.5, label='Predicción perfecta')
         ax1.set_xlabel('Observado')
-        ax1.set_ylabel('Predicho')
-        ax1.set_title(f'Observado vs Predicho (R²={r2:.3f})', fontweight='bold')
+        ax1.set_ylabel('Predicho (sobre entrenamiento)')
+        ax1.set_title('Observado vs Predicho', fontweight='bold')
         ax1.legend(framealpha=0.9)
-
-        sorted_idx = np.argsort(rf.get_feature_importance())[::-1][:min(8, len(nums))]
-        ax2.barh(range(len(sorted_idx)), rf.get_feature_importance()[sorted_idx], color='#22c55e', edgecolor='white')
+        imp = rf.get_feature_importance()
+        sorted_idx = np.argsort(imp)[::-1][:min(8, len(nums))]
+        ax2.barh(range(len(sorted_idx)), imp[sorted_idx], color='#22c55e', edgecolor='white')
         ax2.set_yticks(range(len(sorted_idx)))
         ax2.set_yticklabels([nums[i] for i in sorted_idx])
         ax2.set_xlabel('Importancia')
         ax2.set_title('Importancia de Variables', fontweight='bold')
         ax2.invert_yaxis()
-
         fig.tight_layout()
         self._show_fig(fig)
-
         return h
 
     # --- Mann-Whitney U ---
@@ -1265,7 +1248,7 @@ class AnalysisMethodsMixin:
         r = mannwhitneyu(d1.values, d2.values)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Mann-Whitney U", "U = n1*n2 + n1*(n1+1)/2 - R1\nDonde R1 = suma de rangos del grupo 1", f"U = {r['u']:.1f}\np = {r['p']:.6f}\nn1={r['n1']}, n2={r['n2']}")
+        self._set_formula("Formula: Mann-Whitney U", "U = R1 − n1(n1+1)/2,  R1 = suma de rangos del grupo 1", f"U = {r['u']:.1f}\np = {r['p']:.6f}\nn1={r['n1']}, n2={r['n2']}")
         h = self._h(f" Mann-Whitney U — {c1} vs {c2}")
         h += "<table style='font-size:12px;'>"
         for l, v in [("Grupo 1", f"{c1} (n={r['n1']}, mediana={r['median1']:.2f})"),
@@ -1292,105 +1275,127 @@ class AnalysisMethodsMixin:
         return h + "</table>" + self._ok(r['p'] < 0.05)
 
     # --- Chi-cuadrado ---
-    def _chi2(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas numericas."
-        pares = self._filas_completas(nums[0], nums[1])
-        d1, d2 = pares[nums[0]], pares[nums[1]]
-        n = len(pares)
-        if n < 4:
-            return "<b>Error:</b> Minimo 4 datos."
-        cats1 = np.unique(d1.values)
-        cats2 = np.unique(d2.values)
-        if len(cats1) > 10 or len(cats2) > 10:
-            return "<b>Error:</b> Chi-cuadrado es para datos categoricos (max 10 categorias por variable)."
-        matrix = np.zeros((len(cats1), len(cats2)))
-        for v1, v2 in zip(d1.values, d2.values):
-            i = np.where(cats1 == v1)[0][0]
-            j = np.where(cats2 == v2)[0][0]
-            matrix[i, j] += 1
-        if np.any(matrix < 0):
-            return "<b>Error:</b> Tabla con valores negativos."
-        r = chi_square_test(matrix)
+    def _chi2(self, c1, c2):
+        """Chi-cuadrado de independencia sobre las dos variables elegidas (datos crudos)."""
+        tabla = self._tabla_rxc(c1, c2)
+        if isinstance(tabla, str):
+            return tabla
+        r = chi_square_test(tabla.values)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Chi-cuadrado", "X2 = Sum((O-E)^2 / E)\nE = (fila_total * col_total) / n_total", f"X2 = {r['chi2']:.4f}\np = {r['p']:.6f}\ndf = {r['df']}")
-        h = self._h(f" Chi-cuadrado")
+        es_2x2 = tabla.shape == (2, 2)
+        esperadas = np.asarray(r["expected"])
+        formula = "X² = Σ (O − E)² / E,   E = total de fila × total de columna / n"
+        if es_2x2:
+            formula += "\nTabla 2×2: corrección de Yates, X² = Σ (|O − E| − 0,5)² / E"
+        self._set_formula("Formula: Chi-cuadrado", formula,
+                          f"X² = {r['chi2']:.4f}\np = {r['p']:.6f}\ngl = {r['df']}")
+        h = self._h(f" Chi-cuadrado — {escape(str(c1))} × {escape(str(c2))}")
+        h += self._html_tabla_rxc(tabla)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Chi2", f"{r['chi2']:.4f}"), ("p", f"{r['p']:.6f}"), ("df", r['df'])]:
+        for l, v in [("X²" + (" (Yates)" if es_2x2 else ""), f"{r['chi2']:.4f}"),
+                     ("gl", r['df']), ("p", _p_html(r['p'])),
+                     ("Frecuencia esperada mínima", f"{esperadas.min():.2f}")]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "ASOCIACION", "SIN ASOCIACION")
+        h += "</table>"
+        if np.mean(esperadas < 5) > 0.2 or esperadas.min() < 1:
+            h += self._avisos_html([
+                "Más del 20 % de las celdas espera menos de 5 casos (o alguna menos de 1): "
+                "la aproximación chi-cuadrado no es confiable con estos datos."
+                + (" Con una tabla 2×2, usá la prueba exacta de Fisher." if es_2x2 else "")])
+        return h + self._ok(r['p'] < 0.05, "Se detectó asociación", "No se detectó asociación")
 
     # --- Fisher exact ---
-    def _fisher(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas."
-        table = self.data[nums[:2]].dropna().values
-        if table.shape[0] < 2 or table.shape[1] < 2:
-            return "<b>Error:</b> Tabla 2x2 requerida."
-        a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
+    def _fisher(self, c1, c2):
+        """Prueba exacta de Fisher sobre la tabla 2×2 de las dos variables elegidas."""
+        t = self._tabla_2x2(c1, c2)
+        if isinstance(t, str):
+            return t
+        a, b, c, d, filas, columnas, lectura, avisos = t
         r = fisher_exact_test(a, b, c, d)
-        self._set_formula("Formula: Fisher Exact", "P = (a+b)!(c+d)!(a+c)!(b+d)! / (a!b!c!d!n!)", f"OR = {r['odds_ratio']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" Fisher Exact")
+        self._set_formula("Formula: Fisher Exact",
+                          "p = suma de las probabilidades hipergeométricas de todas las tablas "
+                          "con los mismos totales\nque son tan o más extremas que la observada\n"
+                          "OR muestral = (a·d)/(b·c)",
+                          f"OR = {r['odds_ratio']:.4f}\np = {r['p']:.6f}")
+        h = self._h(" Fisher Exact")
+        h += f"<p style='font-size:11px;'>{lectura}</p>"
+        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("OR", f"{r['odds_ratio']:.4f}"), ("p", f"{r['p']:.6f}")]:
+        for l, v in [("OR muestral", f"{r['odds_ratio']:.4f}"), ("p", _p_html(r['p']))]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "ASOCIACION", "SIN ASOCIACION")
+        h += "</table>" + self._avisos_html(avisos)
+        return h + self._ok(r['p'] < 0.05, "Se detectó asociación", "No se detectó asociación")
 
     # --- McNemar ---
-    def _mcnemar(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas."
-        table = self.data[nums[:2]].dropna().values
-        if table.shape[0] < 2 or table.shape[1] < 2:
-            return "<b>Error:</b> Tabla 2x2."
-        b, c = int(table[0, 1]), int(table[1, 0])
+    def _mcnemar(self, c1, c2):
+        """McNemar: la misma clasificación binaria en dos momentos o por dos métodos.
+
+        Variable 1 = antes (o método 1), Variable 2 = después (o método 2), una
+        fila por sujeto. Con menos de 25 pares discordantes usa la binomial exacta.
+        """
+        t = self._tabla_2x2(c1, c2)
+        if isinstance(t, str):
+            return t
+        a, b, c, d, filas, columnas, lectura, avisos = t
         r = mcnemar_test(b, c)
-        self._set_formula("Formula: McNemar", "X2 = (|b-c|-1)^2 / (b+c)", f"b={b}, c={c}\nX2 = {r['chi2']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" McNemar")
+        self._set_formula("Formula: McNemar",
+                          "Pares discordantes b y c\n"
+                          "b + c < 25: p binomial exacta, B(b + c; 0,5)\n"
+                          "b + c ≥ 25: X² = (|b − c| − 1)² / (b + c), 1 gl",
+                          f"b={b}, c={c}\np = {r['p']:.6f} ({r['metodo']})")
+        h = self._h(" McNemar")
+        h += f"<p style='font-size:11px;'>{lectura}</p>"
+        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Discordantes b", b), ("Discordantes c", c), ("Chi2", f"{r['chi2']:.4f}"), ("p", f"{r['p']:.6f}")]:
+        for l, v in [("Discordantes b", b), ("Discordantes c", c),
+                     ("Método", r['metodo']), ("p", _p_html(r['p']))]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "CAMBIO", "SIN CAMBIO")
+        h += "</table>" + self._avisos_html(avisos)
+        return h + self._ok(r['p'] < 0.05, "Se detectó cambio", "No se detectó cambio")
 
     # --- Kruskal-Wallis ---
-    def _kruskal(self):
-        nums = self.data.select_dtypes(include="number").columns
-        groups = [self.data[c].dropna().values for c in nums if len(self.data[c].dropna()) > 0]
-        if len(groups) < 3:
-            return "<b>Error:</b> Minimo 3 grupos."
-        r = kruskal_wallis(groups)
+    def _kruskal(self, c1, c2):
+        """Kruskal-Wallis en formato largo: Variable 1 = respuesta, Variable 2 = grupo."""
+        grupos = self._grupos_largo(c1, c2)
+        if isinstance(grupos, str):
+            return grupos
+        etiquetas, datos = grupos
+        r = kruskal_wallis(datos)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Kruskal-Wallis", "H = (12/n(n+1)) * Sum(Ri^2/ni) - 3(n+1)", f"H = {r['h']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" Kruskal-Wallis")
+        self._set_formula("Formula: Kruskal-Wallis",
+                          "H = (12 / (N(N+1))) · Σ Rᵢ²/nᵢ − 3(N+1), corregido por empates",
+                          f"H = {r['h']:.4f}\np = {r['p']:.6f}")
+        h = self._h(f" Kruskal-Wallis — {escape(str(c1))} por {escape(str(c2))}")
+        h += self._html_grupos(etiquetas, datos)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("H", f"{r['h']:.4f}"), ("p", f"{r['p']:.6f}"), ("Grupos", r['k'])]:
+        for l, v in [("H", f"{r['h']:.4f}"), ("gl", r['k'] - 1), ("p", _p_html(r['p']))]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "DIFERENCIAS", "SIN DIFERENCIAS")
+        return h + "</table>" + self._ok(r['p'] < 0.05)
 
     # --- Friedman ---
     def _friedman(self):
-        nums = [c for c in self.data.select_dtypes(include="number").columns
-                if self.data[c].notna().any()]
-        # Cada fila es un sujeto medido en todas las condiciones: solo entran
-        # los sujetos con todas sus mediciones.
-        sujetos = self._filas_completas(*nums) if nums else self.data[[]]
-        groups = [sujetos[c].values for c in nums]
-        if len(groups) < 3:
-            return "<b>Error:</b> Minimo 3 condiciones."
+        """Friedman: una columna por condicion, una fila por sujeto."""
+        cols, del_dialogo = self._columnas_multi()
+        if len(cols) < 3:
+            return ("<b>Error:</b> Friedman necesita al menos 3 condiciones (columnas "
+                    "numéricas); hay " + str(len(cols)) + ".")
+        sujetos = self._filas_completas(*cols)
+        groups = [sujetos[c].values for c in cols]
         r = friedman_test(*groups)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Friedman", "X2r = (12/nk(k+1)) * Sum(Rj^2) - 3n(k+1)", f"X2 = {r['chi2']:.4f}\np = {r['p']:.6f}")
+        self._set_formula("Formula: Friedman",
+                          "χ²r = (12 / (n·k·(k+1))) · Σ Rⱼ² − 3n(k+1), corregido por empates",
+                          f"χ² = {r['chi2']:.4f}\np = {r['p']:.6f}")
         h = self._h(f" Friedman")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Chi2", f"{r['chi2']:.4f}"), ("p", f"{r['p']:.6f}"), ("k", r['k'])]:
+        for l, v in [("Sujetos completos", len(sujetos)), ("Condiciones (k)", r['k']),
+                     ("χ²", f"{r['chi2']:.4f}"), ("p", _p_html(r['p']))]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "DIFERENCIAS", "SIN DIFERENCIAS")
+        h += "</table>" + self._nota_columnas(cols, del_dialogo)
+        return h + self._ok(r['p'] < 0.05)
 
     # --- F-test ---
     def _ftest(self, c1, c2):
@@ -1408,33 +1413,34 @@ class AnalysisMethodsMixin:
         for l, v in [("DE 1", f"{r['sd1']:.4f}"), ("DE 2", f"{r['sd2']:.4f}"),
                       ("F", f"{r['f']:.4f}"), ("p", f"{r['p']:.6f}")]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "VARIANZAS DIFERENTES", "VARIANZAS SIMILARES")
+        return h + "</table>" + self._ok(r['p'] < 0.05, "Se detectó diferencia entre las varianzas", "No se detectó diferencia entre las varianzas")
 
     # --- Kappa ---
-    def _kappa(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas (evaluadores)."
-        table = self.data[nums[:2]].dropna().values
-        if table.shape[0] < 2 or table.shape[1] < 2:
-            return "<b>Error:</b> Tabla 2x2."
-        max_val = int(table.max())
-        if max_val > 20:
-            return f"<b>Error:</b> Kappa es para datos categoricos (0-20 max). Valores: 0 a {max_val}."
-        matrix = np.zeros((max_val+1, max_val+1))
-        for row in table:
-            matrix[int(row[0]), int(row[1])] += 1
-        r = cohens_kappa(matrix)
+    def _kappa(self, c1, c2):
+        """Kappa de Cohen: Variable 1 y Variable 2 = las clasificaciones de dos
+        evaluadores o métodos, una fila por sujeto."""
+        for c in (c1, c2):
+            if c is None or c not in self.data.columns:
+                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
+        pares = self._filas_completas(c1, c2)
+        categorias = sorted(set(pares[c1]) | set(pares[c2]), key=str)
+        if len(categorias) > 20:
+            return (f"<b>Error:</b> hay {len(categorias)} categorías distintas: kappa es para "
+                    "clasificaciones categóricas.")
+        tabla = pd.crosstab(pares[c1], pares[c2]).reindex(index=categorias,
+                                                           columns=categorias, fill_value=0)
+        r = cohens_kappa(tabla.values)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
         self._set_formula("Formula: Kappa de Cohen",
-                          "K = (Po - Pe) / (1 - Pe)\n"
+                          "κ = (Po − Pe) / (1 − Pe)\n"
                           "IC 95%: EE de Fleiss, Cohen y Everitt (1969)\n"
-                          "p: EE bajo H0 (kappa = 0)",
-                          f"Kappa = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
-        h = self._h(f" Kappa de Cohen")
+                          "p: EE bajo H0 (κ = 0)",
+                          f"κ = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
+        h = self._h(f" Kappa de Cohen — {escape(str(c1))} vs {escape(str(c2))}")
+        h += self._html_tabla_rxc(tabla)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("Kappa", f"{r['kappa']:.4f}"),
+        for l, v in [("n", r['n']), ("Kappa", f"{r['kappa']:.4f}"),
                      ("IC 95%", f"{r['ci'][0]:.4f} a {r['ci'][1]:.4f}"),
                      ("Fuerza (Altman 1991)", r['strength']), ("p", _p_html(r['p']))]:
             h += self._r(l, v)
@@ -1442,6 +1448,13 @@ class AnalysisMethodsMixin:
 
     # --- ICC ---
     def _icc(self, c1, c2):
+        """ICC de dos vías, acuerdo absoluto — ICC(A,1) de McGraw y Wong (1996).
+
+        Con dos métodos o evaluadores que miden a TODOS los sujetos, el modelo es
+        de dos vías; y para concordancia interesa el acuerdo absoluto (un sesgo
+        entre métodos baja el ICC). Antes se informaba el de una vía, ICC(1,1),
+        como "ICC" a secas (auditoría 2026-09, M11).
+        """
         if c1 not in self.data.columns or c2 not in self.data.columns:
             return "<b>Error:</b> Columnas no encontradas."
         pares = self._filas_completas(c1, c2)
@@ -1450,32 +1463,47 @@ class AnalysisMethodsMixin:
         if n < 3:
             return "<b>Error:</b> Minimo 3 pares."
         data = np.column_stack([d1.values, d2.values])
-        r = intraclass_correlation(data)
+        r = intraclass_correlation(data, model="two-way-random")
+        rc = intraclass_correlation(data, model="two-way-mixed")
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: ICC", "ICC = (MS_rows - MS_error) / (MS_rows + (k-1)*MS_error)", f"ICC = {r['icc']:.4f}\nF = {r['f']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" ICC — {c1} vs {c2}")
+        self._set_formula(
+            "Formula: ICC(A,1) — dos vías, acuerdo absoluto",
+            "ICC = (MS_sujetos − MS_error) / (MS_sujetos + (k−1)·MS_error + k·(MS_métodos − MS_error)/n)",
+            f"ICC = {r['icc']:.4f}\nF = {r['f']:.4f}\np = {r['p']:.6f}")
+        h = self._h(f" ICC — {escape(str(c1))} vs {escape(str(c2))}")
         h += "<table style='font-size:12px;'>"
-        for l, v in [("ICC", f"{r['icc']:.4f}"), ("F", f"{r['f']:.4f}"), ("p", f"{r['p']:.6f}")]:
+        for l, v in [("n", n), ("ICC(A,1) — acuerdo absoluto", f"{r['icc']:.4f}"),
+                     ("IC 95%", f"{r['ci_low']:.4f} a {r['ci_high']:.4f}"),
+                     ("ICC(C,1) — consistencia", f"{rc['icc']:.4f}" if not _sin_resultado(rc) else "—"),
+                     ("F", f"{r['f']:.4f}"), ("p (ICC = 0)", _p_html(r['p']))]:
             h += self._r(l, v)
-        return h + "</table>"
+        h += "</table>"
+        h += ("<p style='font-size:11px;color:#555;'>El de acuerdo absoluto baja si un método "
+              "lee sistemáticamente más alto que el otro; el de consistencia no. Si los dos "
+              "difieren mucho, hay sesgo entre los métodos.</p>")
+        return h
 
     # --- Cronbach alpha ---
     def _cronbach(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 3:
-            return "<b>Error:</b> Minimo 3 items."
-        data = self.data[nums].dropna().values
+        """Alfa de Cronbach sobre los ítems elegidos (una columna por ítem)."""
+        cols, del_dialogo = self._columnas_multi()
+        if len(cols) < 2:
+            return f"<b>Error:</b> hacen falta al menos 2 ítems (columnas numéricas); hay {len(cols)}."
+        data = self._filas_completas(*cols).values
         r = cronbach_alpha(data)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Alfa de Cronbach", "a = (k/(k-1)) * (1 - Sum(var_i)/var_total)", f"Alfa = {r['alpha']:.4f}\nk = {r['n_items']}")
+        self._set_formula("Formula: Alfa de Cronbach",
+                          "α = (k/(k−1)) · (1 − Σ varᵢ / var_total)",
+                          f"α = {r['alpha']:.4f}\nk = {r['n_items']}")
         h = self._h(f" Alfa de Cronbach")
         h += "<table style='font-size:12px;'>"
         h += self._r("Alfa", f"{r['alpha']:.4f}")
-        h += self._r("Items", r['n_items'])
+        h += self._r("Ítems", r['n_items'])
+        h += self._r("Sujetos completos", r['n_subjects'])
         h += "</table>"
-        return h
+        return h + self._nota_columnas(cols, del_dialogo)
 
     # --- Regresion lineal ---
     def _reg_lineal(self, c1, c2):
@@ -1501,110 +1529,127 @@ class AnalysisMethodsMixin:
         return h
 
     # --- Regresion multiple ---
-    def _reg_multiple(self):
-        nums = self.data.select_dtypes(include="number").columns.tolist()
-        if len(nums) < 3:
-            return "<b>Error:</b> Minimo 3 columnas (1 target + 2 predictors)."
-        target = nums[-1]
-        predictors = nums[:-1]
-        X = self.data[predictors].dropna()
-        y = self.data.loc[X.index, target].dropna()
-        common = X.index.intersection(y.index)
-        X, y = X.loc[common].values, y.loc[common].values
-        r = multiple_regression(X, y)
+    def _reg_multiple(self, c1):
+        """Regresión múltiple: Variable 1 = respuesta; predictoras = las tildadas."""
+        if c1 is None or c1 not in self.data.columns:
+            return "<b>Error:</b> Elegí la respuesta en la Variable 1."
+        predictors, del_dialogo = self._columnas_multi(excluir=(c1,))
+        if len(predictors) < 1:
+            return "<b>Error:</b> Hace falta al menos una predictora numérica."
+        filas = self._filas_completas(c1, *predictors)
+        r = multiple_regression(filas[predictors].values, filas[c1].values)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Regresion Multiple", "y = b0 + b1*x1 + b2*x2 + ...\nBeta = (X'X)^-1 X'Y", f"R2 = {r['r2']:.4f}\nR2 adj = {r['r2_adj']:.4f}\nF = {r['f']:.4f}")
-        h = self._h(f" Regresion Multiple — {target}")
+        self._set_formula("Formula: Regresion Multiple",
+                          "y = b0 + b1·x1 + b2·x2 + ...\nβ = (X'X)⁻¹ X'y (mínimos cuadrados)",
+                          f"R2 = {r['r2']:.4f}\nR2 adj = {r['r2_adj']:.4f}\nF = {r['f']:.4f}")
+        h = self._h(f" Regresion Multiple — {escape(str(c1))}")
         h += "<table style='font-size:12px;'>"
+        h += self._r("n", r['n'])
         h += self._r("R2", f"{r['r2']:.4f}")
         h += self._r("R2 ajustado", f"{r['r2_adj']:.4f}")
         h += self._r("F", f"{r['f']:.4f}")
-        h += self._r("p modelo", f"{r['p_model']:.6f}")
+        h += self._r("p modelo", _p_html(r['p_model']))
         h += "</table><b>Coeficientes:</b><table style='font-size:12px;'>"
-        labels = ["Intercepto"] + predictors
-        for i, l in enumerate(labels):
-            h += self._r(l, f"b={r['coeffs'][i]:.4f}, p={r['p'][i]:.4f}")
+        for l, coef, se, p in zip(["Intercepto"] + predictors, r['coeffs'], r['se'], r['p']):
+            h += self._r(escape(str(l)), f"b={coef:.4f} (EE {se:.4f}), {_p_html(p)}")
         h += "</table>"
-        return h
+        return h + self._nota_columnas(predictors, del_dialogo)
 
     # --- Regresion logistica ---
-    def _reg_logistica(self):
-        nums = self.data.select_dtypes(include="number").columns.tolist()
-        if len(nums) < 3:
-            return "<b>Error:</b> Minimo 3 columnas."
-        target = nums[-1]
-        y_vals = self.data[target].dropna().unique()
+    def _reg_logistica(self, c1):
+        """Regresión logística: Variable 1 = respuesta 0/1; predictoras = las tildadas."""
+        if c1 is None or c1 not in self.data.columns:
+            return "<b>Error:</b> Elegí la respuesta (0/1) en la Variable 1."
+        y_vals = self.data[c1].dropna().unique()
         if not all(v in [0, 1] for v in y_vals):
-            return f"<b>Error:</b> Target debe ser 0/1."
-        predictors = nums[:-1]
-        X = self.data[predictors].dropna()
-        y = self.data.loc[X.index, target].dropna()
-        common = X.index.intersection(y.index)
-        X, y = X.loc[common].values, y.loc[common].values
-        r = logistic_regression(X, y)
+            return f"<b>Error:</b> «{escape(str(c1))}» tiene que ser 0/1."
+        predictors, del_dialogo = self._columnas_multi(excluir=(c1,))
+        if len(predictors) < 1:
+            return "<b>Error:</b> Hace falta al menos una predictora numérica."
+        filas = self._filas_completas(c1, *predictors)
+        r = logistic_regression(filas[predictors].values, filas[c1].values)
         if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Regresion Logistica", "ln(p/(1-p)) = b0 + b1*x1 + ...\nOR = exp(b)", f"Accuracy = {r['accuracy']:.4f}\nAIC = {r['aic']:.2f}")
-        h = self._h(f" Regresion Logistica — {target}")
+            return _msg_error(r, "No se pudo calcular (¿separación completa?).")
+        self._set_formula("Formula: Regresion Logistica",
+                          "ln(p/(1−p)) = b0 + b1·x1 + ...\nOR = exp(b); máxima verosimilitud (statsmodels)",
+                          f"AIC = {r['aic']:.2f}")
+        h = self._h(f" Regresion Logistica — {escape(str(c1))}")
         h += "<table style='font-size:12px;'>"
-        h += self._r("Accuracy", f"{r['accuracy']:.4f}")
+        h += self._r("n", r['n'])
         h += self._r("AIC", f"{r['aic']:.2f}")
+        h += self._r("Exactitud sobre los mismos datos (optimista)", f"{r['accuracy']:.4f}")
         h += "</table><b>Coeficientes:</b><table style='font-size:12px;'>"
-        labels = ["Intercepto"] + predictors
-        for i, l in enumerate(labels):
-            h += self._r(l, f"b={r['coeffs'][i]:.4f}, OR={r['odds_ratios'][i]:.4f}, p={r['p'][i]:.4f}")
+        for i, l in enumerate(["Intercepto"] + predictors):
+            h += self._r(escape(str(l)),
+                         f"b={r['coeffs'][i]:.4f}, OR={r['odds_ratios'][i]:.4f} "
+                         f"(IC 95% {r['or_ci_low'][i]:.4f} a {r['or_ci_high'][i]:.4f}), "
+                         f"{_p_html(r['p'][i])}")
         h += "</table>"
-        return h
+        return h + self._nota_columnas(predictors, del_dialogo)
 
     # --- Odds Ratio ---
-    def _odds_ratio(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas."
-        table = self.data[nums[:2]].dropna().values
-        if table.shape[0] < 2 or table.shape[1] < 2:
-            return "<b>Error:</b> Tabla 2x2."
-        a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
+    def _odds_ratio(self, c1, c2):
+        """OR: Variable 1 = exposición, Variable 2 = evento (una fila por sujeto)."""
+        t = self._tabla_2x2(c1, c2)
+        if isinstance(t, str):
+            return t
+        a, b, c, d, filas, columnas, lectura, avisos = t
         r = odds_ratio(a, b, c, d)
-        self._set_formula("Formula: Odds Ratio", "OR = (a*d)/(b*c)\nSE(ln OR) = sqrt(1/a+1/b+1/c+1/d)", f"OR = {r['or']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\np = {r['p']:.6f}")
-        h = self._h(f" Odds Ratio")
+        self._set_formula("Formula: Odds Ratio",
+                          "OR = (a·d)/(b·c)\nIC 95%: exp(ln OR ± 1,96·√(1/a+1/b+1/c+1/d))\n"
+                          "Con alguna celda en 0 se suma 0,5 a todas (Haldane)",
+                          f"OR = {r['or']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\np = {r['p']:.6f}")
+        h = self._h(" Odds Ratio")
+        h += f"<p style='font-size:11px;'>{lectura}</p>"
+        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("OR", f"{r['or']:.4f}"), ("IC 95%", f"[{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]"), ("p", f"{r['p']:.6f}")]:
+        for l, v in [("OR", f"{r['or']:.4f}"),
+                     ("IC 95%", f"{r['ci_lower']:.4f} a {r['ci_upper']:.4f}"),
+                     ("p", _p_html(r['p']))]:
             h += self._r(l, v)
-        return h + "</table>"
+        return h + "</table>" + self._avisos_html(avisos)
 
     # --- Riesgo Relativo ---
-    def _riesgo_relativo(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas."
-        table = self.data[nums[:2]].dropna().values
-        if table.shape[0] < 2 or table.shape[1] < 2:
-            return "<b>Error:</b> Tabla 2x2."
-        a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
+    def _riesgo_relativo(self, c1, c2):
+        """RR: Variable 1 = exposición, Variable 2 = evento (una fila por sujeto)."""
+        t = self._tabla_2x2(c1, c2)
+        if isinstance(t, str):
+            return t
+        a, b, c, d, filas, columnas, lectura, avisos = t
         r = relative_risk(a, b, c, d)
         if _sin_resultado(r):
             return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Riesgo Relativo", "RR = (a/(a+b)) / (c/(c+d))\nNNT = 1/ARR", f"RR = {r['rr']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\nNNT = {r['nnt']:.1f}")
-        h = self._h(f" Riesgo Relativo")
+        self._set_formula("Formula: Riesgo Relativo",
+                          "RR = (a/(a+b)) / (c/(c+d))\n"
+                          "IC 95%: exp(ln RR ± 1,96·√(1/a − 1/(a+b) + 1/c − 1/(c+d)))\nNNT = 1/|ARR|",
+                          f"RR = {r['rr']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\nNNT = {r['nnt']:.1f}")
+        h = self._h(" Riesgo Relativo")
+        h += f"<p style='font-size:11px;'>{lectura}</p>"
+        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
         h += "<table style='font-size:12px;'>"
-        for l, v in [("RR", f"{r['rr']:.4f}"), ("IC 95%", f"[{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]"), ("NNT", f"{r['nnt']:.1f}")]:
+        for l, v in [("RR", f"{r['rr']:.4f}"),
+                     ("IC 95%", f"{r['ci_lower']:.4f} a {r['ci_upper']:.4f}"),
+                     (r['nnt_tipo'], "—" if not np.isfinite(r['nnt']) else f"{r['nnt']:.1f}")]:
             h += self._r(l, v)
-        return h + "</table>"
+        return h + "</table>" + self._avisos_html(avisos)
 
     # --- Diagnostic test ---
-    def _diag_test(self):
-        nums = self.data.select_dtypes(include="number").columns
-        if len(nums) < 2:
-            return "<b>Error:</b> Minimo 2 columnas."
-        table = self.data[nums[:2]].dropna().values
-        if table.shape[0] < 2 or table.shape[1] < 2:
-            return "<b>Error:</b> Tabla 2x2."
-        a, b, c, d = int(table[0, 0]), int(table[0, 1]), int(table[1, 0]), int(table[1, 1])
+    def _diag_test(self, c1, c2):
+        """Prueba diagnóstica: Variable 1 = resultado de la prueba, Variable 2 =
+        estándar de oro (enfermo/sano), una fila por sujeto."""
+        t = self._tabla_2x2(c1, c2)
+        if isinstance(t, str):
+            return t
+        a, b, c, d, filas, columnas, lectura, avisos = t
         r = diagnostic_test(a, b, c, d)
-        self._set_formula("Formula: Prueba Diagnostica", "Sens=a/(a+c), Spec=d/(b+d)\nPPV=a/(a+b), NPV=d/(c+d)", f"Sens={r['sens']:.4f}, Spec={r['spec']:.4f}\nPPV={r['ppv']:.4f}, NPV={r['npv']:.4f}")
-        h = self._h(f" Prueba Diagnostica")
+        self._set_formula("Formula: Prueba Diagnostica",
+                          "a = VP, b = FP, c = FN, d = VN\nSens = a/(a+c), Espec = d/(b+d)\n"
+                          "VPP = a/(a+b), VPN = d/(c+d)\nIC 95%: Wilson (CLSI EP12)",
+                          f"Sens={r['sens']:.4f}, Spec={r['spec']:.4f}\nPPV={r['ppv']:.4f}, NPV={r['npv']:.4f}")
+        h = self._h(" Prueba Diagnostica")
+        h += f"<p style='font-size:11px;'>{lectura}</p>"
+        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
         h += "<table style='font-size:12px;'>"
 
         def _con_ic(valor, ic):
@@ -1626,9 +1671,7 @@ class AnalysisMethodsMixin:
             v = r[clave]
             h += self._r(l, "infinito" if not np.isfinite(v) else f"{v:.4f}")
         h += "</table>"
-        for aviso in r.get("avisos", []):
-            h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
-        return h
+        return h + self._avisos_html(list(avisos) + list(r.get("avisos", [])))
 
     # --- Outliers Grubbs ---
     def _outliers_grubbs(self, col):
@@ -1751,7 +1794,7 @@ class AnalysisMethodsMixin:
         h += "<table style='font-size:12px;'>"
         for l, v in [("r parcial", f"{r['r_partial']:.4f}"), ("p", f"{r['p']:.6f}"), ("df", r['df'])]:
             h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "CORRELACION", "SIN CORRELACION")
+        return h + "</table>" + self._ok(r['p'] < 0.05, "Se detectó correlación", "No se detectó correlación")
 
     # --- Core Module Runners ---
     def _run_core(self, func_name, c1=None, c2=None):
@@ -1800,7 +1843,7 @@ class AnalysisMethodsMixin:
                 h += self._r("p", f"{result['p']:.6f}")
                 h += self._r("gl", result['df'])
                 h += self._r("Media", f"{result['mean']:.4f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENTE DE 0", "IGUAL A 0")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "La media difiere del valor de referencia", "No se detectó que la media difiera del valor de referencia")
 
             elif func_name == "anova_oneway":
                 if self.data.shape[1] < 2:
@@ -1814,7 +1857,7 @@ class AnalysisMethodsMixin:
                 h += self._r("p", f"{result['p']:.6f}")
                 h += self._r("gl entre", result['df_between'])
                 h += self._r("gl dentro", result['df_within'])
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIAS SIGNIFICATIVAS", "SIN DIFERENCIAS")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó diferencia", "No se detectó diferencia")
 
             elif func_name == "sign_test":
                 if c1 is None or c2 is None:
@@ -1828,40 +1871,57 @@ class AnalysisMethodsMixin:
                 h += "<table style='font-size:12px;'>"
                 h += self._r("Estadístico", f"{result['statistic']:.4f}")
                 h += self._r("p", f"{result['p']:.6f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIA SIGNIFICATIVA", "SIN DIFERENCIA")
+                return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó diferencia", "No se detectó diferencia")
 
             elif func_name == "cochran_q":
-                if self.data.shape[1] < 2:
-                    return "<b>Error:</b> Se necesitan al menos 2 columnas."
-                result = cochran_q(self.data.values)
-                self._set_formula("Formula: Cochran Q", "Q = (k-1) × [k×ΣC² - T²] / [k×T - ΣR²]")
-                h = self._h(f" Cochran Q")
+                cols, del_dialogo = self._columnas_multi()
+                if len(cols) < 2:
+                    return f"<b>Error:</b> hacen falta al menos 2 tratamientos (columnas 0/1); hay {len(cols)}."
+                datos = self._filas_completas(*cols).values
+                if not np.all(np.isin(datos, (0, 1))):
+                    return "<b>Error:</b> Cochran Q necesita columnas 0/1 (fracaso/éxito)."
+                result = cochran_q(datos)
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo calcular.")
+                self._set_formula("Formula: Cochran Q",
+                                  "Q = (k−1)·[k·ΣCⱼ² − T²] / [k·T − ΣRᵢ²]\n"
+                                  "Cⱼ = éxitos por tratamiento, Rᵢ = éxitos por sujeto, T = total")
+                h = self._h(" Cochran Q")
                 h += "<table style='font-size:12px;'>"
+                h += self._r("Sujetos completos", result['n'])
                 h += self._r("Q", f"{result['Q']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
                 h += self._r("gl", result['df'])
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIAS SIGNIFICATIVAS", "SIN DIFERENCIAS")
+                h += self._r("p", _p_html(result['p']))
+                h += "</table>" + self._nota_columnas(cols, del_dialogo)
+                return h + self._ok(result['p'] < 0.05)
 
             elif func_name == "weighted_kappa":
-                if self.data.shape[1] < 2:
-                    return "<b>Error:</b> Se necesitan 2 columnas categóricas."
-                col_a, col_b = self.data.columns[0], self.data.columns[1]
-                pares = self._filas_completas(col_a, col_b)
-                d1, d2 = pares[col_a], pares[col_b]
+                for c in (c1, c2):
+                    if c is None or c not in self.data.columns:
+                        return "<b>Error:</b> Elegí las dos clasificaciones ordinales en la Variable 1 y la Variable 2."
+                pares = self._filas_completas(c1, c2)
+                d1, d2 = pares[c1], pares[c2]
                 cats = sorted(set(d1) | set(d2))
+                if len(cats) > 20:
+                    return f"<b>Error:</b> hay {len(cats)} categorías: el kappa ponderado es para escalas ordinales."
                 n = len(cats)
                 matrix = np.zeros((n, n))
                 for a, b in zip(d1, d2):
                     i, j = cats.index(a), cats.index(b)
                     matrix[i][j] += 1
                 result = weighted_kappa(matrix)
-                self._set_formula("Formula: Kappa Ponderado", "κ_w = 1 - (Σ w_ij × O_ij) / (Σ w_ij × E_ij)")
-                h = self._h(f" Kappa Ponderado")
+                if _sin_resultado(result):
+                    return _msg_error(result, "No se pudo calcular.")
+                self._set_formula("Formula: Kappa Ponderado (pesos lineales)",
+                                  "κ_w = 1 − (Σ wᵢⱼ·Oᵢⱼ) / (Σ wᵢⱼ·Eᵢⱼ),  wᵢⱼ = |i − j| / (k − 1)\n"
+                                  "Las categorías se ordenan de menor a mayor")
+                h = self._h(f" Kappa Ponderado — {escape(str(c1))} vs {escape(str(c2))}")
                 h += "<table style='font-size:12px;'>"
+                h += self._r("n", result['n'])
+                h += self._r("Categorías (en orden)", escape(", ".join(str(c) for c in cats)))
                 h += self._r("Kappa ponderado", f"{result['kappa']:.4f}")
                 h += self._r("Acuerdo observado (po)", f"{result['po']:.4f}")
                 h += self._r("Acuerdo esperado (pe)", f"{result['pe']:.4f}")
-                h += self._r("Pesos", str(result['weights']))
                 return h + "</table>"
 
             elif func_name == "deming":
@@ -1888,7 +1948,7 @@ class AnalysisMethodsMixin:
                 pares = self._filas_completas(c1, c2)
                 d1, d2 = pares[c1].values, pares[c2].values
                 result = cv_from_duplicates(d1, d2)
-                self._set_formula("Formula: CV desde Duplicatas", "CV = (DE / Media) × 100%")
+                self._set_formula("Formula: CV desde Duplicatas", "d = medición 1 − medición 2;  DE intraserie = DE(d) / √2\nCV = DE intraserie / media general × 100")
                 h = self._h(f" CV desde Duplicatas")
                 h += "<table style='font-size:12px;'>"
                 h += self._r("CV duplicados", f"{result['cv_dup']:.2f}%")
@@ -1897,81 +1957,91 @@ class AnalysisMethodsMixin:
                 return h + "</table>"
 
             elif func_name == "likelihood_ratios":
-                if self.data.shape[0] < 2 or self.data.shape[1] < 2:
-                    return "<b>Error:</b> Se necesita matriz 2x2 con TP, FP, FN, TN."
-                a = int(self.data.iloc[0, 0])
-                b = int(self.data.iloc[0, 1])
-                c = int(self.data.iloc[1, 0])
-                d = int(self.data.iloc[1, 1])
+                t = self._tabla_2x2(c1, c2)
+                if isinstance(t, str):
+                    return t
+                a, b, c, d, filas, columnas, lectura, avisos = t
                 result = likelihood_ratios(a, b, c, d)
-                self._set_formula("Formula: Likelihood Ratios", "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec")
-                h = self._h(f" Likelihood Ratios")
+                self._set_formula("Formula: Likelihood Ratios (Simel et al., 1991)",
+                                  "LR+ = Sens / (1 − Espec),  LR− = (1 − Sens) / Espec\n"
+                                  "Var(ln LR+) = 1/a − 1/(a+c) + 1/b − 1/(b+d)\n"
+                                  "Var(ln LR−) = 1/c − 1/(a+c) + 1/d − 1/(b+d)")
+                h = self._h(" Likelihood Ratios")
+                h += f"<p style='font-size:11px;'>{lectura}</p>"
+                h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
                 h += "<table style='font-size:12px;'>"
                 h += self._r("LR+", f"{result['plr']:.4f}")
                 if result.get('ci_plr'):
-                    h += self._r("95% CI LR+", f"[{result['ci_plr'][0]:.4f}, {result['ci_plr'][1]:.4f}]")
-                h += self._r("LR-", f"{result['nlr']:.4f}")
+                    h += self._r("IC 95% LR+", f"{result['ci_plr'][0]:.4f} a {result['ci_plr'][1]:.4f}")
+                h += self._r("LR−", f"{result['nlr']:.4f}")
                 if result.get('ci_nlr'):
-                    h += self._r("95% CI LR-", f"[{result['ci_nlr'][0]:.4f}, {result['ci_nlr'][1]:.4f}]")
-                return h + "</table>"
+                    h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
+                return h + "</table>" + self._avisos_html(avisos)
 
             elif func_name == "compare_means":
-                if self.data.shape[0] < 6:
-                    return "<b>Error:</b> Se necesitan 6 valores: m1, sd1, n1, m2, sd2, n2."
-                m1 = self.data.iloc[0, 0]
-                sd1 = self.data.iloc[1, 0]
-                n1 = int(self.data.iloc[2, 0])
-                m2 = self.data.iloc[3, 0]
-                sd2 = self.data.iloc[4, 0]
-                n2 = int(self.data.iloc[5, 0])
+                valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
+                if len(valores) != 6:
+                    return ("<b>Error:</b> esta calculadora lee exactamente 6 valores de la "
+                            "primera columna, en este orden: m1, DE1, n1, m2, DE2, n2. La columna tiene "
+                            f"{len(valores)}. Si tenés los datos de cada sujeto, usá la prueba "
+                            "correspondiente, que los toma de las columnas.")
+                m1, sd1, n1, m2, sd2, n2 = valores.iloc[:6]
+                n1, n2 = int(n1), int(n2)
                 result = compare_two_means(m1, sd1, n1, m2, sd2, n2)
                 if _sin_resultado(result):
                     return _msg_error(result, "No se pudo comparar las medias.")
-                self._set_formula("Formula: Comparar 2 Medias", "t = (m1 - m2) / √(sd1²/n1 + sd2²/n2)")
-                h = self._h(f" Comparar 2 Medias")
+                self._set_formula("Formula: Comparar 2 Medias (Welch)",
+                                  "t = (m1 − m2) / √(DE1²/n1 + DE2²/n2), gl de Welch-Satterthwaite")
+                h = self._h(" Comparar 2 Medias")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("t", f"{result['t']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
                 h += self._r("Diferencia", f"{result['diff']:.4f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIA SIGNIFICATIVA", "SIN DIFERENCIA")
-
+                h += self._r("IC 95%", f"{result['ci95'][0]:.4f} a {result['ci95'][1]:.4f}")
+                h += self._r("t", f"{result['t']:.4f} (gl {result['df']:.1f})")
+                h += self._r("p", _p_html(result['p']))
+                return h + "</table>" + self._ok(result['p'] < 0.05)
             elif func_name == "compare_props":
-                if self.data.shape[0] < 4:
-                    return "<b>Error:</b> Se necesitan 4 valores: p1, n1, p2, n2."
-                p1 = self.data.iloc[0, 0]
-                n1 = int(self.data.iloc[1, 0])
-                p2 = self.data.iloc[2, 0]
-                n2 = int(self.data.iloc[3, 0])
+                valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
+                if len(valores) != 4:
+                    return ("<b>Error:</b> esta calculadora lee exactamente 4 valores de la "
+                            "primera columna, en este orden: p1, n1, p2, n2. La columna tiene "
+                            f"{len(valores)}. Si tenés los datos de cada sujeto, usá la prueba "
+                            "correspondiente, que los toma de las columnas.")
+                p1, n1, p2, n2 = valores.iloc[:4]
+                n1, n2 = int(n1), int(n2)
                 result = compare_two_proportions(p1, n1, p2, n2)
                 if _sin_resultado(result):
                     return _msg_error(result, "No se pudo comparar las proporciones.")
-                self._set_formula("Formula: Comparar 2 Proporciones", "z = (p1 - p2) / √(p̂(1-p̂)(1/n1 + 1/n2))")
-                h = self._h(f" Comparar 2 Proporciones")
+                self._set_formula("Formula: Comparar 2 Proporciones",
+                                  "z = (p1 − p2) / √(p̂(1−p̂)(1/n1 + 1/n2))  (prueba, con p agrupada)\n"
+                                  "IC 95% de p1 − p2: Newcombe (Wilson híbrido)")
+                h = self._h(" Comparar 2 Proporciones")
                 h += "<table style='font-size:12px;'>"
-                h += self._r("z", f"{result['z']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
                 h += self._r("Diferencia", f"{result['diff']:.4f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIA SIGNIFICATIVA", "SIN DIFERENCIA")
-
+                h += self._r("IC 95% (Newcombe)", f"{result['ci95'][0]:.4f} a {result['ci95'][1]:.4f}")
+                h += self._r("z", f"{result['z']:.4f}")
+                h += self._r("p", _p_html(result['p']))
+                return h + "</table>" + self._ok(result['p'] < 0.05)
             elif func_name == "compare_auc":
-                if self.data.shape[0] < 6:
-                    return "<b>Error:</b> Se necesitan 6 valores: auc1, se1, n1, auc2, se2, n2."
-                auc1 = self.data.iloc[0, 0]
-                se1 = self.data.iloc[1, 0]
-                n1 = int(self.data.iloc[2, 0])
-                auc2 = self.data.iloc[3, 0]
-                se2 = self.data.iloc[4, 0]
-                n2 = int(self.data.iloc[5, 0])
+                valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
+                if len(valores) != 6:
+                    return ("<b>Error:</b> esta calculadora lee exactamente 6 valores de la "
+                            "primera columna, en este orden: AUC1, EE1, n1, AUC2, EE2, n2. La columna tiene "
+                            f"{len(valores)}. Si tenés los datos de cada sujeto, usá la prueba "
+                            "correspondiente, que los toma de las columnas.")
+                auc1, se1, n1, auc2, se2, n2 = valores.iloc[:6]
+                n1, n2 = int(n1), int(n2)
                 result = compare_two_auc(auc1, se1, n1, auc2, se2, n2)
                 if _sin_resultado(result):
                     return _msg_error(result, "No se pudo comparar las AUC.")
-                self._set_formula("Formula: Comparar 2 AUC", "z = (AUC1 - AUC2) / √(SE1² + SE2²)")
-                h = self._h(f" Comparar 2 AUC")
+                self._set_formula("Formula: Comparar 2 AUC (curvas independientes)",
+                                  "z = (AUC1 − AUC2) / √(EE1² + EE2²)")
+                h = self._h(" Comparar 2 AUC")
                 h += "<table style='font-size:12px;'>"
+                h += self._r("Diferencia", f"{result['diff']:.4f}")
                 h += self._r("z", f"{result['z']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "DIFERENCIAS SIGNIFICATIVAS", "SIN DIFERENCIAS")
-
+                h += self._r("p", _p_html(result['p']))
+                h += "</table>" + self._avisos_html(result.get("avisos", []))
+                return h + self._ok(result['p'] < 0.05)
             elif func_name == "percentile_table":
                 if c1 is None or c1 not in self.data.columns:
                     return "<b>Error:</b> Selecciona una columna."
@@ -1990,17 +2060,19 @@ class AnalysisMethodsMixin:
                 return h + "</table>"
 
             elif func_name == "age_related":
-                if self.data.shape[1] < 2:
-                    return "<b>Error:</b> Se necesitan 2 columnas: edad, valor."
-                col_edad, col_valor = self.data.columns[0], self.data.columns[1]
-                pares = self._filas_completas(col_edad, col_valor)
-                ages, values = pares[col_edad].values, pares[col_valor].values
+                for c in (c1, c2):
+                    if c is None or c not in self.data.columns:
+                        return "<b>Error:</b> Elegí la edad en la Variable 1 y el valor en la Variable 2."
+                pares = self._filas_completas(c1, c2)
+                ages, values = pares[c1].values, pares[c2].values
                 result = age_related_reference(ages, values)
-                self._set_formula("Formula: Intervalos por Edad", "Intervalos basados en percentiles por grupo de edad")
-                h = self._h(f" Intervalos de Referencia por Edad")
+                self._set_formula("Formula: Intervalos por Edad",
+                                  "Grupos de edad de ancho fijo [desde, hasta); en cada uno, "
+                                  "percentiles 5, 50 y 95 del valor")
+                h = self._h(f" Intervalos por Edad — {escape(str(c2))} según {escape(str(c1))}")
                 h += "<table style='font-size:12px;'>"
                 if not result['groups']:
-                    h += "<tr><td>Sin grupos de edad con n suficiente (≥5).</td></tr>"
+                    h += "<tr><td>Sin datos.</td></tr>"
                 else:
                     def _v(x):
                         return "—" if not np.isfinite(x) else f"{x:.2f}"
@@ -2010,9 +2082,9 @@ class AnalysisMethodsMixin:
                               f"<td>{_v(g['p5'])}</td><td>{_v(g['median'])}</td><td>{_v(g['p95'])}</td></tr>")
                 h += "</table>"
                 if any(g.get("nota") for g in result['groups']):
-                    h += ("<p style='font-size:11px;color:#b45309;'>Los grupos con menos de 5 "
-                          "sujetos se muestran sin percentiles: con tan pocos datos no hay "
-                          "percentil 5 ni 95 que estimar.</p>")
+                    h += self._avisos_html(["Los grupos con menos de 5 sujetos se muestran sin "
+                                            "percentiles: con tan pocos datos no hay percentil 5 "
+                                            "ni 95 que estimar."])
                 return h
 
             elif func_name == "generalized_esd":
@@ -2133,35 +2205,36 @@ class AnalysisMethodsMixin:
             h += "</table>"
             for aviso in result.get("avisos", []):
                 h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
-            return h + self._ok(result['p'] < 0.05, "EFECTO SIGNIFICATIVO", "SIN EFECTO SIGNIFICATIVO")
+            return h + self._ok(result['p'] < 0.05, "Se detectó diferencia entre grupos, ajustada por la covariable", "No se detectó diferencia entre grupos")
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
 
     def _run_repeated_measures(self):
-        """Run Repeated Measures ANOVA."""
-        if self.data.shape[1] < 3:
-            return "<b>Error:</b> Se necesitan al menos 3 columnas (mediciones repetidas)."
+        """ANOVA de medidas repetidas: una columna por tiempo, una fila por sujeto."""
+        cols, del_dialogo = self._columnas_multi()
+        if len(cols) < 2:
+            return f"<b>Error:</b> hacen falta al menos 2 tiempos (columnas numéricas); hay {len(cols)}."
         try:
-            result = repeated_measures_anova(self.data.values)
+            result = repeated_measures_anova(self.data[cols].values)
             if _sin_resultado(result):
                 return _msg_error(result, "No se pudo calcular.")
             self._set_formula("Formula: Medidas Repetidas",
                               "F = MS_tiempo / MS_error\n"
                               "Greenhouse-Geisser: ε = tr(S*)² / ((k−1)·ΣS*²), S* = covarianza "
                               "doblemente centrada;\ngl corregidos = ε·gl")
-            h = self._h(f" ANOVA Medidas Repetidas")
+            h = self._h(" ANOVA Medidas Repetidas")
             h += "<table style='font-size:12px;'>"
             h += self._r("Sujetos completos", f"{result['n']} ({result['n_excluidos']} excluidos)")
-            h += self._r("F", f"{result['F']:.4f}")
-            h += self._r("p", f"{result['p']:.6f}")
-            h += self._r("F (GG corregido)", f"{result['F_gg']:.4f}")
-            h += self._r("p (GG corregido)", f"{result['p_gg']:.6f}")
-            h += self._r("Epsilon (GG)", f"{result['epsilon']:.4f}")
-            h += self._r("gl tiempo", result['df_time'])
-            h += self._r("gl error", result['df_error'])
-            return h + "</table>" + self._ok(result['p_gg'] < 0.05, "CAMBIOS SIGNIFICATIVOS ENTRE TIEMPOS", "SIN CAMBIOS SIGNIFICATIVOS")
+            h += self._r("F", f"{result['F']:.4f} (gl {result['df_time']}, {result['df_error']})")
+            h += self._r("p (sin corregir)", _p_html(result['p']))
+            h += self._r("Épsilon (Greenhouse-Geisser)", f"{result['epsilon']:.4f}")
+            h += self._r("p (GG corregido)", _p_html(result['p_gg']))
+            h += "</table>" + self._nota_columnas(cols, del_dialogo)
+            h += self._avisos_html(result.get("avisos", []))
+            return h + self._ok(result['p_gg'] < 0.05, "Se detectó cambio entre tiempos",
+                                "No se detectó cambio entre tiempos")
         except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+            return f"<p style='color:red'>Error: {escape(str(e))}</p>"
 
     def _run_cox(self, c1, c2):
         """Run Cox Regression."""
@@ -2237,18 +2310,21 @@ class AnalysisMethodsMixin:
             h += self._r("OR común", f"{result['common_odds_ratio']:.4f}")
             h += self._r("95% CI OR", f"[{result['or_ci_low']:.4f}, {result['or_ci_high']:.4f}]")
             h += self._r("K tablas", result['K'])
-            return h + "</table>" + self._ok(result['p_value'] < 0.05, "ASOCIACIÓN SIGNIFICATIVA", "SIN ASOCIACIÓN SIGNIFICATIVA")
+            return h + "</table>" + self._ok(result['p_value'] < 0.05, "Se detectó asociación", "No se detectó asociación")
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
 
     def _run_serial(self):
-        """Run Serial Measurements Analysis."""
-        if self.data.shape[1] < 3:
-            return "<b>Error:</b> Se necesitan al menos 3 columnas (mediciones repetidas)."
+        """Mediciones seriadas: una columna por tiempo (en orden), una fila por sujeto."""
+        cols, del_dialogo = self._columnas_multi()
+        if len(cols) < 2:
+            return f"<b>Error:</b> hacen falta al menos 2 tiempos (columnas numéricas); hay {len(cols)}."
         try:
-            result = serial_measurements_summary(self.data.values)
-            self._set_formula("Formula: Mediciones Seriales", "Resumen de medias, SD y pendientes por sujeto")
-            h = self._h(f" Mediciones Seriales")
+            result = serial_measurements_summary(self.data[cols].values)
+            self._set_formula("Formula: Mediciones Seriadas (medidas resumen)",
+                              "Pendiente de cada sujeto contra el tiempo (0, 1, ..., k−1)\n"
+                              "Tendencia: t de una muestra sobre las pendientes (H0: media = 0)")
+            h = self._h(" Mediciones Seriadas")
             h += "<table style='font-size:12px;'>"
             h += self._r("Sujetos", result['n_subjects'])
             h += self._r("Mediciones", result['n_timepoints'])
@@ -2262,14 +2338,13 @@ class AnalysisMethodsMixin:
             h += ("<p style='font-size:11px;color:#555;'>Cada sujeto aporta una sola "
                   "pendiente: sus mediciones no son independientes entre sí, las de "
                   "sujetos distintos sí (Matthews et al., BMJ 1990).</p>")
-            for aviso in result.get("avisos", []):
-                h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
+            h += self._avisos_html(result.get("avisos", []))
             h += "<b style='font-size:12px;'>Medias por tiempo:</b><table style='font-size:12px;'>"
-            for i, (m, s) in enumerate(zip(result['means'], result['sds'])):
-                h += self._r(f"T{i+1}", f"{m:.4f} ± {s:.4f}")
-            return h + "</table>"
+            for c, m, s, k in zip(cols, result['means'], result['sds'], result['n_por_tiempo']):
+                h += self._r(escape(str(c)), f"{m:.4f} ± {s:.4f} (n={k})")
+            return h + "</table>" + self._nota_columnas(cols, del_dialogo)
         except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+            return f"<p style='color:red'>Error: {escape(str(e))}</p>"
 
     def _run_youden(self, score_col, label_col):
         """Run Youden Plot."""
@@ -2383,74 +2458,93 @@ class AnalysisMethodsMixin:
         except Exception as e:
             return f"<p style='color:red'>Error: {str(e)}</p>"
 
-    def _run_mountain(self, col):
-        """Run Mountain Plot."""
-        if col is None or col not in self.data.columns:
-            return "<b>Error:</b> Selecciona una columna."
-        try:
-            data = self.data[col].dropna().values
-            result = mountain_plot_data(data)
-            if _sin_resultado(result):
-                return _msg_error(result, "Se necesitan al menos 5 datos.")
-            
-            self._set_formula("Formula: Mountain Plot", "Distribución plegada (folded normal)")
-            
-            h = self._h(f" Mountain Plot — {col}")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("n", result['n'])
-            h += self._r("Media", f"{result['mean']:.4f}")
-            h += self._r("DE", f"{result['sd']:.4f}")
-            h += self._r("Mediana", f"{result['median']:.4f}")
-            h += self._r("Q25-Q75", f"[{result['q25']:.4f}, {result['q75']:.4f}]")
-            h += "</table>"
-            
-            fig, ax = plt.subplots(figsize=(7, 5))
-            ax.bar(result['hist_x'], result['hist_y'], width=(result['hist_x'][1] - result['hist_x'][0]) * 0.8, 
-                   alpha=0.6, color='#4f6ef7', label='Datos')
-            ax.plot(result['x'], result['y_density'], color='#ef4444', lw=2, label='Normal ajustada')
-            ax.axvline(result['mean'], color='#22c55e', ls='--', alpha=0.7, label=f'Media ({result["mean"]:.2f})')
-            ax.axvline(result['median'], color='#f59e0b', ls=':', alpha=0.7, label=f'Mediana ({result["median"]:.2f})')
-            ax.set_xlabel(col)
-            ax.set_ylabel('Densidad')
-            ax.set_title('Mountain Plot', fontweight='bold')
-            ax.legend(loc='upper right', framealpha=0.9)
+    def _run_mountain(self, c1, c2):
+        """Mountain plot: acumulada plegada de las diferencias Variable 1 − Variable 2."""
+        for c in (c1, c2):
+            if c is None or c not in self.data.columns:
+                return "<b>Error:</b> Elegí los dos métodos en la Variable 1 y la Variable 2."
+        pares = self._filas_completas(c1, c2)
+        result = mountain_plot_data(pares[c1].values, pares[c2].values)
+        if _sin_resultado(result):
+            return _msg_error(result, "Se necesitan al menos 5 pares.")
+        self._set_formula("Formula: Mountain Plot (Krouwer y Monti, 1995)",
+                          "d = método 1 − método 2, ordenadas\n"
+                          "percentil = 100·rango / (n + 1); si pasa de 50, se pliega: 100 − percentil")
+        h = self._h(f" Mountain Plot — {escape(str(c1))} − {escape(str(c2))}")
+        h += "<table style='font-size:12px;'>"
+        h += self._r("n", result['n'])
+        h += self._r("Mediana de las diferencias (pico)", f"{result['mediana']:.4f}")
+        h += self._r("Percentiles 25 a 75", f"{result['p25']:.4f} a {result['p75']:.4f}")
+        if np.isfinite(result['p2_5']):
+            h += self._r("Percentiles 2,5 a 97,5", f"{result['p2_5']:.4f} a {result['p97_5']:.4f}")
+        h += "</table>"
+        h += ("<p style='font-size:11px;color:#555;'>Dos métodos intercambiables dan una "
+              "montaña angosta con el pico en 0. El pico corrido es sesgo; la montaña ancha, "
+              "desacuerdo.</p>")
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.plot(result['diferencias'], result['percentil_plegado'], color='#4f6ef7', lw=1.8)
+        ax.fill_between(result['diferencias'], result['percentil_plegado'], color='#4f6ef7', alpha=0.12)
+        ax.axvline(0, color='#9ca3af', ls=':', lw=1.2, label='Diferencia 0')
+        ax.axvline(result['mediana'], color='#ef4444', ls='--', lw=1.2,
+                   label=f"Mediana: {result['mediana']:.3f}")
+        ax.set_xlabel(f'Diferencia ({c1} − {c2})')
+        ax.set_ylabel('Percentil plegado')
+        ax.set_ylim(0, 52)
+        ax.set_title('Mountain Plot', fontweight='bold')
+        ax.legend(loc='upper right', framealpha=0.9)
+        fig.tight_layout()
+        self._show_fig(fig)
+        return h
+
+    def _run_bland_multi(self, c1):
+        """Bland-Altman de varios métodos contra UNO de referencia (Variable 1).
+
+        Cada método se compara con la referencia: diferencia = método −
+        referencia, graficada contra la referencia (Krouwer 2008), con los IC de
+        los límites. Antes comparaba todas las columnas contra todas, sin
+        referencia y sin IC (auditoría 2026-09, M16).
+        """
+        if c1 is None or c1 not in self.data.columns:
+            return "<b>Error:</b> Elegí el método de referencia en la Variable 1."
+        metodos, del_dialogo = self._columnas_multi(excluir=(c1,))
+        if not metodos:
+            return "<b>Error:</b> Hace falta al menos un método para comparar con la referencia."
+        resultados = {}
+        for m in metodos:
+            pares = self._filas_completas(c1, m)
+            resultados[m] = bland_altman_contra_referencia(pares[c1].values,
+                                                            {m: pares[m].values})[m]
+        self._set_formula("Formula: Bland-Altman contra referencia",
+                          "d = método − referencia, contra la referencia (Krouwer 2008)\n"
+                          "Sesgo = media de d;  LoA = sesgo ± 1,96·DE(d)\n"
+                          "IC 95% de cada LoA = LoA ± t(n−1)·DE·√(1/n + 1,96²/(2(n−1)))")
+        h = self._h(f" Bland-Altman múltiple — referencia: {escape(str(c1))}")
+        h += ("<table style='font-size:12px;'><tr><td><b>Método</b></td><td><b>n</b></td>"
+              "<td><b>Sesgo (IC 95%)</b></td><td><b>LoA inferior (IC 95%)</b></td>"
+              "<td><b>LoA superior (IC 95%)</b></td></tr>")
+        validos = {}
+        for m, r in resultados.items():
+            if _sin_resultado(r):
+                h += f"<tr><td>{escape(str(m))}</td><td colspan='4'>{escape(r.get('error', ''))}</td></tr>"
+                continue
+            validos[m] = r
+            h += (f"<tr><td>{escape(str(m))}</td><td>{r['n']}</td>"
+                  f"<td>{r['mean_difference']:.4f} ({r['ci_mean'][0]:.4f} a {r['ci_mean'][1]:.4f})</td>"
+                  f"<td>{r['loa_lower']:.4f} ({r['ci_lower'][0]:.4f} a {r['ci_lower'][1]:.4f})</td>"
+                  f"<td>{r['loa_upper']:.4f} ({r['ci_upper'][0]:.4f} a {r['ci_upper'][1]:.4f})</td></tr>")
+        h += "</table>" + self._nota_columnas(metodos, del_dialogo)
+        if validos:
+            k = len(validos)
+            fig, ejes = plt.subplots(1, k, figsize=(5 * k, 4.5), squeeze=False, sharey=True)
+            for ax, (m, r) in zip(ejes[0], validos.items()):
+                ax.scatter(r['x_axis'], r['diffs'], alpha=0.5, c='#4f6ef7', edgecolors='white', s=40)
+                ax.axhline(r['mean_difference'], color='#22c55e', lw=2)
+                ax.axhline(r['loa_upper'], color='#ef4444', ls='--', lw=1.3)
+                ax.axhline(r['loa_lower'], color='#ef4444', ls='--', lw=1.3)
+                ax.set_title(f'{m} − {c1}', fontweight='bold')
+                ax.set_xlabel(f'{c1} (referencia)')
+            ejes[0][0].set_ylabel('Diferencia (método − referencia)')
             fig.tight_layout()
             self._show_fig(fig)
-            
-            return h
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
-
-    def _run_bland_multi(self):
-        """Run Bland-Altman for multiple methods."""
-        if self.data.shape[1] < 3:
-            return "<b>Error:</b> Se necesitan al menos 3 columnas (múltiples métodos)."
-        try:
-            method_labels = self.data.columns.tolist()
-            result = bland_altman_multiple(self.data, method_labels)
-            
-            self._set_formula("Formula: Bland-Altman Múltiple", "Sesgo = Media(diferencias)\nLoA = Sesgo ± 1.96 × DE(diferencias)")
-            
-            h = self._h(f" Bland-Altman Múltiple")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("Sujetos", result['n_subjects'])
-            h += self._r("Métodos", result['n_methods'])
-            h += self._r("Comparaciones", result['n_comparisons'])
-            h += "</table>"
-            
-            for comp in result['comparisons']:
-                h += f"<b style='font-size:12px;'>{comp['method1']} vs {comp['method2']}:</b>"
-                h += "<table style='font-size:12px;'>"
-                h += self._r("n", comp['n'])
-                h += self._r("Sesgo", f"{comp['mean_diff']:.4f}")
-                h += self._r("DE diferencias", f"{comp['sd_diff']:.4f}")
-                h += self._r("LoA superior", f"{comp['loa_upper']:.4f}")
-                h += self._r("LoA inferior", f"{comp['loa_lower']:.4f}")
-                h += self._r("Sesgo %", f"{comp['bias_pct']:.2f}%")
-                h += "</table>"
-            
-            return h
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
-
+        return h
 

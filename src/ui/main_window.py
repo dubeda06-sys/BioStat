@@ -274,7 +274,9 @@ class MainWindow(QMainWindow):
             self.analysis_panel.combo_analysis.setCurrentIndex(idx)
 
         dialogo = DialogoAnalisis(combo_text, list(data.columns), self,
-                                  alpha=self.analysis_panel.input_alpha.text())
+                                  alpha=self.analysis_panel.input_alpha.text(),
+                                  columnas_numericas=list(
+                                      data.select_dtypes(include="number").columns))
         if dialogo.exec() != DialogoAnalisis.DialogCode.Accepted:
             return
 
@@ -321,8 +323,11 @@ class MainWindow(QMainWindow):
         if eleccion.get("alpha"):
             panel.input_alpha.setText(eleccion["alpha"])
         # Las opciones de metodo no tienen control en el panel viejo: viajan
-        # aparte, en un diccionario que el dispatch le pasa al analisis.
+        # aparte, en un diccionario que el dispatch le pasa al analisis. Lo
+        # mismo la lista de columnas tildadas y los parametros numericos.
         panel.opciones_metodo = eleccion.get("opciones") or {}
+        panel.columnas_elegidas = eleccion.get("columnas")
+        panel.parametros = eleccion.get("parametros") or {}
 
     def _goto_graph(self, combo_text):
         """Va al panel Graficos y selecciona el tipo de grafico."""
