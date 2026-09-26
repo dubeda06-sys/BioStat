@@ -6,12 +6,17 @@
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
 > Versión actual: **v1.0.0**.
+> Última puesta al día: **26 sep** — auditoría completa y sus 42 arreglos
+> (`docs/AUDITORIA-2026-09.md`, sección «Estado»).
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el 23 ago desde `develop`, y **la pantalla de carga ahora dice qué
-build es**: `v1.0.0 · fecha · rama · commit`, dibujado en `assets/splash.png`
-por `build_exe.py` en cada compilación. Ver `src/version.py`.
+Recompilado el **26 sep** desde `develop` (`eb2c341`), con los 42 arreglos de la
+auditoría. El anterior (`34d106a`) tenía todos los errores del informe: ANOVA y
+tablas 2×2 con las columnas equivocadas, ANCOVA, probit, y el Omnianálisis con
+referencia. **La pantalla de carga dice qué build es**: `v1.0.0 · fecha · rama ·
+commit`, dibujado en `assets/splash.png` por `build_exe.py` en cada compilación.
+Ver `src/version.py`.
 
 Hizo falta porque había **tres** BioStat en la máquina y ninguno se
 identificaba: el del Escritorio, una copia del 1 de julio, y un build del 16 de
@@ -28,12 +33,52 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 820 verdes (26 sep)
+python -m pytest tests/ -q        # esperar 957 verdes (26 sep)
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## 26 sep: auditoría completa, 42 hallazgos arreglados
+
+Informe: `docs/AUDITORIA-2026-09.md` (fórmulas, árboles de decisión y
+Omnianálisis, contra oráculos y contra CLSI EP28-A3c y EP09c leídos del PDF).
+Arreglos en cinco commits sobre `develop`, cada uno con sus tests; la tabla de
+estado está al principio del informe. Lo que alguien que toque el código tiene
+que saber:
+
+- **Concordancia en el Omnianálisis, orientada como EP09c (tabla 1).** X es el
+  comparativo —la referencia, si se declaró— e Y el candidato; la diferencia es
+  **Y − X** y el sesgo en niveles de decisión se evalúa en valores de X. Sin
+  referencia, X es la primera en orden alfabético y el informe lo avisa.
+- **Dos preguntas distintas sobre las diferencias.** La *variabilidad* (DE
+  constante, CV constante o mixta; `core/bland_altman.variabilidad_diferencias`,
+  EP09c §5.4) **elige** la escala del Bland-Altman y la recta (§6.2): Deming,
+  Deming ponderado (`core/agreement.deming_ponderado`, apéndice B, IC jackknife
+  K1) o Passing-Bablok. La *tendencia del sesgo* (pendiente de la diferencia) es
+  de apoyo y no elige nada. Antes se usaba la segunda como si fuera la primera.
+- **Rama C: una sola familia de Benjamini-Hochberg.** Cada bloque bivariado deja
+  su p crudo en `_p`; `run_omnianalysis` corrige todos juntos y `_decidir`
+  cierra cada bloque (veredicto, conclusión y post-hoc) con el p corregido. La
+  matriz de correlación ya no calcula nada: es una vista de esos bloques.
+- **Grupos.** Normales con varianzas distintas → ANOVA de Welch + Games-Howell.
+  Dunn es Dunn de verdad (rangos del ranking conjunto, con empates), no
+  Mann-Whitney de a pares. Enteros consecutivos 0..k o 1..k con repeticiones →
+  códigos de categoría, no cantidad.
+- **Tablas r×c ralas** → chi-cuadrado con p por permutación (9999, semilla fija).
+- **Sin «significativo»** en el Omnianálisis: «Se detectó / No se detectó».
+- **El catálogo tiene 47 ensayos** y el árbol dibujado coincide con el motor:
+  `test_auditoria_omni.py::test_a14_el_camino_ejecutado_es_un_camino_del_arbol`.
+- **Bland-Altman manual:** con referencia declarada la resta es método en prueba
+  − referencia; opción nueva **escala** (auto / unidades / %).
+
+> [!warning] λ de Deming: la convención es la de EP09c
+> λ = var_error(X) / var_error(Y). La auditoría de agosto dio por buena la
+> dirección de λ y era al revés (A13): `_deming_fit` usaba λ donde va δ = 1/λ.
+> Con λ = 1, que es lo que usan la UI y el Omnianálisis, no cambiaba nada. **La
+> ficha del vault `Cerebro/Proyectos/BioStat/BioStat.md` todavía dice lo
+> contrario**: corregirla (pendiente de confirmar con el usuario).
 
 ## 26 sep: arranca la envoltura `Resultado`
 
@@ -189,7 +234,7 @@ meta-análisis, y el ruteo del Omnianálisis (41 ensayos = 41, sin huérfanos;
 El motor decide bien pero no rendía cuentas: se veía el resultado, no la
 decisión. Ahora sí.
 
-- **Catálogo de ensayos** (`src/analysis/omni_catalogo.py`): los **41** ensayos
+- **Catálogo de ensayos** (`src/analysis/omni_catalogo.py`): los **47** ensayos
   que el motor puede correr, cada uno con su gatillo, su explicación y su norma.
 - **Marcas en el motor.** `_marcar` / `_descartar` en `omni_analyzer` anotan
   **en el punto donde el ensayo ocurre**. No se reconstruye desde el texto de la
@@ -219,17 +264,19 @@ decisión. Ahora sí.
 > nada. `_regresion_concluyente()` marca el paso como **no concluyente** cuando
 > el IC es más ancho que 0,5, y lo dice con todas las letras.
 >
-> **2. Dos pasos pueden contradecirse.** El nodo `diff~mean` detecta desvío
-> proporcional y la regresión no, porque tienen sensibilidad distinta. Una
-> contradicción sin explicar destruye la confianza del lector, así que cuando
-> discrepan el caso lo señala y dice cuál vale.
+> **2. Dos pasos pueden contradecirse.** La tendencia del sesgo detecta desvío
+> proporcional y la recta no, o al revés: miran lo mismo por caminos distintos.
+> Una contradicción sin explicar destruye la confianza del lector, así que el
+> caso la señala y explica por qué **ninguna manda**: la tendencia se deja
+> engañar cuando un método es más impreciso que el otro, y la recta depende del
+> λ que se le supone. (Antes decía «vale la del paso 1», sin base: A16.)
 >
 > Los textos evitan la palabra **«significativo»** (se lee como «importante») y
 > traducen el p a frecuencia: *"aparecería 59 de cada 100 veces solo por azar"*.
 > `tests/test_omni_caso.py` lo verifica.
 
 > [!warning] Dos números que se confunden
-> **Tipos de ensayo** (41 en el catálogo) no es **ejecuciones**: el univariado
+> **Tipos de ensayo** (47 en el catálogo) no es **ejecuciones**: el univariado
 > corre una vez por columna y el bivariado una por par. Con 10 columnas son
 > ~106 ejecuciones de ~24 tipos. La pestaña Auditoría informa los dos.
 
@@ -238,7 +285,7 @@ decisión. Ahora sí.
 > `_marcar(...)` contra el catálogo **en las dos direcciones**. Sin eso, agregar
 > un ensayo al motor lo deja invisible en la auditoría, y sacarlo lo deja
 > figurando como "no aplica" para siempre. Ninguna de las dos tira excepción.
-> `tests/test_omni_arbol.py` exige además que los 41 estén dibujados.
+> `tests/test_omni_arbol.py` exige además que los 47 estén dibujados.
 
 También: `p` redondeado a 4 decimales salía `p=0.0`, que se lee como *p
 exactamente cero*. `_fmt_p` / `_p` lo informan como `p<0.0001`.
@@ -549,7 +596,14 @@ calidad. Ver su `LEEME.md`.
    referencia. La pestaña QC queda con **Estadísticas** y **Tendencias**;
    `src/core/qc/__init__.py` sigue **vacío**. Si el QC vuelve, entra por el core
    con tests contra un caso publicado, no dentro del panel.
-3. Omnianálisis (de julio, vigentes): calibrar los pesos del score de comparación
+3. **Migrar la familia de validación a `Resultado`** antes del asistente B:
+   Passing-Bablok (veredicto por `_regresion_concluyente`), Deming, CV de
+   duplicados, ICC y Bland-Altman múltiple. Hoy solo Bland-Altman está migrado.
+4. Omnianálisis, de la auditoría del 26 sep: el pre-test de normalidad por
+   grupo manda ~15 % de los grupos normales heterocedásticos a Kruskal-Wallis
+   (falsos positivos 7,7 % en vez de 5 %); el IC jackknife del intercepto de
+   Deming ponderado cubre ~91 %. Ver «Estado» en el informe.
+5. Omnianálisis (de julio, vigentes): calibrar los pesos del score de comparación
    con datos reales; `PESO_UNIDAD` y `PESO_PAREADO` sin cablear; series temporales
    detectadas pero no analizadas. **El score no se marca ensayo por ensayo**: la
    auditoría dice cuántos pares se puntuaron, no el puntaje de cada uno.
@@ -558,7 +612,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 820 verdes (26 sep); el número crece
+python -m pytest tests/ -q                       # 957 verdes (26 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

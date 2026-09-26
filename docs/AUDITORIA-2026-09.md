@@ -23,6 +23,38 @@ La auditoría de agosto verificó bien el núcleo numérico que miró. Lo que se
 - la frontera entre la hoja y el core: **qué columnas y qué filas llegan a cada análisis**;
 - las reglas de decisión del Omnianálisis, que se habían probado en 3 casos pero no se habían contrastado contra EP09c.
 
+## Estado: los 42 hallazgos, arreglados (26 sep)
+
+Todo en `develop`. Cada arreglo tiene un test que fallaba antes y pasa después.
+Donde el número cambió a propósito, el test lo dice en el nombre. Suite: **957
+tests** en verde; smoke 76/76.
+
+| commit | qué entró | tests |
+|---|---|---|
+| `08750aa` | A1, A3, A4, A5, A6, A7, A11, A13, M1–M7, M9 | `test_auditoria_core.py` |
+| `cc1a4a3` | K4 (ANCOVA, statsmodels tipo II), K5 (probit, statsmodels), K9 (ε de GG doblemente centrado) | `test_auditoria_modelos.py` |
+| `5b3b743` | K2, K3, K6, K8, A9, A10, A12, M10–M13, M16 | `test_auditoria_ui.py` |
+| `6a20cb9` | Omnianálisis: K1, K7, K10, A2, A8, A14, A15, A16, M8, M14, M15 | `test_auditoria_omni.py` |
+| `eb2c341` | El Bland-Altman migrado: la resta y la variabilidad (sección de abajo) | `test_bland_resultado.py` |
+
+Los arreglos del Omnianálisis, medidos:
+
+| hallazgo | antes | ahora |
+|---|---|---|
+| K1: método en prueba que lee +10 %, referencia en la 2.ª columna | −9,3 % | +10,0 / +10,4 / +10,6 % en P25/P50/P75 de la referencia |
+| A2: CV constante sin sesgo (200 corridas) | «homocedástico» 190/200 | CV constante 192/200 → Deming ponderado |
+| A2: sesgo proporcional con DE constante | Deming descartado 200/200 | DE constante 190/200 → Deming 163/200 (el resto, diferencias no normales → Passing-Bablok) |
+| A2: variabilidad mixta (EP09c §5.4.3) | no se distinguía | mixta 99/100 → Passing-Bablok |
+| K10: medias iguales, DE 2/6/14 | 16,7 % de falsos positivos | 7,7 % |
+| K7: 8 columnas de ruido | el bloque y la matriz decidían con p distintos | una sola familia BH; bloque, matriz y caso leen el mismo p |
+
+Lo que quedó abierto, a propósito:
+
+- **K10, el 7,7 %.** El motor elige Welch 850 de 1000 veces. El 15 % restante lo desvía el pre-test de normalidad (Shapiro al 5 % en cada uno de los 3 grupos) hacia Kruskal-Wallis, que con dispersiones distintas sigue inflando. Ese camino sale con un aviso: si detecta algo, no alcanza para decir que un grupo tiene valores más altos. Cambiar la regla de normalidad es otra decisión de diseño.
+- **Deming ponderado, IC del intercepto.** El jackknife del apéndice K1 cubre la pendiente en 95,5–96 %, pero el intercepto en 91–92 % (simulación con CV constante). Es el método de la norma; queda anotado.
+- **Encontrado al arreglar:** el IC jackknife de Deming usaba t(N−1) y EP09c (K12) pide t(N−2). Corregido para las dos variantes.
+- **Encontrado al arreglar:** el «Sesgo %» del core se calculaba sobre el método 1 aunque la referencia fuera el 2. Ahora va sobre la referencia, o sobre el promedio si no se declaró.
+
 ---
 
 ## Críticos — el número o la conclusión que ve el usuario está mal
@@ -189,9 +221,9 @@ Kruskal-Wallis supone distribuciones de igual forma bajo H0. Con dispersiones di
 
 ---
 
-## El Bland-Altman migrado (sin commit)
+## El Bland-Altman migrado — arreglado en `eb2c341`
 
-Los números son los del core, y la paridad contra el informe viejo dio 642/642. Hereda dos puntos de arriba:
+Los números son los del core, y la paridad contra el informe viejo dio 642/642. Heredaba dos puntos de arriba, los dos arreglados: la resta es candidato − referencia cuando se declara una, y un supuesto nuevo mide la variabilidad y elige la escala (unidades o %, con opción de forzarla):
 
 - **No evalúa la variabilidad de las diferencias** (DE o CV constante, EP09c §5.4) antes de dar límites en unidades absolutas.
 - **El signo** es d = columna 1 − columna 2, aunque la referencia declarada sea la columna 1. EP09c usa candidato − comparativo.
