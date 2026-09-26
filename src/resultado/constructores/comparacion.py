@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.core.bland_altman import bland_altman_analysis, concordance_correlation
+from src.core.bland_altman import (
+    CV_CONSTANTE, DE_CONSTANTE, bland_altman_analysis, concordance_correlation,
+    variabilidad_diferencias,
+)
 from src.resultado.citas import ficha
 from src.resultado.datos import columnas_faltantes, filas_completas
 from src.resultado.lenguaje import donde_falla_ccc, p_token
@@ -58,6 +61,15 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
     `opciones` (de `analysis_specs.OPCIONES`):
       limites:    "auto" | "parametrico" | "no_parametrico"
       referencia: "promedio" | "x" | "y"
+      escala:     "auto" | "unidades" | "porcentaje"
+
+    La resta es candidato − referencia cuando se declara una (CLSI EP09c,
+    tabla 1); sin referencia, Variable 1 − Variable 2. Antes era siempre
+    Variable 1 − Variable 2, aunque la referencia fuera la Variable 1.
+
+    La escala la decide la variabilidad de las diferencias (EP09c §5.4): si la
+    dispersión crece con la concentración y en % queda pareja (CV constante),
+    las diferencias van en porcentaje; si no, en unidades.
 
     El eje X importa más de lo que parece: si uno de los dos métodos es de
     referencia o un valor asignado, graficar y regresar contra el promedio mete
@@ -71,8 +83,11 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
     opciones = opciones or {}
     modo = opciones.get("limites", "auto")
     eje = opciones.get("referencia", "promedio")
-    referencia = eje if eje in ("x", "y") else None
+    escala_pedida = opciones.get("escala", "auto")
     nombre_eje = {"x": c1, "y": c2}.get(eje)
+    # (candidato, comparativo): d = candidato − comparativo.
+    cand, comp = (c2, c1) if eje == "x" else (c1, c2)
+    referencia = "y" if nombre_eje else None
 
     titulo_base = f"Bland-Altman — {c1} vs {c2}"
     falta = columnas_faltantes(df, c1, c2)
@@ -81,10 +96,25 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
 
     pares, entrada = filas_completas(df, c1, c2)
     x1, x2 = pares[c1].to_numpy(dtype=float), pares[c2].to_numpy(dtype=float)
-    res = bland_altman_analysis(x1, x2, reference=referencia)
+    y_cand, x_comp = pares[cand].to_numpy(dtype=float), pares[comp].to_numpy(dtype=float)
+    res = bland_altman_analysis(y_cand, x_comp, reference=referencia)
     rechazo = Resultado.rechazo_del_core("bland_altman", titulo_base, res, entrada)
     if rechazo is not None:
         return rechazo
+
+    # La variabilidad se mide en unidades, sobre el mismo eje del gráfico.
+    var = variabilidad_diferencias(res["x_axis"], res["diffs"])
+    if escala_pedida == "auto":
+        escala = "porcentaje" if var["clase"] == CV_CONSTANTE else "unidades"
+    else:
+        escala = escala_pedida
+    if escala == "porcentaje":
+        res = bland_altman_analysis(y_cand, x_comp, reference=referencia, escala="porcentaje")
+        rechazo = Resultado.rechazo_del_core("bland_altman", titulo_base, res, entrada)
+        if rechazo is not None:
+            return rechazo
+    en_pct = escala == "porcentaje"
+    u = "%" if en_pct else ""
 
     advertencias = []
     if res["n"] < entrada.n:
@@ -111,14 +141,22 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
     pend_prom = res["slope_vs_mean"]
     pend_ref = res.get("slope_vs_reference")
 
+    medias = {cand: res["mean_method1"], comp: res["mean_method2"]}
     valores = [
-        Valor(f"Media {c1}", res["mean_method1"]),
-        Valor(f"Media {c2}", res["mean_method2"]),
-        Valor(rotulo_centro, centro, ic=ic_centro),
-        Valor("Sesgo %", res["bias_pct"], decimales=2, unidad="%"),
-        Valor("DE de las diferencias", res["sd_difference"]),
-        Valor(f"{rotulo_lim} — superior", lim_sup, ic=ic_sup),
-        Valor(f"{rotulo_lim} — inferior", lim_inf, ic=ic_inf),
+        Valor(f"Media {c1}", medias[c1]),
+        Valor(f"Media {c2}", medias[c2]),
+        Valor(rotulo_centro, centro, ic=ic_centro, unidad=u,
+              nota=f"diferencia = {cand} − {comp}"),
+    ]
+    if not en_pct:
+        # En porcentaje el sesgo ya ES el sesgo %: repetirlo sería el mismo número.
+        valores.append(Valor("Sesgo %", res["bias_pct"], decimales=2, unidad="%",
+                             nota=f"sobre {nombre_eje}" if nombre_eje
+                             else "sobre el promedio de los dos métodos"))
+    valores += [
+        Valor("DE de las diferencias", res["sd_difference"], unidad=u),
+        Valor(f"{rotulo_lim} — superior", lim_sup, ic=ic_sup, unidad=u),
+        Valor(f"{rotulo_lim} — inferior", lim_inf, ic=ic_inf, unidad=u),
         Valor("Pendiente contra el promedio", pend_prom["slope"], ic=pend_prom["ci"],
               nota=f"({p_token(pend_prom['p'])})"),
     ]
@@ -128,6 +166,7 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
                              nota=f"({p_token(pend_ref['p'])})"))
 
     supuestos = [
+        _supuesto_variabilidad(var, escala_pedida, escala, nombre_eje or "el promedio"),
         _supuesto_normalidad(res, modo, elegido, automatico),
         _supuesto_referencia(nombre_eje),
         _supuesto_proporcional(pend_ref if pend_ref is not None else pend_prom,
@@ -151,7 +190,7 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
     matiz = ("El programa no sabe qué diferencia tolera este analito: el límite tolerable "
              "lo fija el requisito de calidad del analito, no el programa.")
     figuras = [Figura("Bland-Altman", lambda: _figura_bland(
-        res, centro, lim_inf, lim_sup, rotulo_centro, elegido, c1, c2, nombre_eje))]
+        res, centro, lim_inf, lim_sup, rotulo_centro, elegido, cand, comp, nombre_eje))]
     if ccc.get("error"):
         advertencias.append(f"No se pudo calcular el CCC de Lin: {ccc['error']}")
     else:
@@ -165,6 +204,7 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
 
     nombre_modo = _nombre_modo(elegido)
     titulo_eje = f" · eje X = {nombre_eje} (Krouwer)" if nombre_eje else ""
+    titulo_eje += " · en %" if en_pct else ""
     f = ficha("bland_altman")
     return Resultado(
         analisis="bland_altman",
@@ -179,18 +219,56 @@ def bland_altman(df, c1, c2, opciones=None) -> Resultado:
         supuestos=supuestos,
         formula=f.formula,
         citas=list(f.citas),
-        lectura=(f"El 95 % de las diferencias entre los dos métodos cae entre "
-                 f"{lim_inf:.4f} y {lim_sup:.4f}. Si una diferencia de ese tamaño en un "
-                 "paciente concreto te cambiaría una conducta, los métodos no son "
+        lectura=(f"El 95 % de las diferencias ({cand} − {comp}) cae entre "
+                 f"{lim_inf:.4f}{u} y {lim_sup:.4f}{u}. Si una diferencia de ese tamaño en "
+                 "un paciente concreto te cambiaría una conducta, los métodos no son "
                  "intercambiables — por chico que sea el sesgo promedio."),
         matiz=matiz,
         advertencias=advertencias,
         figuras=figuras,
-        crudo={"bland_altman": res, "ccc": ccc},
+        crudo={"bland_altman": res, "ccc": ccc, "variabilidad": var,
+               "diferencia": f"{cand} − {comp}"},
     )
 
 
 # ---------------- Supuestos ----------------
+
+def _supuesto_variabilidad(var, pedida, escala, eje_texto) -> Supuesto:
+    """EP09c §5.4: antes de dar límites, ¿la dispersión es pareja en todo el rango?"""
+    medicion = (f"tamaño de las diferencias contra {eje_texto}: {p_token(var['p_de'])} "
+                f"en unidades"
+                + (f", {p_token(var['p_cv'])} en %" if var.get("p_cv") is not None else ""))
+    clase = var["clase"]
+    respuesta = {DE_CONSTANTE: "Pareja (DE constante)",
+                 CV_CONSTANTE: "Crece con la concentración (CV constante)"}.get(
+        clase, "Ni pareja ni proporcional (mixta)")
+    en_pct = escala == "porcentaje"
+    if pedida == "auto":
+        if clase == CV_CONSTANTE:
+            consecuencia = ("Las diferencias van en porcentaje: en unidades, un solo par "
+                            "de límites sería demasiado ancho en los valores bajos y "
+                            "demasiado angosto en los altos (CLSI EP09c §5.4.2).")
+        elif clase == DE_CONSTANTE:
+            consecuencia = "Las diferencias van en unidades del analito."
+        else:
+            consecuencia = ("Ninguna escala sirve para todo el rango (EP09c §5.4.3): se "
+                            "informa en unidades, pero los límites exageran el margen en "
+                            "un tramo y lo achican en otro. Conviene mirar el gráfico por "
+                            "tramos de concentración.")
+        alternativa = ("si la dispersión fuera pareja, se informaría en unidades."
+                       if en_pct else
+                       "si la dispersión creciera con la concentración y en % quedara "
+                       "pareja, se informaría en porcentaje.")
+    else:
+        consecuencia = (f"Escala elegida a mano: {'porcentaje' if en_pct else 'unidades'}.")
+        automatica = "porcentaje" if clase == CV_CONSTANTE else "unidades"
+        alternativa = ("" if automatica == escala else
+                       f"en automático se habría usado {automatica}.")
+    return Supuesto(
+        pregunta="¿La dispersión de las diferencias es pareja en todo el rango?",
+        medicion=medicion, respuesta=respuesta, consecuencia=consecuencia,
+        alternativa=alternativa, ok=(clase != "mixta"))
+
 
 def _supuesto_normalidad(res, modo, elegido, automatico) -> Supuesto:
     normales = res["normal_diffs"]
@@ -234,9 +312,10 @@ def _supuesto_referencia(nombre_eje) -> Supuesto:
         return Supuesto(
             pregunta="¿Alguno de los dos es un método de referencia?",
             medicion="declarado al elegir el análisis", respuesta=f"Sí: {nombre_eje}",
-            consecuencia=(f"Las diferencias se grafican y se regresan contra {nombre_eje}. "
-                          "Contra el promedio, la referencia entraría en los dos ejes y "
-                          "distorsionaría la pendiente (Krouwer 2008, CLSI EP09)."),
+            consecuencia=(f"La resta es método en prueba − {nombre_eje} (CLSI EP09c, "
+                          f"tabla 1), y las diferencias se grafican y se regresan contra "
+                          f"{nombre_eje}. Contra el promedio, la referencia entraría en los "
+                          "dos ejes y distorsionaría la pendiente (Krouwer 2008)."),
             alternativa=("sin referencia declarada se usaría el promedio de los dos "
                          "métodos (Bland-Altman clásico)."))
     return Supuesto(
@@ -300,6 +379,7 @@ def _supuesto_ccc(ccc) -> Supuesto:
 # ---------------- Figuras ----------------
 
 def _figura_bland(res, centro, lim_inf, lim_sup, rotulo_centro, elegido, c1, c2, nombre_eje):
+    """c1 − c2 es la resta que usó el core: candidato − comparativo."""
     import matplotlib.pyplot as plt
 
     eje_x, diffs = res["x_axis"], res["diffs"]
@@ -314,7 +394,11 @@ def _figura_bland(res, centro, lim_inf, lim_sup, rotulo_centro, elegido, c1, c2,
     ax.fill_between([float(np.min(eje_x)), float(np.max(eje_x))], lim_inf, lim_sup,
                     alpha=0.08, color='#22c55e')
     ax.set_xlabel(etiqueta_x)
-    ax.set_ylabel(f'Diferencia ({c1} − {c2})')
+    if res.get("escala") == "porcentaje":
+        base = nombre_eje or "promedio"
+        ax.set_ylabel(f'Diferencia %  100·({c1} − {c2}) / {base}')
+    else:
+        ax.set_ylabel(f'Diferencia ({c1} − {c2})')
     ax.set_title(f'Bland-Altman {_nombre_modo(elegido)} — {c1} vs {c2}', fontweight='bold')
     ax.legend(loc='upper right', framealpha=0.9)
     fig.tight_layout()

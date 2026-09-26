@@ -1,10 +1,14 @@
-"""Bland-Altman migrado a `Resultado`: mismos números que antes, más el CCC.
+"""Bland-Altman migrado a `Resultado`: los números del core, más el CCC.
 
 El informe viejo imprimía los números del core con 4 decimales (el sesgo % con
-2). La migración no puede cambiar ninguno: estos tests comparan cada `Valor`
-contra `bland_altman_analysis` en las nueve combinaciones de límites × eje, con
-diferencias normales y sin ellas. Los tests de contrato recorren todos los
-constructores migrados (`CONSTRUCTORES`), no solo este.
+2). Estos tests comparan cada `Valor` contra `bland_altman_analysis` en las
+nueve combinaciones de límites × eje, con diferencias normales y sin ellas.
+
+Desde la auditoría del 26 sep (G5) la resta es candidato − referencia cuando se
+declara una (CLSI EP09c, tabla 1), así que el core se llama con el par ya
+orientado; la escala se fija en unidades para comparar número contra número (la
+elección automática de escala tiene sus propios tests). Los tests de contrato
+recorren todos los constructores migrados (`CONSTRUCTORES`), no solo este.
 """
 import os
 import re
@@ -54,17 +58,22 @@ def _valores(res):
 def test_los_numeros_son_los_del_core(hoja, modo, eje):
     df = hoja()
     referencia = eje if eje in ("x", "y") else None
-    core = bland_altman_analysis(df["A"].values, df["B"].values, reference=referencia)
-    res = bland_altman(df, "A", "B", {"limites": modo, "referencia": eje})
+    # Candidato − referencia: con A de referencia, la resta es B − A.
+    cand, comp = ("B", "A") if eje == "x" else ("A", "B")
+    core = bland_altman_analysis(df[cand].values, df[comp].values,
+                                 reference="y" if referencia else None)
+    res = bland_altman(df, "A", "B", {"limites": modo, "referencia": eje,
+                                      "escala": "unidades"})
     v = _valores(res)
+    medias = {cand: core["mean_method1"], comp: core["mean_method2"]}
 
     elegido = modo
     if modo == "auto":
         elegido = "parametrico" if core["normal_diffs"] in (True, None) else "no_parametrico"
 
     assert res.ok and res.entrada.n == core["n"]
-    assert v["Media A"].texto() == f"{core['mean_method1']:.4f}"
-    assert v["Media B"].texto() == f"{core['mean_method2']:.4f}"
+    assert v["Media A"].texto() == f"{medias['A']:.4f}"
+    assert v["Media B"].texto() == f"{medias['B']:.4f}"
     assert v["Sesgo %"].texto() == f"{core['bias_pct']:.2f}%"
     assert v["DE de las diferencias"].texto() == f"{core['sd_difference']:.4f}"
 
@@ -257,3 +266,61 @@ def test_la_ventana_de_informe_se_lleva_los_dos_graficos(qt_app):
         assert "Referencias" in ventana.txt.toPlainText()
     finally:
         report_window.cerrar_todas()
+
+
+# ---------------- G5: orientación y escala ----------------
+
+def test_g5_con_referencia_la_resta_es_candidato_menos_referencia():
+    """G5: con la Variable 1 de referencia, la resta seguía siendo V1 − V2 y un
+    método que lee 8 % alto salía con sesgo negativo."""
+    df = _hoja_normal()   # B lee 8 % alto contra A
+    res = bland_altman(df, "A", "B", {"referencia": "x", "escala": "unidades"})
+    v = _valores(res)
+    assert v["Sesgo (media de las diferencias)"].valor > 0
+    assert "B − A" in v["Sesgo (media de las diferencias)"].nota
+    assert 6 < v["Sesgo %"].valor < 10, "en % de la referencia"
+    assert res.crudo["diferencia"] == "B − A"
+
+
+def test_g5_el_sesgo_porcentual_es_sobre_la_referencia():
+    df = _hoja_normal()
+    res = bland_altman(df, "A", "B", {"referencia": "x", "escala": "unidades"})
+    v = _valores(res)
+    esperado = (df["B"] - df["A"]).mean() / df["A"].mean() * 100
+    assert v["Sesgo %"].valor == pytest.approx(esperado)
+
+
+def _hoja_cv():
+    rng = np.random.default_rng(1)
+    ref = rng.uniform(10, 400, 60)
+    return pd.DataFrame({"Ref": ref * (1 + rng.normal(0, 0.04, 60)),
+                         "Nuevo": 1.1 * ref * (1 + rng.normal(0, 0.04, 60))})
+
+
+def test_g5_con_cv_constante_la_escala_automatica_es_porcentaje():
+    res = bland_altman(_hoja_cv(), "Ref", "Nuevo", {"referencia": "x"})
+    assert res.crudo["variabilidad"]["clase"] == "CV constante"
+    assert res.crudo["bland_altman"]["escala"] == "porcentaje"
+    v = _valores(res)
+    sesgo = v.get("Sesgo (media de las diferencias)") or v["Sesgo (mediana de las diferencias)"]
+    assert sesgo.texto().endswith("%")
+    assert 7 < sesgo.valor < 13
+    assert "Sesgo %" not in v, "en porcentaje el sesgo ya es el sesgo %"
+    paso = res.supuestos[0]
+    assert "dispersión" in paso.pregunta and "CV constante" in paso.respuesta
+
+
+def test_g5_la_escala_se_puede_forzar_y_el_paso_lo_dice():
+    res = bland_altman(_hoja_cv(), "Ref", "Nuevo", {"referencia": "x", "escala": "unidades"})
+    assert res.crudo["bland_altman"]["escala"] == "unidades"
+    paso = res.supuestos[0]
+    assert "a mano" in paso.consecuencia
+    assert "porcentaje" in paso.alternativa
+
+
+def test_g5_porcentaje_con_ceros_se_rechaza_con_motivo():
+    df = _hoja_cv()
+    df.loc[0, "Ref"] = 0.0
+    res = bland_altman(df, "Ref", "Nuevo", {"referencia": "x", "escala": "porcentaje"})
+    assert not res.ok
+    assert "positivos" in res.error

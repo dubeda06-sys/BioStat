@@ -99,12 +99,15 @@ def test_un_analisis_sin_opciones_devuelve_el_diccionario_vacio(app):
 def test_bland_altman_ofrece_limites_y_eje(app):
     """Las tres variantes del metodo tienen que estar al alcance del usuario."""
     d = DialogoAnalisis("Bland-Altman", COLUMNAS)
-    assert set(d.combos_opcion) == {"limites", "referencia"}
+    assert set(d.combos_opcion) == {"limites", "referencia", "escala"}
     limites = d.combos_opcion["limites"]
     valores = [limites.itemData(i) for i in range(limites.count())]
     assert valores == ["auto", "parametrico", "no_parametrico"]
     ejes = d.combos_opcion["referencia"]
     assert [ejes.itemData(i) for i in range(ejes.count())] == ["promedio", "x", "y"]
+    escalas = d.combos_opcion["escala"]
+    assert [escalas.itemData(i) for i in range(escalas.count())] == [
+        "auto", "unidades", "porcentaje"]
 
 
 def test_las_opciones_devuelven_el_valor_y_no_el_texto(app):
@@ -114,7 +117,9 @@ def test_las_opciones_devuelven_el_valor_y_no_el_texto(app):
     d = DialogoAnalisis("Bland-Altman", COLUMNAS)
     d.combos_opcion["limites"].setCurrentIndex(2)
     d.combos_opcion["referencia"].setCurrentIndex(1)
-    assert d.seleccion()["opciones"] == {"limites": "no_parametrico", "referencia": "x"}
+    d.combos_opcion["escala"].setCurrentIndex(2)
+    assert d.seleccion()["opciones"] == {"limites": "no_parametrico", "referencia": "x",
+                                         "escala": "porcentaje"}
 
 
 def test_por_defecto_sale_lo_mismo_que_declara_la_ficha(app):

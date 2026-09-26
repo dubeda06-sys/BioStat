@@ -115,7 +115,12 @@ def bland_altman_analysis(method1, method2, reference=None, escala="unidades"):
         # Las diferencias ya son porcentajes: el sesgo medio ES el sesgo en %.
         bias_pct = mean_diff
     else:
-        bias_pct = (mean_diff / np.mean(m1)) * 100 if np.mean(m1) != 0 else 0
+        # En % de la referencia si se declaró una; si no, del promedio de los
+        # dos métodos (el denominador de EP09c, tabla 3). Antes era siempre en %
+        # del método 1, aunque la referencia fuera el 2.
+        base_pct = (np.mean(m1) if reference == "x" else
+                    np.mean(m2) if reference == "y" else mean_of_means)
+        bias_pct = (mean_diff / base_pct) * 100 if base_pct != 0 else 0
 
     avisos = [a for a in (sw_nota,) if a]
 
@@ -152,6 +157,68 @@ def bland_altman_analysis(method1, method2, reference=None, escala="unidades"):
         "means": means,
         "diffs": diffs,
     }
+
+
+DE_CONSTANTE = "DE constante"
+CV_CONSTANTE = "CV constante"
+MIXTA = "mixta"
+
+
+def recta_ols(eje, valores):
+    """OLS de `valores` contra `eje`: (pendiente, intercepto, p, residuos).
+
+    Por nombre y no por posición: `linregress` devuelve (slope, intercept,
+    rvalue, pvalue, stderr), y un desempaquetado posicional llegó a meter el
+    ERROR ESTÁNDAR donde iba el p. Sin variación en alguno de los dos ejes la
+    pendiente no existe: p = 1 y residuos = desvío de la media.
+    """
+    eje = np.asarray(eje, dtype=float)
+    valores = np.asarray(valores, dtype=float)
+    if np.ptp(eje) == 0 or np.ptp(valores) == 0:
+        return 0.0, float(np.mean(valores)), 1.0, valores - np.mean(valores)
+    lr = stats.linregress(eje, valores)
+    resid = valores - (lr.intercept + lr.slope * eje)
+    return float(lr.slope), float(lr.intercept), float(lr.pvalue), resid
+
+
+def variabilidad_diferencias(eje, d, alpha=0.05) -> dict:
+    """¿Cómo se abre la dispersión de las diferencias a lo largo del rango?
+
+    CLSI EP09c §5.4 pide contestarlo ANTES de elegir cómo resumir y qué
+    regresión usar: DE constante (diferencias en unidades, Deming), CV
+    constante (diferencias en %, Deming ponderado) o mixta (Passing-Bablok).
+    Se mide como proponen Bland y Altman (1999): regresión de los residuos
+    ABSOLUTOS contra el eje. Si no crecen, la DE es constante. Si crecen, se
+    repite en porcentaje: si ahí ya no crecen, el CV es constante.
+
+    Es una pregunta distinta de si el sesgo cambia con la concentración (la
+    pendiente de la diferencia misma). El Omnianálisis usaba esa pendiente
+    como si midiera la dispersión: con CV constante y sin sesgo decía
+    "homocedástico" 190 de 200 veces, y con sesgo proporcional y DE constante
+    descartaba Deming por "heterocedástico" 200 de 200 (auditoría 2026-09,
+    A2). Vive acá para que el Omnianálisis y el panel manual clasifiquen igual.
+
+    eje: la referencia si se declaró, si no el promedio de los dos métodos.
+    d:   las diferencias en unidades (candidato − comparativo).
+    """
+    _, _, _, resid_u = recta_ols(eje, d)
+    pend_de, _, p_de, _ = recta_ols(eje, np.abs(resid_u))
+    info = {"pendiente_de": round(pend_de, 6), "p_de": round(p_de, 4),
+            "pendiente_cv": None, "p_cv": None, "cv_calculable": bool(np.all(eje > 0))}
+    if p_de >= alpha:
+        info["clase"] = DE_CONSTANTE
+        return info
+    if info["cv_calculable"]:
+        d_pct = 100.0 * d / eje
+        _, _, _, resid_p = recta_ols(eje, d_pct)
+        pend_cv, _, p_cv, _ = recta_ols(eje, np.abs(resid_p))
+        info["pendiente_cv"] = round(pend_cv, 6)
+        info["p_cv"] = round(p_cv, 4)
+        if pend_de > 0 and p_cv >= alpha:
+            info["clase"] = CV_CONSTANTE
+            return info
+    info["clase"] = MIXTA
+    return info
 
 
 def _mcbride_strength(rc):

@@ -169,8 +169,18 @@ OPCIONES = {
              ("x", "Variable 1 es el método de referencia — Krouwer"),
              ("y", "Variable 2 es el método de referencia — Krouwer")),
             "Si uno de los dos es método de referencia o valor asignado, "
-            "graficar contra el promedio atenúa el sesgo proporcional "
-            "(Krouwer 2008; recogido en CLSI EP09).",
+            "graficar contra el promedio distorsiona la pendiente de las "
+            "diferencias, y la resta pasa a ser método en prueba − referencia "
+            "(Krouwer 2008; CLSI EP09c).",
+        ),
+        Opcion(
+            "escala", "Escala de las diferencias",
+            (("auto", "Automática — según cómo se abre la dispersión (EP09c §5.4)"),
+             ("unidades", "Unidades del analito — DE constante"),
+             ("porcentaje", "Porcentaje — CV constante")),
+            "Si la dispersión de las diferencias crece con la concentración, "
+            "en unidades un solo par de límites no sirve para todo el rango; "
+            "en porcentaje sí (CLSI EP09c §5.4.2).",
         ),
     ),
 }

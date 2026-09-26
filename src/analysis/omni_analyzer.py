@@ -19,7 +19,10 @@ from src.core.statistics import (
     chi_square_test, fisher_exact_test, pearson_r, spearman_rho,
     dunn_test, welch_anova, games_howell,
 )
-from src.core.bland_altman import bland_altman_analysis, concordance_correlation
+from src.core.bland_altman import (
+    CV_CONSTANTE, DE_CONSTANTE, MIXTA, bland_altman_analysis,
+    concordance_correlation, recta_ols as _recta, variabilidad_diferencias,
+)
 
 
 def _ok(res):
@@ -849,64 +852,6 @@ def detect_comparison_candidates(df: pd.DataFrame, num_cols: list[str], cfg: Omn
 # ============================================================
 #  Sub-árbol de concordancia (comparación de métodos confirmada)
 # ============================================================
-DE_CONSTANTE = "DE constante"
-CV_CONSTANTE = "CV constante"
-MIXTA = "mixta"
-
-
-def _recta(eje, valores):
-    """OLS de `valores` contra `eje`: (pendiente, intercepto, p, residuos).
-
-    Por nombre y no por posición: `linregress` devuelve (slope, intercept,
-    rvalue, pvalue, stderr), y un desempaquetado posicional llegó a meter el
-    ERROR ESTÁNDAR donde iba el p. Sin variación en alguno de los dos ejes la
-    pendiente no existe: p = 1 y residuos = desvío de la media.
-    """
-    eje = np.asarray(eje, dtype=float)
-    valores = np.asarray(valores, dtype=float)
-    if np.ptp(eje) == 0 or np.ptp(valores) == 0:
-        return 0.0, float(np.mean(valores)), 1.0, valores - np.mean(valores)
-    lr = stats.linregress(eje, valores)
-    resid = valores - (lr.intercept + lr.slope * eje)
-    return float(lr.slope), float(lr.intercept), float(lr.pvalue), resid
-
-
-def _variabilidad(eje, d, cfg: OmniConfig) -> dict:
-    """¿Cómo se abre la dispersión de las diferencias a lo largo del rango?
-
-    CLSI EP09c §5.4 pide contestarlo ANTES de elegir cómo resumir y qué
-    regresión usar: DE constante (diferencias en unidades, Deming), CV
-    constante (diferencias en %, Deming ponderado) o mixta (Passing-Bablok).
-    Se mide como proponen Bland y Altman (1999): regresión de los residuos
-    ABSOLUTOS contra el eje. Si no crecen, la DE es constante. Si crecen, se
-    repite en porcentaje: si ahí ya no crecen, el CV es constante.
-
-    Es una pregunta distinta de si el sesgo cambia con la concentración (la
-    pendiente de la diferencia misma). El motor usaba esa pendiente como si
-    midiera la dispersión: con CV constante y sin sesgo decía "homocedástico"
-    190 de 200 veces, y con sesgo proporcional y DE constante descartaba
-    Deming por "heterocedástico" 200 de 200 (auditoría 2026-09, A2).
-    """
-    _, _, _, resid_u = _recta(eje, d)
-    pend_de, _, p_de, _ = _recta(eje, np.abs(resid_u))
-    info = {"pendiente_de": round(pend_de, 6), "p_de": round(p_de, 4),
-            "pendiente_cv": None, "p_cv": None, "cv_calculable": bool(np.all(eje > 0))}
-    if p_de >= cfg.VARIABILIDAD_ALPHA:
-        info["clase"] = DE_CONSTANTE
-        return info
-    if info["cv_calculable"]:
-        d_pct = 100.0 * d / eje
-        _, _, _, resid_p = _recta(eje, d_pct)
-        pend_cv, _, p_cv, _ = _recta(eje, np.abs(resid_p))
-        info["pendiente_cv"] = round(pend_cv, 6)
-        info["p_cv"] = round(p_cv, 4)
-        if pend_de > 0 and p_cv >= cfg.VARIABILIDAD_ALPHA:
-            info["clase"] = CV_CONSTANTE
-            return info
-    info["clase"] = MIXTA
-    return info
-
-
 def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: OmniConfig,
                          referencia: str | None = None) -> dict:
     """Sub-arbol de concordancia para un par confirmado.
@@ -969,7 +914,7 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
 
     # 1) NODO variabilidad de las diferencias (EP09c §5.4). Decide la escala del
     # Bland-Altman y la regresión; por eso va primero.
-    var = _variabilidad(eje, d, cfg)
+    var = variabilidad_diferencias(eje, d, cfg.VARIABILIDAD_ALPHA)
     clase = var["clase"]
     escala = "porcentaje" if clase == CV_CONSTANTE else "unidades"
     unidad = " %" if escala == "porcentaje" else ""
