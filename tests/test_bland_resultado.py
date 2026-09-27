@@ -213,7 +213,9 @@ def test_menos_de_tres_pares_trae_el_motivo_del_core():
 # Cada constructor se llama según su firma (una columna, un par, una lista).
 _LLAMADAS = {"una": lambda f, df: f(df, "A"),
              "par": lambda f, df: f(df, "A", "B"),
-             "lista": lambda f, df: f(df, ["A", "B"])}
+             "lista": lambda f, df: f(df, ["A", "B"]),
+             "trio": lambda f, df: f(df.assign(C=df["A"] * 0.5 + np.arange(len(df))),
+                                     "A", "B", "C")}
 
 
 def test_toda_firma_es_conocida():

@@ -12,10 +12,12 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
     "una":   f(df, columna)
     "par":   f(df, columna1, columna2)
     "lista": f(df, [columnas])
+    "trio":  f(df, columna1, columna2, columna3)
 """
 from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
+from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.precision import precision_ep15
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
@@ -35,6 +37,10 @@ CONSTRUCTORES = {
     "grubbs": grubbs,
     "tukey": tukey,
     "esd": esd,
+    # Correlación
+    "pearson": pearson,
+    "spearman": spearman,
+    "parcial": parcial,
     # Comparación de métodos
     "bland_altman": bland_altman,
     "passing_bablok": passing_bablok,
@@ -51,5 +57,6 @@ FIRMAS.update({n: "una" for n in (
     "descriptivas", "asimetria_curtosis", "percentiles", "media_recortada",
     "media_geometrica", "media_armonica", "shapiro_wilk", "grubbs", "tukey", "esd")})
 FIRMAS["precision_ep15"] = "lista"
+FIRMAS["parcial"] = "trio"
 
 __all__ = ["CONSTRUCTORES", "FIRMAS", *sorted(CONSTRUCTORES)]

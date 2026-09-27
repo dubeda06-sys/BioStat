@@ -491,6 +491,15 @@ def mcnemar_test(b, c):
 
 # --- Correlacion ---
 
+def _ic_fisher(r, n, ee):
+    """IC 95 % de una correlacion por la z de Fisher: tanh(atanh(r) +- 1,96 EE)."""
+    if not np.isfinite(ee) or abs(r) >= 1:
+        return (np.nan, np.nan)
+    z = np.arctanh(r)
+    medio = stats.norm.ppf(0.975) * ee
+    return (float(np.tanh(z - medio)), float(np.tanh(z + medio)))
+
+
 def pearson_r(d1, d2):
     """Correlacion de Pearson."""
     d1 = np.asarray(d1, dtype=float)
@@ -504,7 +513,8 @@ def pearson_r(d1, d2):
         return {"error": "Una de las dos variables es constante: la "
                          "correlacion divide por su dispersion."}
     r, p = stats.pearsonr(d1, d2)
-    return {"r": r, "r2": r**2, "p": p, "n": n}
+    return {"r": r, "r2": r**2, "p": p, "n": n,
+            "ci95": _ic_fisher(r, n, 1 / np.sqrt(n - 3) if n > 3 else np.nan)}
 
 
 def spearman_rho(d1, d2):
@@ -520,7 +530,10 @@ def spearman_rho(d1, d2):
         return {"error": "Una de las dos variables es constante: todos sus "
                          "rangos empatan y la correlacion no esta definida."}
     r, p = stats.spearmanr(d1, d2)
-    return {"rho": r, "p": p, "n": n}
+    # EE de Bonett y Wright (2000): la z de Fisher con 1/sqrt(n-3), que es la
+    # de Pearson, deja el IC de rho demasiado angosto.
+    ee = np.sqrt((1 + r ** 2 / 2) / (n - 3)) if n > 3 else np.nan
+    return {"rho": r, "p": p, "n": n, "ci95": _ic_fisher(r, n, ee)}
 
 
 def partial_correlation(x, y, z):
@@ -546,8 +559,13 @@ def partial_correlation(x, y, z):
     if t_denom <= 0:
         return None
     t_stat = r_partial * np.sqrt((n - 3) / t_denom)
-    p = 2 * (1 - stats.t.cdf(abs(t_stat), n - 3))
-    return {"r_partial": r_partial, "t": t_stat, "p": p, "df": n-3, "n": n}
+    # sf y no 1 - cdf: con p chicos, 1 - cdf redondea a cero.
+    p = 2 * stats.t.sf(abs(t_stat), n - 3)
+    # IC por z de Fisher, con un grado de libertad menos por la variable
+    # controlada: EE = 1/sqrt(n - 3 - 1).
+    return {"r_partial": r_partial, "t": t_stat, "p": p, "df": n-3, "n": n,
+            "r_xy": r_xy, "r_xz": r_xz, "r_yz": r_yz,
+            "ci95": _ic_fisher(r_partial, n, 1 / np.sqrt(n - 4) if n > 4 else np.nan)}
 
 
 def normality_test(data):

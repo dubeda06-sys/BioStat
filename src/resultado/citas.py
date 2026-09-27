@@ -98,6 +98,20 @@ TUKEY_1977 = Cita("Tukey JW (1977). Exploratory data analysis. Reading, MA: Addi
 NIST_OUTLIERS = Cita("NIST/SEMATECH e-Handbook of Statistical Methods, §1.3.5.17: Grubbs y "
                      "ESD generalizado.",
                      "https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm")
+FISHER_1921 = Cita("Fisher RA (1921). On the probable error of a coefficient of correlation "
+                   "deduced from a small sample. Metron 1:3-32.")
+SPEARMAN_1904 = Cita("Spearman C (1904). The proof and measurement of association between "
+                     "two things. Am J Psychol 15:72-101.")
+BONETT_2000 = Cita("Bonett DG, Wright TA (2000). Sample size requirements for estimating "
+                   "Pearson, Kendall and Spearman correlations. Psychometrika 65:23-28.")
+MUKAKA_2012 = Cita("Mukaka MM (2012). A guide to appropriate use of correlation coefficient "
+                   "in medical research. Malawi Med J 24:69-71.")
+MEDCALC_CORRELACION = Cita("MedCalc, manual: Correlation.",
+                           "https://www.medcalc.org/en/manual/correlation.php")
+MEDCALC_RANGOS = Cita("MedCalc, manual: Rank correlation.",
+                      "https://www.medcalc.org/en/manual/rank-correlation.php")
+MEDCALC_PARCIAL = Cita("MedCalc, manual: Partial correlation.",
+                       "https://www.medcalc.org/en/manual/partialcorrelation.php")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -334,6 +348,38 @@ FICHAS: dict[str, Ficha] = {
             "r = mín(10, ⌊(n − 2)/2⌋), α = 0,05"
         ),
         citas=(ROSNER_1983, NIST_OUTLIERS, MEDCALC_OUTLIERS),
+    ),
+
+    # ---------------- Correlación: src/resultado/constructores/correlacion.py
+    # docs/referencia-medcalc/Correlacion, acuerdo y confiabilidad.md; core:
+    # src/core/statistics.py (pearson_r, spearman_rho, partial_correlation)
+    "pearson": Ficha(
+        formula=(
+            "r = Σ(x − x̄)(y − ȳ) / √(Σ(x − x̄)²·Σ(y − ȳ)²)\n"
+            "p: t = r·√(n − 2)/√(1 − r²), con n − 2 gl\n"
+            "IC 95 %: tanh(atanh(r) ± 1,96/√(n − 3))  (z de Fisher)\n"
+            "Palabras para |r| (Mukaka 2012): ≥ 0,9 muy alta; 0,7 alta; 0,5 moderada;\n"
+            "    0,3 baja; menos, despreciable"
+        ),
+        citas=(FISHER_1921, MUKAKA_2012, BLAND_1986, MEDCALC_CORRELACION),
+    ),
+    "spearman": Ficha(
+        formula=(
+            "ρ = r de Pearson entre los rangos (empates: rango promedio)\n"
+            "    sin empates, 1 − 6·Σd² / (n(n² − 1))\n"
+            "p: aproximación t con n − 2 gl\n"
+            "IC 95 %: tanh(atanh(ρ) ± 1,96·√((1 + ρ²/2)/(n − 3)))  (Bonett y Wright)"
+        ),
+        citas=(SPEARMAN_1904, BONETT_2000, MUKAKA_2012, MEDCALC_RANGOS),
+    ),
+    "parcial": Ficha(
+        formula=(
+            "r_xy·z = (r_xy − r_xz·r_yz) / √((1 − r_xz²)(1 − r_yz²))\n"
+            "    = correlación entre los residuos de x sobre z y de y sobre z\n"
+            "p: t = r·√(n − 3)/√(1 − r²), con n − 3 gl\n"
+            "IC 95 %: tanh(atanh(r) ± 1,96/√(n − 4))"
+        ),
+        citas=(FISHER_1921, ALTMAN_1991, MEDCALC_PARCIAL),
     ),
 }
 

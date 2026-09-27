@@ -89,11 +89,13 @@ from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
     passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
 )
+from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
 )
 from src.resultado.lenguaje import texto_descartes
+from src.resultado.modelo import Resultado
 from src.core.meta_analysis import meta_analysis
 from src.core.sample_size import (
     sample_size_mean, sample_size_two_means,
@@ -484,53 +486,12 @@ class AnalysisMethodsMixin:
         h += "</table>" + self._avisos_html(avisos)
         return h + self._ok(result['p'] < a)
 
-    # --- Pearson ---
+    # --- Correlacion: la arma src/resultado/constructores/correlacion.py ---
     def _corr_p(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        df = self.data[[c1, c2]].dropna()
-        if len(df) < 3:
-            return "<b>Error:</b> Minimo 3 pares."
-        
-        result = pearson_r(df[c1].values, df[c2].values)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-        
-        ar = abs(result['r'])
-        s = "Muy fuerte" if ar >= .9 else "Fuerte" if ar >= .7 else "Moderada" if ar >= .5 else "Debil"
-        
-        self._set_formula(
-            "Formula: Correlacion de Pearson",
-            "r = Sum(xi - xbar)(yi - ybar) / Sqrt[Sum(xi - xbar)^2 x Sum(yi - ybar)^2]"
-        )
-        
-        h = self._h(f" Pearson")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']),
-                      ("r", f"{result['r']:.4f}"), ("R2", f"{result['r2']:.4f}"),
-                      ("p", f"{result['p']:.6f}"), ("Fuerza", s)]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó correlación", "No se detectó correlación")
+        return pearson(self.data, c1, c2)
 
-    # --- Spearman ---
     def _corr_s(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        df = self.data[[c1, c2]].dropna()
-        if len(df) < 3:
-            return "<b>Error:</b> Minimo 3 pares."
-        
-        result = spearman_rho(df[c1].values, df[c2].values)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-        
-        self._set_formula("Formula: Spearman", "ρ = correlación de Pearson entre los rangos\n(sin empates equivale a 1 − 6·Σd² / (n(n² − 1)))")
-        
-        h = self._h(f" Spearman")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Var 1", c1), ("Var 2", c2), ("n", result['n']), ("rho", f"{result['rho']:.4f}"), ("p", f"{result['p']:.6f}")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó correlación", "No se detectó correlación")
+        return spearman(self.data, c1, c2)
 
     # --- Shapiro-Wilk ---
     def _shapiro(self, col):
@@ -1611,22 +1572,11 @@ class AnalysisMethodsMixin:
 
     # --- Correlacion parcial ---
     def _partial_corr(self, c1, c2, c3):
-        if c3 == "(ninguna)" or c3 not in self.data.columns:
-            return "<b>Error:</b> Selecciona Variable 3 para controlar."
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        df = self.data[[c1, c2, c3]].dropna()
-        if len(df) < 4:
-            return "<b>Error:</b> Minimo 4 datos."
-        r = partial_correlation(df[c1].values, df[c2].values, df[c3].values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Correlacion Parcial", "r_xy.z = (r_xy - r_xz*r_yz) / sqrt((1-r_xz^2)(1-r_yz^2))", f"r = {r['r_partial']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" Correlacion Parcial — {c1}, {c2} | {c3}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("r parcial", f"{r['r_partial']:.4f}"), ("p", f"{r['p']:.6f}"), ("df", r['df'])]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "Se detectó correlación", "No se detectó correlación")
+        if c3 is None or c3 not in self.data.columns:
+            return Resultado.rechazo(
+                "parcial", "Correlación parcial",
+                "Elegí en la Variable 3 la variable que se quiere controlar.")
+        return parcial(self.data, c1, c2, c3)
 
     # --- Core Module Runners ---
     def _run_core(self, func_name, c1=None, c2=None):
