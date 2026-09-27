@@ -13,12 +13,17 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
     "par":   f(df, columna1, columna2)
     "lista": f(df, [columnas])
     "trio":  f(df, columna1, columna2, columna3)
+    "respuesta_binaria": f(df, respuesta_0_1, [predictoras])
+    "dosis_respuesta":   f(df, dosis, respuesta_0_1)
 """
 from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.precision import precision_ep15
+from src.resultado.constructores.regresion import (
+    probit, regresion_lineal, regresion_logistica, regresion_multiple,
+)
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
@@ -41,6 +46,11 @@ CONSTRUCTORES = {
     "pearson": pearson,
     "spearman": spearman,
     "parcial": parcial,
+    # Regresión
+    "regresion_lineal": regresion_lineal,
+    "regresion_multiple": regresion_multiple,
+    "regresion_logistica": regresion_logistica,
+    "probit": probit,
     # Comparación de métodos
     "bland_altman": bland_altman,
     "passing_bablok": passing_bablok,
@@ -58,5 +68,7 @@ FIRMAS.update({n: "una" for n in (
     "media_geometrica", "media_armonica", "shapiro_wilk", "grubbs", "tukey", "esd")})
 FIRMAS["precision_ep15"] = "lista"
 FIRMAS["parcial"] = "trio"
+FIRMAS["regresion_logistica"] = "respuesta_binaria"
+FIRMAS["probit"] = "dosis_respuesta"
 
 __all__ = ["CONSTRUCTORES", "FIRMAS", *sorted(CONSTRUCTORES)]

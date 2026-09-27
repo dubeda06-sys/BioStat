@@ -369,6 +369,14 @@ OPCIONES["Validar un método"] = (
            "Solo cuenta si se tildaron corridas de EP15."),
 )
 
+OPCIONES["Probit regression"] = (
+    Opcion("escala", "Escala de la dosis (Variable 1)",
+           (("lineal", "Lineal — la dosis tal como está"),
+            ("log10", "Logarítmica (log10) — lo habitual en dosis-respuesta y en el LoD")),
+           "En log10 la curva queda simétrica; las dosis efectivas se informan en la escala "
+           "original."),
+)
+
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",
            (("una", "Una muestra o datos pareados (t de una muestra)"),

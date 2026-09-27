@@ -215,7 +215,16 @@ _LLAMADAS = {"una": lambda f, df: f(df, "A"),
              "par": lambda f, df: f(df, "A", "B"),
              "lista": lambda f, df: f(df, ["A", "B"]),
              "trio": lambda f, df: f(df.assign(C=df["A"] * 0.5 + np.arange(len(df))),
-                                     "A", "B", "C")}
+                                     "A", "B", "C"),
+             "respuesta_binaria": lambda f, df: f(_con_binaria(df), "Y", "A"),
+             "dosis_respuesta": lambda f, df: f(_con_binaria(df), "A", "Y")}
+
+
+def _con_binaria(df):
+    """Una respuesta 0/1 que depende de A, sin separarla del todo."""
+    rng = np.random.default_rng(5)
+    z = (df["A"] - df["A"].mean()) / df["A"].std()
+    return df.assign(Y=(z + rng.normal(0, 1, len(df)) > 0).astype(float))
 
 
 def test_toda_firma_es_conocida():

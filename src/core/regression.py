@@ -95,11 +95,25 @@ def logistic_regression(X, y, max_iter=100, lr=0.1):
     n, p = X.shape
     if n < p + 2:
         return None
+    if not np.all(np.isin(y, (0.0, 1.0))):
+        return {"error": "La respuesta de la regresion logistica tiene que ser 0/1."}
+    if len(np.unique(y)) < 2:
+        return {"error": "La respuesta tiene un solo valor: no hay nada que modelar."}
     X_design = sm.add_constant(X, has_constant="add")
     try:
         model = sm.Logit(y, X_design).fit(disp=0, maxiter=200)
-    except Exception:
-        return None
+    except Exception as e:
+        return {"error": f"La regresion logistica no converge con estos datos "
+                         f"({type(e).__name__}): suele ser separacion completa."}
+    # Como en el probit: statsmodels ya no lanza excepcion ante la separacion
+    # completa, devuelve un ajuste sin convergencia con coeficientes enormes. Un
+    # OR de 1e12 no se informa como si fuera un resultado.
+    predichas = np.asarray(model.predict(X_design), dtype=float)
+    if (not model.mle_retvals.get("converged", True)
+            or np.all((predichas < 1e-6) | (predichas > 1 - 1e-6))):
+        return {"error": "La regresion logistica no converge: alguna predictora separa "
+                         "perfectamente los 0 de los 1 (separacion completa) o casi. El "
+                         "OR tiende a infinito y no hay estimacion que dar."}
     coeffs = np.asarray(model.params, dtype=float)
     se = np.asarray(model.bse, dtype=float)
     z_scores = np.asarray(model.tvalues, dtype=float)
@@ -115,7 +129,33 @@ def logistic_regression(X, y, max_iter=100, lr=0.1):
         "odds_ratios": or_vals, "or_ci_low": or_ci_low, "or_ci_high": or_ci_high,
         "accuracy": accuracy, "log_likelihood": float(model.llf),
         "aic": float(model.aic), "n": n, "p_predictors": p,
+        "pseudo_r2": float(model.prsquared), "prob": y_pred, "y": y,
+        "hosmer_lemeshow": hosmer_lemeshow(y, y_pred),
     }
+
+
+def hosmer_lemeshow(y, prob, grupos=10):
+    """Bondad de ajuste de Hosmer y Lemeshow (1980): observados contra esperados
+    en grupos de riesgo (deciles de la probabilidad predicha).
+
+    H = suma de (O - E)^2 / (E (1 - E/n_g)) sobre los grupos, contra chi2 con
+    g - 2 gl. Un p chico dice que el modelo predice mal en algun tramo de riesgo.
+    """
+    y = np.asarray(y, dtype=float)
+    prob = np.asarray(prob, dtype=float)
+    orden = np.argsort(prob, kind="mergesort")
+    partes = [p for p in np.array_split(orden, min(grupos, len(y))) if len(p)]
+    h, filas = 0.0, []
+    for idx in partes:
+        n_g = len(idx)
+        obs, esp = float(y[idx].sum()), float(prob[idx].sum())
+        filas.append({"n": n_g, "observados": obs, "esperados": esp})
+        denom = esp * (1 - esp / n_g)
+        if denom > 0:
+            h += (obs - esp) ** 2 / denom
+    gl = len(partes) - 2
+    p = float(stats.chi2.sf(h, gl)) if gl > 0 else float("nan")
+    return {"h": float(h), "gl": gl, "p": p, "grupos": filas}
 
 
 def nonlinear_regression(x, y, func, p0=None):

@@ -90,6 +90,9 @@ from src.resultado.constructores import (
     passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
 )
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
+from src.resultado.constructores.regresion import (
+    probit, regresion_lineal, regresion_logistica, regresion_multiple,
+)
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
@@ -1352,87 +1355,33 @@ class AnalysisMethodsMixin:
         return h + self._nota_columnas(cols, del_dialogo)
 
     # --- Regresion lineal ---
+    # --- Regresion: la arma src/resultado/constructores/regresion.py ---
     def _reg_lineal(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        r = linear_regression(pares[c1].values, pares[c2].values)
-        if _sin_resultado(r):
-            return _msg_error(r, "Minimo 3 datos.")
-        self._set_formula("Formula: Regresion Lineal", "y = b0 + b1*x\nb1 = S(x-xbar)(y-ybar) / S(x-xbar)^2", f"y = {r['intercept']:.4f} + {r['slope']:.4f}*x\nR2 = {r['r2']:.4f}\np = {r['p_slope']:.6f}")
-        h = self._h(f" Regresion Lineal — {c1} vs {c2}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Pendiente", f"{r['slope']:.4f}"), ("Intercepto", f"{r['intercept']:.4f}"),
-                      ("R2", f"{r['r2']:.4f}"), ("p", f"{r['p_slope']:.6f}"), ("n", r['n'])]:
-            h += self._r(l, v)
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.scatter(r['x'], r['y'], alpha=0.5, c='#4f6ef7', edgecolors='white', s=50)
-        xl = np.linspace(r['x'].min(), r['x'].max(), 100)
-        ax.plot(xl, r['intercept'] + r['slope']*xl, color='#ef4444', lw=2)
-        ax.set_xlabel(c1); ax.set_ylabel(c2)
-        ax.set_title(f'Regresion Lineal (R2={r["r2"]:.3f})', fontweight='bold')
-        fig.tight_layout(); self._show_fig(fig)
-        return h
+        return regresion_lineal(self.data, c1, c2)
 
     # --- Regresion multiple ---
     def _reg_multiple(self, c1):
-        """Regresión múltiple: Variable 1 = respuesta; predictoras = las tildadas."""
-        if c1 is None or c1 not in self.data.columns:
-            return "<b>Error:</b> Elegí la respuesta en la Variable 1."
-        predictors, del_dialogo = self._columnas_multi(excluir=(c1,))
-        if len(predictors) < 1:
-            return "<b>Error:</b> Hace falta al menos una predictora numérica."
-        filas = self._filas_completas(c1, *predictors)
-        r = multiple_regression(filas[predictors].values, filas[c1].values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Regresion Multiple",
-                          "y = b0 + b1·x1 + b2·x2 + ...\nβ = (X'X)⁻¹ X'y (mínimos cuadrados)",
-                          f"R2 = {r['r2']:.4f}\nR2 adj = {r['r2_adj']:.4f}\nF = {r['f']:.4f}")
-        h = self._h(f" Regresion Multiple — {escape(str(c1))}")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("n", r['n'])
-        h += self._r("R2", f"{r['r2']:.4f}")
-        h += self._r("R2 ajustado", f"{r['r2_adj']:.4f}")
-        h += self._r("F", f"{r['f']:.4f}")
-        h += self._r("p modelo", _p_html(r['p_model']))
-        h += "</table><b>Coeficientes:</b><table style='font-size:12px;'>"
-        for l, coef, se, p in zip(["Intercepto"] + predictors, r['coeffs'], r['se'], r['p']):
-            h += self._r(escape(str(l)), f"b={coef:.4f} (EE {se:.4f}), {_p_html(p)}")
-        h += "</table>"
-        return h + self._nota_columnas(predictors, del_dialogo)
+        """Variable 1 = respuesta; predictoras = las tildadas."""
+        predictoras, del_dialogo = self._columnas_multi(excluir=(c1,))
+        return self._con_nota_columnas(
+            regresion_multiple(self.data, c1, predictoras), predictoras, del_dialogo)
 
     # --- Regresion logistica ---
     def _reg_logistica(self, c1):
-        """Regresión logística: Variable 1 = respuesta 0/1; predictoras = las tildadas."""
-        if c1 is None or c1 not in self.data.columns:
-            return "<b>Error:</b> Elegí la respuesta (0/1) en la Variable 1."
-        y_vals = self.data[c1].dropna().unique()
-        if not all(v in [0, 1] for v in y_vals):
-            return f"<b>Error:</b> «{escape(str(c1))}» tiene que ser 0/1."
-        predictors, del_dialogo = self._columnas_multi(excluir=(c1,))
-        if len(predictors) < 1:
-            return "<b>Error:</b> Hace falta al menos una predictora numérica."
-        filas = self._filas_completas(c1, *predictors)
-        r = logistic_regression(filas[predictors].values, filas[c1].values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular (¿separación completa?).")
-        self._set_formula("Formula: Regresion Logistica",
-                          "ln(p/(1−p)) = b0 + b1·x1 + ...\nOR = exp(b); máxima verosimilitud (statsmodels)",
-                          f"AIC = {r['aic']:.2f}")
-        h = self._h(f" Regresion Logistica — {escape(str(c1))}")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("n", r['n'])
-        h += self._r("AIC", f"{r['aic']:.2f}")
-        h += self._r("Exactitud sobre los mismos datos (optimista)", f"{r['accuracy']:.4f}")
-        h += "</table><b>Coeficientes:</b><table style='font-size:12px;'>"
-        for i, l in enumerate(["Intercepto"] + predictors):
-            h += self._r(escape(str(l)),
-                         f"b={r['coeffs'][i]:.4f}, OR={r['odds_ratios'][i]:.4f} "
-                         f"(IC 95% {r['or_ci_low'][i]:.4f} a {r['or_ci_high'][i]:.4f}), "
-                         f"{_p_html(r['p'][i])}")
-        h += "</table>"
-        return h + self._nota_columnas(predictors, del_dialogo)
+        """Variable 1 = respuesta 0/1; predictoras = las tildadas."""
+        predictoras, del_dialogo = self._columnas_multi(excluir=(c1,))
+        return self._con_nota_columnas(
+            regresion_logistica(self.data, c1, predictoras), predictoras, del_dialogo)
+
+    def _con_nota_columnas(self, res, columnas, del_dialogo):
+        """Sin dialogo se usaron todas las numericas: el informe lo dice."""
+        if res.ok and not del_dialogo:
+            res.advertencias.append(
+                "Se usaron todas las columnas numéricas de la hoja como predictoras: "
+                + ", ".join(str(c) for c in columnas) + ". Si alguna no corresponde "
+                "(un número de muestra, una fecha), abrí el análisis desde el menú "
+                "Estadísticas y destildala.")
+        return res
 
     # --- Odds Ratio ---
     def _odds_ratio(self, c1, c2):
@@ -1951,37 +1900,8 @@ class AnalysisMethodsMixin:
             return f"<p style='color:red'>Error: {str(e)}</p>"
 
     def _run_probit(self, c1, c2):
-        """Run Probit Regression."""
-        if c1 is None or c2 is None:
-            return "<b>Error:</b> Selecciona Predictora (V1) y Respuesta binaria (V2, 0/1)."
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        try:
-            pares = self._filas_completas(c1, c2)
-            X = pares[c1].values.reshape(-1, 1)
-            y = pares[c2].values
-            result = probit_regression(X, y)
-            if _sin_resultado(result):
-                return _msg_error(result, "No se pudo calcular.")
-            self._set_formula("Formula: Probit",
-                              "P(Y=1) = Φ(β₀ + β₁x)\n"
-                              "Maxima verosimilitud (statsmodels); EE de la informacion observada\n"
-                              "AIC = 2k − 2·logL")
-            h = self._h(f" Probit Regression — {c1} → {c2}")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("n", result['n'])
-            h += self._r("Log-likelihood", f"{result['log_likelihood']:.4f}")
-            h += self._r("AIC", f"{result['aic']:.4f}")
-            for i, (coef, se, p) in enumerate(zip(result['coefficients'], result['se'],
-                                                  result['p_values'])):
-                nombre = "β0 (intercepto)" if i == 0 else f"β{i} ({c1})"
-                h += self._r(nombre, f"{coef:.4f} (EE {se:.4f}), {_p_html(p)}")
-            h += "</table>"
-            for aviso in result.get("avisos", []):
-                h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
-            return h
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+        """Variable 1 = dosis, Variable 2 = respuesta 0/1."""
+        return probit(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
     def _run_cmh(self):
         """Run CMH Test."""

@@ -65,4 +65,26 @@ def probit_regression(X, y):
         "log_likelihood": float(modelo.llf),
         "aic": float(modelo.aic),
         "n": n,
+        "cov": np.asarray(modelo.cov_params(), dtype=float),
     }
+
+
+def dosis_efectiva(coeficientes, cov, prob):
+    """La dosis (valor de x) con la que responde una proporcion `prob`, e IC 95 %.
+
+    Probit con una predictora: Phi(b0 + b1 x) = prob, asi que
+    x_p = (Phi^-1(prob) - b0) / b1. El IC es el del metodo delta, el mismo que
+    `dose.p` del paquete MASS de R (Venables y Ripley 2002):
+        grad = (-1/b1, -x_p/b1),   EE = sqrt(grad' Cov grad).
+    Con x_p = ED95 es el limite de deteccion por probit de CLSI EP17.
+    """
+    from scipy import stats as _st
+    b0, b1 = float(coeficientes[0]), float(coeficientes[1])
+    if b1 == 0:
+        return {"error": "La pendiente es 0: la respuesta no cambia con la dosis."}
+    z = _st.norm.ppf(prob)
+    x = (z - b0) / b1
+    grad = np.array([-1.0 / b1, -x / b1])
+    ee = float(np.sqrt(grad @ np.asarray(cov)[:2, :2] @ grad))
+    medio = _st.norm.ppf(0.975) * ee
+    return {"prob": prob, "dosis": x, "ee": ee, "ic95": (x - medio, x + medio)}

@@ -162,7 +162,8 @@ def test_con_huecos_da_lo_mismo_que_con_las_filas_completas(qt_app, nombre, hoja
     con_huecos = _texto(correr(_panel(df)))
     sin_huecos = _texto(correr(_panel(completas)))
 
-    assert "Error" not in sin_huecos, f"{nombre}: la referencia misma falló: {sin_huecos[:200]}"
+    # "Error:" y no "Error": «Error estándar residual» es un rótulo, no una falla.
+    assert "Error:" not in sin_huecos and "No se puede calcular" not in sin_huecos, f"{nombre}: la referencia misma falló: {sin_huecos[:200]}"
     assert con_huecos == sin_huecos
 
 

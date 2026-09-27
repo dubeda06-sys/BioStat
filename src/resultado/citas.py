@@ -112,6 +112,22 @@ MEDCALC_RANGOS = Cita("MedCalc, manual: Rank correlation.",
                       "https://www.medcalc.org/en/manual/rank-correlation.php")
 MEDCALC_PARCIAL = Cita("MedCalc, manual: Partial correlation.",
                        "https://www.medcalc.org/en/manual/partialcorrelation.php")
+RAMSEY_1969 = Cita("Ramsey JB (1969). Tests for specification errors in classical linear "
+                   "least-squares regression analysis. J R Stat Soc B 31:350-371.")
+BREUSCH_1979 = Cita("Breusch TS, Pagan AR (1979). A simple test for heteroscedasticity and "
+                    "random coefficient variation. Econometrica 47:1287-1294.")
+DRAPER_1998 = Cita("Draper NR, Smith H (1998). Applied regression analysis, 3.ª ed. New York: "
+                   "Wiley.")
+PEDUZZI_1996 = Cita("Peduzzi P, Concato J, Kemper E, Holford TR, Feinstein AR (1996). A "
+                    "simulation study of the number of events per variable in logistic "
+                    "regression analysis. J Clin Epidemiol 49:1373-1379.")
+HOSMER_1980 = Cita("Hosmer DW, Lemeshow S (1980). Goodness of fit tests for the multiple "
+                   "logistic regression model. Commun Stat A 9:1043-1069.")
+FINNEY_1971 = Cita("Finney DJ (1971). Probit analysis, 3.ª ed. Cambridge University Press.")
+VENABLES_2002 = Cita("Venables WN, Ripley BD (2002). Modern applied statistics with S, 4.ª ed. "
+                     "Springer. `dose.p`: dosis efectiva con IC por el método delta.")
+CLSI_EP17 = Cita("CLSI (2012). EP17-A2: Evaluation of detection capability for clinical "
+                 "laboratory measurement procedures, 2.ª ed. LoD por probit.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -380,6 +396,45 @@ FICHAS: dict[str, Ficha] = {
             "IC 95 %: tanh(atanh(r) ± 1,96/√(n − 4))"
         ),
         citas=(FISHER_1921, ALTMAN_1991, MEDCALC_PARCIAL),
+    ),
+
+    # ---------------- Regresión: src/resultado/constructores/regresion.py
+    # core: src/core/regression.py, src/core/probit.py; diagnósticos: statsmodels
+    "regresion_lineal": Ficha(
+        formula=(
+            "y = b₀ + b₁·x;  b₁ = Σ(x − x̄)(y − ȳ) / Σ(x − x̄)²;  b₀ = ȳ − b₁·x̄\n"
+            "IC 95 % de cada coeficiente: b ± t(0,975; n − 2)·EE\n"
+            "R² = 1 − SS_res/SS_tot;  error estándar residual = √(SS_res/(n − 2))\n"
+            "Diagnósticos: RESET (curvatura), Shapiro-Wilk y Breusch-Pagan de los residuos"
+        ),
+        citas=(DRAPER_1998, RAMSEY_1969, BREUSCH_1979, CORNBLEET_1979),
+    ),
+    "regresion_multiple": Ficha(
+        formula=(
+            "y = b₀ + b₁·x₁ + … + b_k·x_k;  b = (X'X)⁻¹ X'y\n"
+            "EE(b) = √diag(s²·(X'X)⁻¹),  s² = SS_res/(n − k − 1)\n"
+            "IC 95 %: b ± t(0,975; n − k − 1)·EE;  F = (SS_reg/k)/(SS_res/(n − k − 1))\n"
+            "VIF_j = 1/(1 − R²_j), con R²_j de x_j sobre las demás predictoras"
+        ),
+        citas=(DRAPER_1998, BREUSCH_1979, RAMSEY_1969),
+    ),
+    "regresion_logistica": Ficha(
+        formula=(
+            "ln(p/(1 − p)) = b₀ + b₁·x₁ + … ;  máxima verosimilitud\n"
+            "OR = exp(b);  IC 95 % = exp(b ± 1,96·EE)  (Wald)\n"
+            "Hosmer-Lemeshow: H = Σ (O − E)² / (E·(1 − E/n_g)) en deciles de riesgo,\n"
+            "    chi² con g − 2 gl;  eventos por variable = clase menos frecuente / k"
+        ),
+        citas=(HOSMER_1980, PEDUZZI_1996),
+    ),
+    "probit": Ficha(
+        formula=(
+            "P(y = 1) = Φ(b₀ + b₁·x);  máxima verosimilitud\n"
+            "Dosis con respuesta p: x_p = (Φ⁻¹(p) − b₀)/b₁  (ED50, ED95)\n"
+            "IC 95 % de x_p por el método delta: EE² = g'·Cov(b)·g,  g = (−1/b₁, −x_p/b₁)\n"
+            "En log10, x = log10(dosis) y el resultado se retransforma"
+        ),
+        citas=(FINNEY_1971, VENABLES_2002, CLSI_EP17),
     ),
 }
 
