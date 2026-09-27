@@ -589,8 +589,9 @@ def _figura_histograma(valores, col, media, de, mediana=None):
 
     fig, ax = plt.subplots(figsize=(8, 5))
     v = np.asarray(valores, dtype=float)
-    barras = max(1, min(30, int(np.sqrt(len(v))) + 1)) if np.ptp(v) > 0 else 1
-    ax.hist(v, bins=barras, density=True, color='#4f6ef7', alpha=0.45, edgecolor='white')
+    from src.utils.histograma import barras
+
+    ax.hist(v, bins=barras(v, min(30, int(np.sqrt(len(v))) + 1)), density=True, color='#4f6ef7', alpha=0.45, edgecolor='white')
     if de and np.isfinite(de) and de > 0:
         xs = np.linspace(v.min(), v.max(), 200)
         ax.plot(xs, stats.norm.pdf(xs, media, de), color='#2c3650', lw=1.8,

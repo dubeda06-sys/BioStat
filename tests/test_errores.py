@@ -9,7 +9,7 @@ de rango practicamente nulo.
 import numpy as np
 
 from src.utils import errores
-from src.ui.analysis_methods import _bins
+from src.utils.histograma import barras as _bins
 
 
 def test_el_manejador_no_relanza_la_excepcion():
@@ -65,3 +65,25 @@ def test_el_histograma_del_bootstrap_no_revienta():
     """La combinacion exacta que mataba la app al elegirla desde el menu."""
     valores = np.full(1000, 0.9999999) + np.arange(1000) * np.spacing(1.0)
     np.histogram(valores, bins=_bins(valores))
+
+
+def test_los_histogramas_de_los_constructores_no_revientan_con_rango_minimo():
+    """Al migrar a `Resultado` el bootstrap volvió a `bins=60` fijo, y con una
+    distribución de rango mínimo matplotlib reventaba (27 sep). Los tres
+    histogramas de los constructores usan ahora `barras`."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from src.resultado.constructores.bootstrap import _figura_dist
+    from src.resultado.constructores.referencia import _figura_intervalo
+    from src.resultado.constructores.resumen import _figura_histograma
+
+    v = np.array([0.9999999999999998, 1.0, 0.9999999999999999] * 40)
+    fig = _figura_dist(v, 1.0, {"ci_lower": 1.0, "ci_upper": 1.0}, "r")
+    plt.close(fig)
+    fig = _figura_histograma(v, "X", 1.0, 0.0)
+    plt.close(fig)
+    ri = {"lower": 1.0, "upper": 1.0, "ci_lower_low": 1.0, "ci_lower_high": 1.0,
+          "ci_upper_low": 1.0, "ci_upper_high": 1.0}
+    fig = _figura_intervalo(v, ri, None, None, "X")
+    plt.close(fig)

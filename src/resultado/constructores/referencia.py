@@ -294,7 +294,10 @@ def _figura_intervalo(x, ri, li, ls, col):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.hist(x, bins=min(40, max(10, len(x) // 8)), color='#c7d2fe', edgecolor='#4f6ef7')
+    from src.utils.histograma import barras
+
+    ax.hist(x, bins=barras(x, min(40, max(10, len(x) // 8))), color='#c7d2fe',
+            edgecolor='#4f6ef7')
     for lim, lo, hi in ((ri["lower"], ri["ci_lower_low"], ri["ci_lower_high"]),
                         (ri["upper"], ri["ci_upper_low"], ri["ci_upper_high"])):
         ax.axvline(lim, color='#ef4444', lw=2)

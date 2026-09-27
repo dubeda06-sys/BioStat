@@ -304,7 +304,9 @@ def _figura_dist(dist, estimado, r, nombre, cero=False):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.hist(dist, bins=60, color='#c7d2fe', edgecolor='#4f6ef7')
+    from src.utils.histograma import barras
+
+    ax.hist(dist, bins=barras(dist, 60), color='#c7d2fe', edgecolor='#4f6ef7')
     ax.axvline(estimado, color='#111827', lw=2, label=f"{nombre} = {estimado:.4g}")
     ax.axvline(r["ci_lower"], color='#ef4444', ls='--', lw=1.5, label="IC")
     ax.axvline(r["ci_upper"], color='#ef4444', ls='--', lw=1.5)
