@@ -147,7 +147,7 @@ class DialogoAnalisis(QDialog):
         # Parametros numericos (tamano de muestra, poder).
         self.inputs_parametro = {}
         for par in parametros(self.analisis):
-            campo = QLineEdit(f"{par.defecto:g}")
+            campo = QLineEdit("" if par.defecto is None else f"{par.defecto:g}")
             campo.setMaximumWidth(120)
             self.inputs_parametro[par.clave] = campo
             form.addRow(f"{par.etiqueta}:", campo)

@@ -84,6 +84,7 @@ MENU_ESTADISTICAS = [
         ("Bland-Altman múltiple", "Bland-Altman múltiple"),
         ("Regresion de Passing-Bablok", "Passing-Bablok"),
         ("Regresion de Deming", "Deming regression"),
+        ("Precisión y veracidad (EP15)", "Precisión EP15"),
         ("Mountain plot", "Mountain plot"),
         ("Grafico de Youden", "Youden plot"),
         ("Grafico polar", "Polar plot"),

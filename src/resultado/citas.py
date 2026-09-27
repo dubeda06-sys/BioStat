@@ -55,6 +55,16 @@ NCSS_PASSING = Cita("NCSS, manual: Passing-Bablok Regression for Method Comparis
                     "(cap. 313), prueba Cusum de linealidad.",
                     "https://www.ncss.com/wp-content/themes/ncss/pdf/Procedures/NCSS/"
                     "Passing-Bablok_Regression_for_Method_Comparison.pdf")
+CLSI_EP15 = Cita("CLSI (2014). EP15-A3: User verification of precision and estimation of "
+                 "bias, 3.ª ed.")
+CLSI_EP15_ERRATA_2015 = Cita("CLSI (2015). EP15-A3, fe de erratas del 22 oct: tabla 10 y "
+                             "ejemplos resueltos 1A a 4.",
+                             "https://clsi.org/media/1664/ep15_correction_notice_20151008_pdf_web.pdf")
+CLSI_EP15_ERRATA_2017 = Cita("CLSI (2017). EP15-A3, fe de erratas del 23 may: ecuación (11) "
+                             "y apéndice B5.",
+                             "https://clsi.org/media/1649/ep15_correction_notice_20170523_web.pdf")
+GRUBBS_1969 = Cita("Grubbs FE (1969). Procedures for detecting outlying observations in "
+                   "samples. Technometrics 11:1-21.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
                       "coefficients in method-comparison analysis. Clin Chem 25:432-438.")
 LINNET_1990 = Cita("Linnet K (1990). Estimation of the linear relationship between the "
@@ -173,6 +183,21 @@ FICHAS: dict[str, Ficha] = {
             "IC 95 % de cada LoA = LoA ± t(n−1)·s·√(1/n + 1,96²/(2(n−1)))"
         ),
         citas=(BLAND_1986, BLAND_1999, KROUWER_2008, MEDCALC_BA_MULTIPLE),
+    ),
+    # core: src/core/ep15.py; tests contra la tabla 10 y los ejemplos 1A, 3A y 4
+    "precision_ep15": Ficha(
+        formula=(
+            "D corridas, nᵢ réplicas, N = Σnᵢ;  MS1 = entre corridas (D − 1 gl),\n"
+            "    MS2 = dentro de la corrida (N − D gl)\n"
+            "n0 = (N − Σnᵢ²/N) / (D − 1)  (= réplicas por corrida si está balanceado)\n"
+            "V_B = (MS1 − MS2)/n0, 0 si sale negativa;  s_R = √MS2;  s_WL = √(MS2 + V_B)\n"
+            "UVL = F·σ declarada,  F = √(χ²(1 − α/nMuestras; gl)/gl)\n"
+            "    gl de s_R = N − D; gl de s_WL por Satterthwaite con ρ = σWL/σR (ap. B)\n"
+            "se(x̿) = √((s_WL² − ((n0 − 1)/n0)·s_R²)/D),  D − 1 gl\n"
+            "se_c = √(se_VA² + se(x̿)²), gl por Satterthwaite\n"
+            "Intervalo de verificación = VA ± t(1 − α/(2·nMuestras); gl)·se_c"
+        ),
+        citas=(CLSI_EP15, CLSI_EP15_ERRATA_2015, CLSI_EP15_ERRATA_2017, GRUBBS_1969),
     ),
 }
 

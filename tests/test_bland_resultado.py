@@ -210,9 +210,15 @@ def test_menos_de_tres_pares_trae_el_motivo_del_core():
 
 # ---------------- Contrato de todo constructor migrado ----------------
 
+# Los que no reciben un par de columnas: EP15 toma una lista de corridas.
+_LLAMADAS = {"precision_ep15": lambda f, df: f(df, ["A", "B"])}
+
+
 @pytest.mark.parametrize("analisis", sorted(CONSTRUCTORES))
 def test_contrato(analisis):
-    res = CONSTRUCTORES[analisis](_hoja_normal(), "A", "B")
+    llamar = _LLAMADAS.get(analisis, lambda f, df: f(df, "A", "B"))
+    res = llamar(CONSTRUCTORES[analisis], _hoja_normal())
+    assert res.ok, res.error
     f = ficha(analisis)
     assert f.formula and f.citas, "todo análisis migrado lleva fórmula y cita"
     assert res.formula == f.formula and len(res.citas) == len(f.citas)

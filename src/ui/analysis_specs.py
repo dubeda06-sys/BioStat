@@ -241,9 +241,12 @@ def multi(analisis):
 # podia cambiarlos (auditoria 2026-09, K6).
 @dataclass(frozen=True)
 class Parametro:
+    """Un numero que pide el dialogo. `defecto=None`: opcional, el campo arranca
+    vacio y vacio quiere decir «no se declaro» (lo que declara un fabricante, un
+    valor asignado)."""
     clave: str
     etiqueta: str
-    defecto: float
+    defecto: float | None
     minimo: float = float("-inf")
     maximo: float = float("inf")
     entero: bool = False
@@ -289,6 +292,38 @@ OPCIONES["Deming regression"] = (
             ("constante", "Sin ponderar — DE constante"),
             ("ponderado", "Ponderada — CV constante (EP09c, apéndice B)")),
            "Con CV constante, sin ponderar los puntos altos arrastran la recta."),
+)
+
+# EP15-A3: una columna por corrida (dia), las replicas en las filas. Lo
+# declarado por el fabricante y el valor asignado son opcionales: sin ellos se
+# estima la precision y no hay nada que verificar.
+VARIABLES["Precisión EP15"] = ()
+MULTI["Precisión EP15"] = Multi(
+    "Corridas (una columna por día)", 2,
+    "Cada columna es una corrida y sus filas, las réplicas de ese día. La norma pide "
+    "5 corridas con 5 réplicas.")
+PARAMETROS["Precisión EP15"] = (
+    Parametro("sigma_r", "Repetibilidad declarada por el fabricante (vacío = no hay)",
+              None, 0.0),
+    Parametro("sigma_wl", "Intralaboratorio declarada por el fabricante (vacío = no hay)",
+              None, 0.0),
+    Parametro("n_muestras", "Materiales (niveles) en el estudio", 1, 1, 20, entero=True),
+    Parametro("valor_asignado", "Valor asignado del material (vacío = no hay)", None),
+    Parametro("u", "Incertidumbre del valor asignado (u, U o DE del grupo)", None, 0.0),
+    Parametro("k", "Factor de cobertura k (si es U)", 2.0, 0.1, 10),
+    Parametro("n_lab", "Laboratorios del grupo de pares", 0, 0, 100_000, entero=True),
+)
+OPCIONES["Precisión EP15"] = (
+    Opcion("declaracion", "La declaración del fabricante viene como",
+           (("de", "DE, en unidades del analito"),
+            ("cv", "CV %")),
+           "Se compara en la misma escala: DE con DE, CV con CV."),
+    Opcion("incertidumbre", "Incertidumbre del valor asignado",
+           (("ninguna", "No se conoce — control comercial o valor convencional (D, E)"),
+            ("u", "Incertidumbre estándar u (material de referencia, A)"),
+            ("U", "Incertidumbre expandida U, con su k (A)"),
+            ("pares", "Grupo de pares: DE y número de laboratorios (B, C)")),
+           "Escenarios de EP15-A3 §3.3. Solo cuenta si hay valor asignado."),
 )
 
 OPCIONES["Poder estadistico"] = (

@@ -1,0 +1,195 @@
+"""Verificación de precisión y estimación del sesgo, CLSI EP15-A3 (2014).
+
+El protocolo de 5 días: cada día una corrida con 5 réplicas de cada material.
+De ahí salen la repetibilidad (dentro de la corrida) y la precisión
+intralaboratorio (repetibilidad + entre corridas), que se comparan con lo que
+declara el fabricante; y, si el material tiene un valor asignado, el sesgo con
+su intervalo de verificación.
+
+Con las dos fe de erratas de la norma (22 oct 2015 y 23 may 2017): el ejemplo
+de ferritina de la tabla 10 y el ejemplo resuelto 1A traían mal s_R (1,18 en
+vez de 1,78) y todo lo que se calculaba con él. `tests/test_ep15.py` reproduce
+los valores corregidos.
+
+Nombres de la norma: MS1 = cuadrado medio ENTRE corridas, MS2 = DENTRO.
+"""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+from scipy import stats
+
+CORRIDAS_NORMA = 5      # EP15-A3: 5 días, una corrida por día
+REPLICAS_NORMA = 5      # y 5 réplicas por corrida
+
+
+def _grubbs(valores, alpha=0.05):
+    """El valor más alejado de la media y si pasa el límite de Grubbs (dos colas)."""
+    v = np.asarray(valores, dtype=float)
+    n = len(v)
+    de = float(np.std(v, ddof=1)) if n > 2 else 0.0
+    if n < 3 or de == 0:
+        return None
+    z = np.abs(v - v.mean()) / de
+    i = int(np.argmax(z))
+    t = stats.t.ppf(1 - alpha / (2 * n), n - 2)
+    g_crit = (n - 1) / math.sqrt(n) * math.sqrt(t ** 2 / (n - 2 + t ** 2))
+    return {"indice": i, "valor": float(v[i]), "g": float(z[i]), "g_critico": float(g_crit),
+            "atipico": bool(z[i] > g_crit)}
+
+
+def componentes(ms1: float, ms2: float, n0: float) -> dict:
+    """De los cuadrados medios a los componentes de varianza (EP15-A3, tabla 10).
+
+    V_B = (MS1 − MS2)/n0, y 0 si sale negativa; V_W = MS2;
+    s_R = √V_W; s_WL = √(V_W + V_B).
+    """
+    vb_crudo = (ms1 - ms2) / n0
+    vb = max(vb_crudo, 0.0)
+    return {"v_entre": vb, "v_entre_negativa": vb_crudo < 0, "v_dentro": ms2,
+            "s_r": math.sqrt(ms2), "s_b": math.sqrt(vb), "s_wl": math.sqrt(ms2 + vb)}
+
+
+def precision_ep15(corridas, alpha_grubbs=0.05) -> dict:
+    """ANOVA de un factor (la corrida) y los componentes de varianza.
+
+    `corridas`: una secuencia de arreglos, uno por corrida, con sus réplicas.
+    Admite corridas de distinto tamaño (una réplica excluida): n0 corrige el
+    desbalance, como en la tabla 10 de la norma (muestra 1*, N = 24, n0 = 4,79).
+
+    Si la varianza entre corridas sale negativa (MS1 < MS2), se toma 0: la
+    precisión intralaboratorio queda igual a la repetibilidad. Tomar el valor
+    absoluto, como hace alguna implementación, inventa una varianza que los
+    datos no muestran.
+    """
+    limpias = []
+    for c in corridas:
+        a = np.asarray(c, dtype=float)
+        a = a[np.isfinite(a)]
+        if len(a):
+            limpias.append(a)
+    D = len(limpias)
+    if D < 2:
+        return {"error": f"Hacen falta al menos 2 corridas con datos; hay {D}."}
+    n_i = np.array([len(a) for a in limpias])
+    N = int(n_i.sum())
+    if N - D < 1:
+        return {"error": "Cada corrida tiene una sola réplica: sin réplicas no hay "
+                         "repetibilidad que estimar."}
+    todos = np.concatenate(limpias)
+    media = float(todos.mean())
+    medias = np.array([a.mean() for a in limpias])
+
+    ss_entre = float(np.sum(n_i * (medias - media) ** 2))
+    ss_dentro = float(sum(np.sum((a - a.mean()) ** 2) for a in limpias))
+    df_entre, df_dentro = D - 1, N - D
+    ms1, ms2 = ss_entre / df_entre, ss_dentro / df_dentro
+    n0 = (N - float(np.sum(n_i ** 2)) / N) / df_entre
+
+    comp = componentes(ms1, ms2, n0)
+    s_r, s_b, s_wl = comp["s_r"], comp["s_b"], comp["s_wl"]
+    cv = (lambda s: 100 * s / media) if media != 0 else (lambda s: None)
+
+    avisos = []
+    if D < CORRIDAS_NORMA or n_i.min() < REPLICAS_NORMA:
+        avisos.append(f"El diseño de EP15-A3 es de {CORRIDAS_NORMA} corridas con "
+                      f"{REPLICAS_NORMA} réplicas cada una; acá hay {D} corridas con "
+                      f"{n_i.min()} a {n_i.max()} réplicas. Con menos datos los "
+                      f"estimadores son más inciertos y el límite de verificación, más alto.")
+    if comp["v_entre_negativa"]:
+        avisos.append("La variación entre corridas salió menor que la esperable por la "
+                      "repetibilidad sola (MS entre < MS dentro): se tomó 0 como varianza "
+                      "entre corridas.")
+
+    return {
+        "n": N, "corridas": D, "replicas": n_i.tolist(), "n0": n0,
+        "media": media, "medias_corrida": medias.tolist(),
+        "ss_entre": ss_entre, "ss_dentro": ss_dentro,
+        "df_entre": df_entre, "df_dentro": df_dentro,
+        "ms_entre": ms1, "ms_dentro": ms2,
+        "v_entre": comp["v_entre"], "v_entre_negativa": comp["v_entre_negativa"],
+        "v_dentro": comp["v_dentro"],
+        "s_r": s_r, "s_b": s_b, "s_wl": s_wl,
+        "cv_r": cv(s_r), "cv_b": cv(s_b), "cv_wl": cv(s_wl),
+        "grubbs": _grubbs(todos, alpha_grubbs),
+        "valores": [a.tolist() for a in limpias],
+        "avisos": avisos,
+    }
+
+
+def df_intralab(rho: float, corridas: int, n0: float, n: int) -> float:
+    """Grados de libertad de s_WL, de la declaración del fabricante (EP15-A3, ap. B).
+
+    Satterthwaite sobre los cuadrados medios que se ESPERAN si la declaración es
+    cierta, con ρ = σ_WL/σ_R declarados: así el límite de verificación no
+    depende del ruido del propio estudio. Redondeado al entero, como las tablas
+    de la norma. Con ρ = 1 (sin variación entre corridas) da N − 1; con ρ
+    grande tiende a D − 1.
+    """
+    vw = 1.0
+    vb = max(rho ** 2 - 1.0, 0.0)
+    ms1, ms2 = vw + n0 * vb, vw
+    a1, a2 = 1 / n0, (n0 - 1) / n0
+    num = (a1 * ms1 + a2 * ms2) ** 2
+    den = (a1 * ms1) ** 2 / (corridas - 1) + (a2 * ms2) ** 2 / (n - corridas)
+    return float(round(num / den))
+
+
+def factor_uvl(df: float, n_muestras: int = 1, alpha: float = 0.05) -> float:
+    """F = √(χ²(1 − α/nMuestras; df) / df)  (EP15-A3, ap. B5).
+
+    Ejemplo de la norma: dos muestras, df = 20 → χ² = 34,17.
+    """
+    return math.sqrt(stats.chi2.ppf(1 - alpha / n_muestras, df) / df)
+
+
+def verificar(s_obs: float, declarado: float, df: float, n_muestras: int = 1,
+              alpha: float = 0.05) -> dict:
+    """¿La imprecisión observada es compatible con la declarada? (EP15-A3 §2.3.6)
+
+    Si no la supera, está verificada sin más. Si la supera, todavía puede ser
+    azar: se compara con el límite superior de verificación, UVL = F·declarado,
+    el percentil 95 de lo que daría un estudio de este tamaño si la declaración
+    fuera cierta.
+    """
+    f = factor_uvl(df, n_muestras, alpha)
+    uvl = f * declarado
+    return {"declarado": declarado, "df": df, "factor": f, "uvl": uvl,
+            "debajo": s_obs <= declarado, "verificado": s_obs <= uvl}
+
+
+def veracidad(media: float, s_r: float, s_wl: float, corridas: int, n_rep: float,
+              valor_asignado: float, se_rm: float = 0.0, df_rm: float = math.inf,
+              n_muestras: int = 1, alpha: float = 0.05) -> dict:
+    """Sesgo contra un valor asignado y su intervalo de verificación (EP15-A3 §3).
+
+    se(x̿) = √((s_WL² − ((n−1)/n)·s_R²) / corridas), con corridas − 1 gl;
+    se_c = √(se_RM² + se(x̿)²), gl combinados por Satterthwaite y redondeados
+    como en las tablas 15A-C; m = t(1 − α/(2·nMuestras); gl);
+    intervalo = VA ± m·se_c. La media observada adentro: el sesgo no se
+    distingue del azar.
+
+    `se_rm`: incertidumbre estándar del valor asignado. 0 si no se conoce
+    (escenarios D y E de la norma); con un grupo de pares, DE/√(laboratorios)
+    y `df_rm` = laboratorios − 1.
+    """
+    var_x = (s_wl ** 2 - ((n_rep - 1) / n_rep) * s_r ** 2) / corridas
+    se_x = math.sqrt(max(var_x, 0.0))
+    df_x = corridas - 1
+    se_c = math.sqrt(se_rm ** 2 + se_x ** 2)
+    den = se_x ** 4 / df_x + (se_rm ** 4 / df_rm if math.isfinite(df_rm) else 0.0)
+    df_c = float(round(se_c ** 4 / den)) if den > 0 else float(df_x)
+    df_c = max(df_c, 1.0)
+    m = float(stats.t.ppf(1 - alpha / (2 * n_muestras), df_c))
+    medio = m * se_c
+    sesgo = media - valor_asignado
+    return {
+        "valor_asignado": valor_asignado, "media": media,
+        "sesgo": sesgo,
+        "sesgo_pct": 100 * sesgo / valor_asignado if valor_asignado else None,
+        "se_media": se_x, "df_media": df_x, "se_rm": se_rm, "se_c": se_c,
+        "df_c": df_c, "m": m,
+        "intervalo": (valor_asignado - medio, valor_asignado + medio),
+        "dentro": abs(sesgo) <= medio,
+    }

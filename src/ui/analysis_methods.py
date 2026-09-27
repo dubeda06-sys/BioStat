@@ -87,7 +87,7 @@ from src.core.survival import kaplan_meier, log_rank_test
 from src.resultado.datos import filas_completas
 from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
-    passing_bablok as passing_bablok_resultado,
+    passing_bablok as passing_bablok_resultado, precision_ep15,
 )
 from src.resultado.lenguaje import texto_descartes
 from src.core.meta_analysis import meta_analysis
@@ -202,7 +202,7 @@ class AnalysisMethodsMixin:
         spec = {p.clave: p for p in spec_parametros(analisis)}[clave]
         crudo = (getattr(self, "parametros", None) or {}).get(clave)
         if crudo is None or str(crudo).strip() == "":
-            return spec.defecto
+            return spec.defecto          # None en los opcionales: «no se declaró»
         try:
             valor = float(str(crudo).strip().replace(",", "."))
         except ValueError:
@@ -2396,4 +2396,23 @@ class AnalysisMethodsMixin:
                 + ", ".join(str(m) for m in metodos) + ". Si alguna no corresponde (un "
                 "número de muestra, una edad), abrí el análisis desde el menú "
                 "Estadísticas y destildala.")
+        return res
+
+    def _ep15(self):
+        """EP15-A3: cada columna tildada es una corrida. Lo arma el constructor."""
+        corridas, del_dialogo = self._columnas_multi()
+        opciones = dict(getattr(self, "opciones_metodo", None) or {})
+        try:
+            for clave in ("sigma_r", "sigma_wl", "n_muestras", "valor_asignado", "u", "k",
+                          "n_lab"):
+                opciones[clave] = self._param("Precisión EP15", clave)
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        res = precision_ep15(self.data, corridas, opciones)
+        if res.ok and not del_dialogo:
+            res.advertencias.append(
+                "Se tomaron todas las columnas numéricas de la hoja como corridas: "
+                + ", ".join(str(c) for c in corridas) + ". Para elegir las corridas y "
+                "cargar lo que declara el fabricante, abrí el análisis desde el menú "
+                "Estadísticas.")
         return res

@@ -11,6 +11,7 @@ recorren entera: todo lo que entra acá tiene que tener ficha, no decir
 from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
+from src.resultado.constructores.precision import precision_ep15
 
 CONSTRUCTORES = {
     "bland_altman": bland_altman,
@@ -19,7 +20,8 @@ CONSTRUCTORES = {
     "cv_duplicados": cv_duplicados,
     "icc": icc,
     "bland_altman_multiple": bland_altman_multiple,
+    "precision_ep15": precision_ep15,
 }
 
 __all__ = ["CONSTRUCTORES", "bland_altman", "bland_altman_multiple", "cv_duplicados",
-           "deming", "icc", "passing_bablok"]
+           "deming", "icc", "passing_bablok", "precision_ep15"]

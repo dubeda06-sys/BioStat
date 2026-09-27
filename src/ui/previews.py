@@ -321,6 +321,7 @@ POR_ANALISIS = {
     # Comparacion de metodos: cada una tiene su dibujo propio.
     "Passing-Bablok": "regresion_metodos",
     "Deming regression": "regresion_metodos",
+    "Precisión EP15": "caja",
     "Mountain plot": "mountain",
     "Youden plot": "youden",
     "Polar plot": "polar",
