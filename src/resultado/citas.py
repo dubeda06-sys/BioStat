@@ -237,6 +237,17 @@ GILLESPIE_2012 = Cita("Gillespie TW (2012). Understanding waterfall plots. J Adv
 EISENHAUER_2009 = Cita("Eisenhauer EA et al. (2009). New response evaluation criteria in solid "
                        "tumours: revised RECIST guideline (version 1.1). Eur J Cancer "
                        "45:228-247.")
+HANLEY_1982 = Cita("Hanley JA, McNeil BJ (1982). The meaning and use of the area under a "
+                   "receiver operating characteristic (ROC) curve. Radiology 143:29-36.")
+HANLEY_1983 = Cita("Hanley JA, McNeil BJ (1983). A method of comparing the areas under receiver "
+                   "operating characteristic curves derived from the same cases. Radiology "
+                   "148:839-843.")
+DELONG_1988 = Cita("DeLong ER, DeLong DM, Clarke-Pearson DL (1988). Comparing the areas under "
+                   "two or more correlated receiver operating characteristic curves: a "
+                   "nonparametric approach. Biometrics 44:837-845.")
+YOUDEN_1950 = Cita("Youden WJ (1950). Index for rating diagnostic tests. Cancer 3:32-35.")
+HOSMER_2000 = Cita("Hosmer DW, Lemeshow S (2000). Applied logistic regression, 2.ª ed. New "
+                   "York: Wiley. Escala de discriminación del AUC.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -780,6 +791,25 @@ FICHAS: dict[str, Ficha] = {
     "cascada": Ficha(
         formula="Una barra por sujeto con su valor (el cambio), ordenadas de mayor a menor",
         citas=(GILLESPIE_2012, EISENHAUER_2009),
+    ),
+
+    # ---------------- Curvas ROC: src/resultado/constructores/roc.py
+    "curva_roc": Ficha(
+        formula=(
+            "AUC = área bajo la curva (trapecios, empates agrupados) = P(enfermo > sano)\n"
+            "EE de DeLong: varianza de los valores de colocación de enfermos y de sanos\n"
+            "IC 95 % = AUC ± 1,96·EE;  p de AUC = 0,5 con ese EE\n"
+            "Umbral de Youden: máximo de J = sensibilidad + especificidad − 1\n"
+            "Sensibilidad y especificidad en el umbral con IC de Wilson"
+        ),
+        citas=(HANLEY_1982, DELONG_1988, YOUDEN_1950, HOSMER_2000),
+    ),
+    "comparar_auc": Ficha(
+        formula=(
+            "z = (AUC₁ − AUC₂) / √(EE₁² + EE₂²)  (curvas de pacientes distintos)\n"
+            "IC 95 % de la diferencia = (AUC₁ − AUC₂) ± 1,96·√(EE₁² + EE₂²)"
+        ),
+        citas=(HANLEY_1983, DELONG_1988),
     ),
 }
 

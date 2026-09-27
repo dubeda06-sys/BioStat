@@ -43,6 +43,7 @@ from src.resultado.constructores.precision import precision_ep15
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
+from src.resultado.constructores.roc import comparar_auc, curva_roc
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
@@ -117,6 +118,9 @@ CONSTRUCTORES = {
     "youden": youden,
     "polar": polar,
     "cascada": cascada,
+    # Curvas ROC
+    "curva_roc": curva_roc,
+    "comparar_auc": comparar_auc,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -144,10 +148,13 @@ FIRMAS["kappa"] = FIRMAS["kappa_ponderado"] = "binarias"
 FIRMAS["cronbach"] = "lista_tres"
 FIRMAS["polar"] = "lista_tres"
 FIRMAS["cascada"] = "una"
+FIRMAS["curva_roc"] = "dosis_respuesta"
+FIRMAS["comparar_auc"] = "calculadora"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402
+from src.resultado.constructores.roc import EJEMPLOS as _EJ_ROC  # noqa: E402
 
-EJEMPLOS = {**EJEMPLOS, **_EJ_TABLAS}
+EJEMPLOS = {**EJEMPLOS, **_EJ_TABLAS, **_EJ_ROC}
 
 __all__ = ["CONSTRUCTORES", "EJEMPLOS", "FIRMAS", *sorted(CONSTRUCTORES)]

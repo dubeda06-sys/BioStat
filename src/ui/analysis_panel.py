@@ -619,7 +619,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Likelihood Ratios": lambda: self._run_core("likelihood_ratios", c1, c2),
             "Comparar 2 medias": lambda: self._comparar_medias(),
             "Comparar 2 proporciones": lambda: self._dos_proporciones(),
-            "Comparar 2 AUC": lambda: self._run_core("compare_auc"),
+            "Comparar 2 AUC": lambda: self._comparar_auc(),
             "Tabla de percentiles": lambda: self._percentiles(c1),
             "Edad-relacionada": lambda: self._run_core("age_related", c1, c2),
             "Outliers (ESD)": lambda: self._esd(c1),

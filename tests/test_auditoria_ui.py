@@ -222,7 +222,7 @@ def test_la_roc_da_el_ic_del_auc_por_delong(qt_app):
     df = pd.DataFrame({"S": np.r_[rng.normal(10, 2, 50), rng.normal(6, 2, 50)],
                        "L": np.r_[np.ones(50), np.zeros(50)]})
     t = _texto(_panel(df)._roc("S", "L"))
-    assert "EE (DeLong)" in t and "IC 95% del AUC" in t
+    assert "EE de DeLong" in t and "AUC" in t and "IC 95 %" in t
 
 
 def test_una_roc_invertida_no_se_llama_pobre(qt_app):

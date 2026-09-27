@@ -409,6 +409,16 @@ OPCIONES["Kappa ponderado"] = (
 MULTI["Polar plot"] = Multi("Variables (un eje cada una)", 3)
 ETIQUETAS["Youden plot"] = {"c1": "Muestra 1", "c2": "Muestra 2"}
 
+PARAMETROS["Comparar 2 AUC"] = (
+    Parametro("auc1", "AUC de la curva 1", 0.82, 0.0, 1.0),
+    Parametro("ee1", "EE del AUC 1", 0.04, 0.0),
+    Parametro("n1", "n de la curva 1", 120, 2, 10_000_000, entero=True),
+    Parametro("auc2", "AUC de la curva 2", 0.74, 0.0, 1.0),
+    Parametro("ee2", "EE del AUC 2", 0.05, 0.0),
+    Parametro("n2", "n de la curva 2", 110, 2, 10_000_000, entero=True),
+)
+ETIQUETAS["Curva ROC"] = {"c1": "Resultado de la prueba", "c3": "Etiqueta (1 enfermo, 0 sano)"}
+
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",
            (("una", "Una muestra o datos pareados (t de una muestra)"),

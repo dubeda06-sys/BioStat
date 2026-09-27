@@ -108,6 +108,7 @@ from src.resultado.constructores.tablas import (
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
+from src.resultado.constructores.roc import comparar_auc, curva_roc
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
@@ -456,100 +457,24 @@ class AnalysisMethodsMixin:
         return shapiro_wilk(self.data, col)
 
     # --- Curva ROC ---
+    # --- Curvas ROC: src/resultado/constructores/roc.py ---
     def _roc(self, score_col, label_col):
-        if label_col == "(ninguna)" or label_col not in self.data.columns:
-            return f"<b>Error:</b> Selecciona la columna de etiquetas en Variable 3 (0=negativo, 1=positivo)."
-        if score_col not in self.data.columns:
-            return f"<b>Error:</b> '{score_col}' no encontrada."
+        if label_col is None or label_col not in self.data.columns:
+            return Resultado.rechazo("curva_roc", "Curva ROC",
+                                     "Elegí la etiqueta (1 enfermo, 0 sano) en la Variable 3.")
+        return curva_roc(self.data, score_col, label_col)
 
-        pares = self._filas_completas(score_col, label_col)
-        y_true, y_score = pares[label_col].values, pares[score_col].values
-        n = len(pares)
-
-        unique = np.unique(y_true)
-        if not all(u in [0, 1] for u in unique):
-            return f"<b>Error:</b> Variable 3 debe contener solo 0 y 1. Valores encontrados: {unique.tolist()}"
-        if len(unique) < 2:
-            return ("<b>Error:</b> La etiqueta tiene una sola clase "
-                    f"(todos {int(unique[0])}). Una curva ROC compara enfermos "
-                    "contra sanos: hacen falta los dos grupos.")
-
-        fpr, tpr, thresh = roc_curve(y_true, y_score)
-        a = auc(fpr, tpr)
-        opt_t, youden, sens, fpr_opt = optimal_threshold(fpr, tpr, thresh)
-        spec_opt = 1 - fpr_opt
-        stats_diag = diagnostic_stats(y_true, y_score, opt_t)
-        dl = auc_delong(y_true, y_score)
-        self._set_formula("Formula: Curva ROC",
-                          "AUC = área bajo la curva (trapecios, con los empates agrupados)\n"
-                          "EE del AUC: DeLong, DeLong y Clarke-Pearson (1988); IC 95% = AUC ± 1,96·EE\n"
-                          "Umbral óptimo: máximo índice de Youden, J = Sens + Espec − 1")
-
-        h = self._h(f" Curva ROC — {escape(str(score_col))}")
-        h += "<table style='font-size:12px;'>"
-        filas = [("Variable (score)", escape(str(score_col))),
-                 ("Variable (etiqueta)", escape(str(label_col))),
-                 ("Observaciones", n), ("AUC", f"{a:.4f}")]
-        if not _sin_resultado(dl):
-            filas += [("EE (DeLong)", f"{dl['se']:.4f}"),
-                      ("IC 95% del AUC", f"{dl['ci'][0]:.4f} a {dl['ci'][1]:.4f}")]
-        filas += [("Umbral optimo", f"{opt_t:.4f}"), ("Sensibilidad", f"{sens:.4f}"),
-                  ("Especificidad", f"{spec_opt:.4f}"), ("Indice de Youden", f"{youden:.4f}")]
-        for l, v in filas:
-            h += self._r(l, v)
-        h += "</table>"
-
-        if a < 0.5:
-            # Un AUC de 0,06 no es una prueba "pobre": discrimina casi perfecto,
-            # pero al reves. Llamarla pobre esconde que la etiqueta o el sentido
-            # de la prueba estan invertidos (auditoria 2026-09, A9).
-            h += ("<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fdf6ec;"
-                  "border-left:3px solid #d97706;font-size:12px;'><b>La curva sale invertida "
-                  f"(AUC = {a:.3f} &lt; 0,5).</b> En estos datos los valores ALTOS corresponden "
-                  f"a los negativos: leída al revés, el AUC sería {1 - a:.3f}. Revisá si 1 es de "
-                  "verdad el enfermo en la etiqueta, o si la prueba baja con la enfermedad.</div>")
-        else:
-            if a >= 0.9:
-                grade = "excelente"
-            elif a >= 0.8:
-                grade = "buena"
-            elif a >= 0.7:
-                grade = "aceptable"
-            elif a >= 0.6:
-                grade = "regular"
-            else:
-                grade = "pobre"
-            h += (f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;"
-                  f"font-size:12px;'> <b>Interpretación:</b> AUC = {a:.3f}, discriminación {grade}. "
-                  "AUC = 1 es perfecta; 0,5, lo mismo que tirar una moneda. Mirá el IC: con "
-                  "pocos casos puede ir de pobre a excelente.</div>")
-
-        if stats_diag:
-            h += "<b style='font-size:12px;'>Matriz de confusion (umbral optimo):</b><table style='font-size:12px;'>"
-            for l, v in [("Verdaderos positivos", stats_diag["tp"]),
-                          ("Verdaderos negativos", stats_diag["tn"]),
-                          ("Falsos positivos", stats_diag["fp"]),
-                          ("Falsos negativos", stats_diag["fn"]),
-                          ("Exactitud", f"{stats_diag['accuracy']:.4f}"),
-                          ("Valor predictivo positivo", f"{stats_diag['ppv']:.4f}"),
-                          ("Valor predictivo negativo", f"{stats_diag['npv']:.4f}")]:
-                h += self._r(l, v)
-            h += "</table>"
-
-        fig, ax = plt.subplots(figsize=(7, 6))
-        ax.plot(fpr, tpr, color='#4f6ef7', lw=2, label=f'ROC (AUC = {a:.3f})')
-        ax.plot([0, 1], [0, 1], color='#d1d5e0', lw=1, ls='--', label='Azar')
-        ax.scatter([1-spec_opt], [sens], color='#ef4444', s=80, zorder=5, label=f'Optimo ({opt_t:.2f})')
-        ax.set_xlabel('1 - Especificidad (FPR)')
-        ax.set_ylabel('Sensibilidad (TPR)')
-        ax.set_title('Curva ROC', fontweight='bold')
-        ax.legend(loc='lower right', framealpha=0.9)
-        ax.set_xlim([0, 1])
-        ax.set_ylim([0, 1])
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
+    def _comparar_auc(self):
+        try:
+            opciones = {k: self._param("Comparar 2 AUC", k)
+                        for k in ("auc1", "ee1", "n1", "auc2", "ee2", "n2")}
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        res = comparar_auc(opciones)
+        if res.ok and not getattr(self, "parametros", None):
+            res.advertencias.append("Son los valores de ejemplo. Para calcular con los "
+                                    "tuyos, abrí el análisis desde el menú Estadísticas.")
+        return res
 
     # --- Bland-Altman ---
     def _bland(self, c1, c2, opciones=None):
@@ -1314,27 +1239,6 @@ class AnalysisMethodsMixin:
                     h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
                 return h + "</table>" + self._avisos_html(avisos)
 
-            elif func_name == "compare_auc":
-                valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
-                if len(valores) != 6:
-                    return ("<b>Error:</b> esta calculadora lee exactamente 6 valores de la "
-                            "primera columna, en este orden: AUC1, EE1, n1, AUC2, EE2, n2. La columna tiene "
-                            f"{len(valores)}. Si tenés los datos de cada sujeto, usá la prueba "
-                            "correspondiente, que los toma de las columnas.")
-                auc1, se1, n1, auc2, se2, n2 = valores.iloc[:6]
-                n1, n2 = int(n1), int(n2)
-                result = compare_two_auc(auc1, se1, n1, auc2, se2, n2)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo comparar las AUC.")
-                self._set_formula("Formula: Comparar 2 AUC (curvas independientes)",
-                                  "z = (AUC1 − AUC2) / √(EE1² + EE2²)")
-                h = self._h(" Comparar 2 AUC")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Diferencia", f"{result['diff']:.4f}")
-                h += self._r("z", f"{result['z']:.4f}")
-                h += self._r("p", _p_html(result['p']))
-                h += "</table>" + self._avisos_html(result.get("avisos", []))
-                return h + self._ok(result['p'] < 0.05)
             elif func_name == "age_related":
                 for c in (c1, c2):
                     if c is None or c not in self.data.columns:
