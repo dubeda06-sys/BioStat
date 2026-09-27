@@ -6,15 +6,20 @@
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
 > Versión actual: **v1.0.0**.
-> Última puesta al día: **27 sep** — el asistente B «Validar un método», con
-> EP15-A3 y la prueba Cusum de Passing-Bablok. Antes, el 26 sep, la auditoría
-> completa y sus 42 arreglos (`docs/AUDITORIA-2026-09.md`, sección «Estado»).
+> Última puesta al día: **27 sep** — el paso 4 de la envoltura, diez familias
+> migradas a `Resultado` (lo que falta, abajo); antes, el asistente B
+> «Validar un método», con EP15-A3 y la prueba Cusum de Passing-Bablok. El
+> 26 sep, la auditoría completa y sus 42 arreglos (`docs/AUDITORIA-2026-09.md`,
+> sección «Estado»).
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **27 sep** desde `develop` (`84255a9`), con los 42 arreglos de la
-auditoría, la familia de validación en `Resultado` y el asistente «Validar un
-método». El anterior (`34d106a`) tenía todos los errores del informe: ANOVA y
+Recompilado el **27 sep** desde `develop` (`466e298`), con las diez familias del
+paso 4. El anterior (`84255a9`, también del 27) tenía los 42 arreglos de la
+auditoría, la familia de validación y el asistente «Validar un método», pero no
+los cambios a propósito del paso 4 (t de una muestra contra μ₀, calculadoras
+desde el diálogo, CMH con estrato, Youden interlaboratorio). El de antes de ese
+(`34d106a`) tenía todos los errores del informe: ANOVA y
 tablas 2×2 con las columnas equivocadas, ANCOVA, probit, y el Omnianálisis con
 referencia. **La pantalla de carga dice qué build es**: `v1.0.0 · fecha · rama ·
 commit`, dibujado en `assets/splash.png` por `build_exe.py` en cada compilación.
@@ -35,12 +40,52 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 1073 verdes (27 sep)
+python -m pytest tests/ -q        # esperar 1326 verdes (27 sep)
 python scripts/smoke_ui.py        # esperar 78/78, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## 27 sep: paso 4, diez familias más en `Resultado`
+
+En el orden de los menús, un commit por familia (`git log --oneline 84255a9..466e298`):
+resumen y normalidad con atípicos, correlación, regresión (lineal, múltiple,
+logística, probit), medias, ANOVA (una y dos vías, ANCOVA, medidas repetidas),
+no paramétricas, tablas de contingencia, concordancia (kappa, ponderado,
+Cronbach), gráficos de comparación (mountain, Youden, polar, cascada) y curvas
+ROC. Constructores en `src/resultado/constructores/`, un test por familia
+(`tests/test_*_resultado.py`) contra scipy, statsmodels, pingouin o sklearn, y
+todos pasan por el contrato de `test_bland_resultado.py::test_contrato`, que
+recorre `CONSTRUCTORES` con la firma de `FIRMAS`.
+
+**Una sola verdad con el Omnianálisis**: Tukey, la regla EP09 para elegir
+regresión, el camino del χ² (Fisher o Monte Carlo con esperados < 5) y el árbol
+de grupos (Levene → ANOVA+Tukey o Welch+Games-Howell) salen del mismo código.
+
+**Cambian a propósito**, cada uno con su test que dice por qué:
+
+- La t de una muestra prueba contra el μ₀ elegido (antes, siempre contra 0).
+- Las calculadoras (Comparar 2 medias, 2 proporciones, 2 AUC) toman sus números
+  del diálogo; antes leían celdas de la primera columna.
+- El CMH pide exposición, evento y estrato como columnas crudas; antes partía la
+  hoja entera en tablas 2×2.
+- «Youden plot» es el interlaboratorio de MedCalc; el índice J pasó a la curva
+  ROC, como gráfico de sensibilidad y especificidad según el umbral.
+- La cascada es la de oncología (barras ordenadas), no una contable acumulada.
+- El polar usa las columnas tildadas, no las 8 primeras.
+- P25 y P75 salen igual en todos lados (cuartiles de Weibull).
+- La logística rechaza con motivo la separación completa, en vez de dar un OR
+  enorme. El OR de Fisher es el condicional (el de scipy), no el muestral.
+
+**Falta**, en este orden: supervivencia (Kaplan-Meier, log-rank, Cox), valores
+de referencia, tamaño de muestra y poder, bootstrap, machine learning, y los
+sueltos (meta-análisis, mediciones seriales, pruebas diagnósticas, razones de
+verosimilitud). Dos defectos conocidos esperan a
+supervivencia: **Kaplan-Meier imprime una «supervivencia media» que es el
+promedio de los puntos de la curva** (no significa nada; va la mediana con su
+IC) y **Cox toma en silencio `columns[3:]` como covariables** (van por
+selección múltiple, con la prueba de Schoenfeld).
 
 ## 26 sep: auditoría completa, 42 hallazgos arreglados
 
@@ -676,9 +721,10 @@ calidad. Ver su `LEEME.md`.
 
 ## Deudas conocidas
 
-1. **`src/ui/analysis_methods.py`, ~2400 líneas.** La familia de validación ya
-   sale de `Resultado`; el resto de las familias es el paso 4 de
-   `docs/plans/2026-09-26-envoltura-resultado.md`, una familia por commit.
+1. **`src/ui/analysis_methods.py`.** La validación y diez familias más ya salen
+   de `Resultado`; lo que falta, en «27 sep: paso 4». Cuando el mixin quede
+   vacío se borra, con sus restos (`_tabla_2x2`, `_html_tabla_2x2`, las ramas de
+   `_run_core`).
 2. **Levey-Jennings y Westgard, eliminados el 22 ago.** Vivían en
    `src/ui/qc_panel.py` (`_lj`, `_wj`, `_wj_rules`), sin core ni tests: la parte
    que decide si un lote se acepta o rechaza era la única sin verificación de
@@ -704,7 +750,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 1073 verdes (27 sep); el número crece
+python -m pytest tests/ -q                       # 1326 verdes (27 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 78/78
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
