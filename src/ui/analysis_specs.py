@@ -358,7 +358,9 @@ MULTI["Validar un método"] = Multi(
     "Para verificar además la precisión: 5 columnas con 5 réplicas de un control cada una.",
     tildadas=False)
 PARAMETROS["Validar un método"] = (
-    Parametro("sesgo_permitido", "Sesgo permitido (vacío = sin veredicto)", None, 0.0),
+    Parametro("sesgo_permitido", "Sesgo permitido (vacío = no se usa)", None, 0.0),
+    Parametro("tea", "Error total permitido, TEa (vacío = no se usa; necesita EP15)",
+              None, 0.0),
     Parametro("nivel_1", "Nivel de decisión 1 (vacío = cuartiles)", None),
     Parametro("nivel_2", "Nivel de decisión 2", None),
     Parametro("nivel_3", "Nivel de decisión 3", None),
@@ -367,15 +369,26 @@ PARAMETROS["Validar un método"] = (
     Parametro("sigma_r", "Repetibilidad declarada (EP15; vacío = no hay)", None, 0.0),
     Parametro("sigma_wl", "Intralaboratorio declarada (EP15; vacío = no hay)", None, 0.0),
     Parametro("n_muestras", "Materiales en el estudio de precisión", 1, 1, 20, entero=True),
+    Parametro("valor_asignado", "Valor asignado del material de EP15 (vacío = no hay)",
+              None),
+    Parametro("u", "Incertidumbre del valor asignado (u, U o DE del grupo)", None, 0.0),
+    Parametro("k", "Factor de cobertura k (si es U)", 2.0, 0.1, 10),
+    Parametro("n_lab", "Laboratorios del grupo de pares", 0, 0, 100_000, entero=True),
 )
 OPCIONES["Validar un método"] = (
-    Opcion("escala_permitido", "El sesgo permitido viene en",
+    Opcion("escala_permitido", "El sesgo permitido y el TEa vienen en",
            (("porcentaje", "Porcentaje del nivel (p. ej., el deseable por variabilidad biológica)"),
             ("unidades", "Unidades del analito, igual en todos los niveles")),
            "En porcentaje, el permitido de cada nivel es ese % del nivel."),
     Opcion("declaracion", "La precisión declarada viene como",
            (("de", "DE, en unidades del analito"), ("cv", "CV %")),
            "Solo cuenta si se tildaron corridas de EP15."),
+    Opcion("incertidumbre", "Incertidumbre del valor asignado",
+           (("ninguna", "No se conoce — control comercial o valor convencional (D, E)"),
+            ("u", "Incertidumbre estándar u (material de referencia, A)"),
+            ("U", "Incertidumbre expandida U, con su k (A)"),
+            ("pares", "Grupo de pares: DE y número de laboratorios (B, C)")),
+           "Escenarios de EP15-A3 §3.3. Solo cuenta si hay valor asignado y corridas."),
 )
 
 PARAMETROS["Intervalos de referencia"] = (

@@ -144,7 +144,8 @@ def test_veredicto_unico(permitido, esperado):
                          {"sesgo_permitido": permitido, "niveles": NIVELES})
     assert res.ok and res.crudo["veredicto"] == esperado
     if esperado is None:
-        assert res.lectura.startswith("Sin sesgo permitido no hay veredicto")
+        # desde el 27 sep el TEa también es criterio: la frase nombra los dos
+        assert res.lectura.startswith("Sin sesgo permitido ni error total permitido")
         assert _paso(res, "Contra qué").respuesta == "Sin criterio"
     else:
         assert res.valores[0].valor == esperado
@@ -278,7 +279,7 @@ def test_el_panel_sin_dialogo_no_da_veredicto_ni_toma_corridas(qt_app):
     panel = _panel(_hoja_con_corridas())
     panel._run()
     texto = panel.txt_results.toPlainText()
-    assert "Sin sesgo permitido no hay veredicto" in texto
+    assert "Sin sesgo permitido ni error total permitido (TEa) no hay veredicto" in texto
     assert "EP15-A3 —" not in texto          # ninguna columna se tomó como corrida
     assert "De dónde sale" in texto
 

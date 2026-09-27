@@ -28,6 +28,9 @@ BLAND_1986 = Cita("Bland JM, Altman DG (1986). Statistical methods for assessing
 BLAND_1999 = Cita("Bland JM, Altman DG (1999). Measuring agreement in method "
                   "comparison studies. Stat Methods Med Res 8:135-160. Límites no "
                   "paramétricos e IC de los límites.")
+WESTGARD_1974 = Cita("Westgard JO, Carey RN, Wold S (1974). Criteria for judging "
+                     "precision and accuracy in method development and evaluation. "
+                     "Clin Chem 20:825-833.")
 KROUWER_2008 = Cita("Krouwer JS (2008). Why Bland-Altman plots should use X, not "
                     "(Y+X)/2 when X is a reference method. Stat Med 27:778-780.")
 CLSI_EP09 = Cita("CLSI (2018). EP09c: Measurement procedure comparison and bias "
@@ -478,9 +481,15 @@ FICHAS: dict[str, Ficha] = {
             "Permitido en Xc = permitido % · Xc / 100 (o fijo, en unidades)\n"
             "Cumple: IC entero dentro de ±permitido; no cumple: IC entero afuera;\n"
             "    no concluyente: el IC cruza el límite\n"
-            "Precisión (si hay corridas): EP15-A3, ver su ficha"
+            "Error total en Xc = |sesgo| + 1,65·s_WL  (Westgard, Carey y Wold 1974)\n"
+            "    s_WL de EP15, llevada a Xc con CV constante (TEa en %) o DE constante\n"
+            "    Cumple: con el extremo del IC del sesgo más lejos de 0, TE ≤ TEa\n"
+            "Precisión (si hay corridas): EP15-A3, ver su ficha\n"
+            "Sesgo contra el valor asignado: EP15-A3 §3; fuera del intervalo de\n"
+            "    verificación se compara con el sesgo permitido (§3.6)"
         ),
-        citas=(CLSI_EP09, CLSI_EP15, KROUWER_2008, PASSING_1983, LINNET_1990, EFRON_1993),
+        citas=(CLSI_EP09, CLSI_EP15, KROUWER_2008, PASSING_1983, LINNET_1990, EFRON_1993,
+               WESTGARD_1974),
     ),
 
     # ---------------- Resumen y distribución: src/resultado/constructores/resumen.py

@@ -561,7 +561,8 @@ class AnalysisMethodsMixin:
         corridas, del_dialogo = self._columnas_multi(excluir=(c1, c2))
         opciones = dict(getattr(self, "opciones_metodo", None) or {})
         try:
-            for clave in ("sesgo_permitido", "lambda", "sigma_r", "sigma_wl", "n_muestras"):
+            for clave in ("sesgo_permitido", "tea", "lambda", "sigma_r", "sigma_wl",
+                          "n_muestras", "valor_asignado", "u", "k", "n_lab"):
                 opciones[clave] = self._param("Validar un método", clave)
             opciones["niveles"] = [v for v in (self._param("Validar un método", f"nivel_{i}")
                                                for i in (1, 2, 3)) if v is not None]

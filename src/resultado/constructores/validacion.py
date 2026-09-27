@@ -3,8 +3,9 @@
 Corre lo que un laboratorio corre a mano cuando verifica un método nuevo contra
 el que ya usa: Bland-Altman con el CCC, la recta que corresponde según EP09c
 §6.2 (y la otra, para comparar), el sesgo en los niveles de decisión médica
-con su intervalo y, si se cargaron corridas, la precisión por EP15-A3. Después
-compara el sesgo con el sesgo permitido y da un solo veredicto.
+con su intervalo y, si se cargaron corridas, la precisión por EP15-A3 y el
+sesgo contra el valor asignado del material. Después compara el sesgo con el
+sesgo permitido, y/o el error total con el TEa, y da un solo veredicto.
 
 El veredicto lo arma este archivo y nada más: cada análisis que corre trae su
 propio informe (`Resultado.partes`) y no se reescribe ninguna de sus lecturas.
@@ -52,8 +53,12 @@ def validar_metodo(df, comparativo, candidato, opciones=None) -> Resultado:
       niveles:          niveles de decisión médica, en unidades de X; vacío =
                         los cuartiles del comparativo
       lambda:           λ de Deming, var. del error de X / de Y (1 si no se sabe)
+      tea:              error total permitido (misma escala que el sesgo
+                        permitido), o None; criterio alternativo o adicional
       corridas:         columnas de EP15 (una por día); vacío = sin precisión
       declaracion, sigma_r, sigma_wl, n_muestras: lo declarado por el fabricante
+      valor_asignado, incertidumbre, u, k, n_lab: el material de las corridas,
+                        para el sesgo de EP15-A3 §3 (como en «Precisión EP15»)
     """
     opciones = opciones or {}
     titulo = f"Validar un método — {candidato} contra {comparativo}"
@@ -65,13 +70,17 @@ def validar_metodo(df, comparativo, candidato, opciones=None) -> Resultado:
         return Resultado.rechazo(ANALISIS, titulo, falta)
     try:
         permitido = _numero(opciones.get("sesgo_permitido"))
+        tea = _numero(opciones.get("tea"))
         lam = _numero(opciones.get("lambda")) or 1.0
         niveles = [float(v) for v in (opciones.get("niveles") or []) if _numero(v) is not None]
     except (TypeError, ValueError):
         return Resultado.rechazo(ANALISIS, titulo,
-                                 "El sesgo permitido, los niveles y λ tienen que ser números.")
+                                 "El sesgo permitido, el TEa, los niveles y λ tienen que "
+                                 "ser números.")
     if permitido is not None and permitido <= 0:
         return Resultado.rechazo(ANALISIS, titulo, "El sesgo permitido tiene que ser positivo.")
+    if tea is not None and tea <= 0:
+        return Resultado.rechazo(ANALISIS, titulo, "El TEa tiene que ser positivo.")
     if lam <= 0:
         return Resultado.rechazo(ANALISIS, titulo, "λ tiene que ser positivo.")
     en_pct = opciones.get("escala_permitido", "porcentaje") == "porcentaje"
@@ -129,8 +138,11 @@ def validar_metodo(df, comparativo, candidato, opciones=None) -> Resultado:
     corridas = [c for c in (opciones.get("corridas") or []) if c not in (comparativo, candidato)]
     prec = None
     if corridas:
-        prec = precision_ep15(df, corridas, {k: opciones.get(k) for k in (
-            "declaracion", "sigma_r", "sigma_wl", "n_muestras")})
+        # Sin los vacíos: una clave presente con None le gana al valor por
+        # defecto del constructor de EP15 («incertidumbre» = "ninguna").
+        prec = precision_ep15(df, corridas, {k: opciones[k] for k in (
+            "declaracion", "sigma_r", "sigma_wl", "n_muestras", "valor_asignado",
+            "incertidumbre", "u", "k", "n_lab") if opciones.get(k) is not None})
         if not prec.ok:
             advertencias.append(f"La precisión (EP15) no se pudo calcular: {prec.error}")
             prec = None
@@ -140,17 +152,26 @@ def validar_metodo(df, comparativo, candidato, opciones=None) -> Resultado:
     if prec is not None:
         partes.append(prec)
 
-    final, motivos = _veredicto_final(filas, prec, no_lineal, permitido)
+    # 6) El error total contra el TEa, y el sesgo contra el valor asignado.
+    error_total = None if tea is None else _error_total(filas, prec, tea, en_pct)
+    verac = prec.crudo.get("veracidad") if prec is not None else None
+
+    final, motivos = _veredicto_final(filas, prec, no_lineal, permitido, error_total, verac,
+                                      en_pct)
     valores = _valores(final, filas, metodo, sesgos, ba, prec, comparativo, len(x), de_cuartiles,
-                       en_pct, permitido)
+                       en_pct, permitido, error_total, verac)
     supuestos = [
         _paso_n(len(x)),
         _paso_recta(eleccion, metodo, comparativo),
         _paso_linealidad(cusum),
-        _paso_criterio(permitido, en_pct, de_cuartiles, comparativo),
+        _paso_criterio(permitido, en_pct, de_cuartiles, comparativo, tea),
     ]
+    if error_total is not None:
+        supuestos.append(_paso_error_total(error_total, tea, en_pct))
     if prec is not None:
         supuestos.append(_paso_precision(prec))
+    if verac is not None:
+        supuestos.append(_paso_veracidad(verac, permitido, en_pct))
 
     f = ficha(ANALISIS)
     return Resultado(
@@ -162,7 +183,7 @@ def validar_metodo(df, comparativo, candidato, opciones=None) -> Resultado:
             "forma de los datos (EP09c §6.2) y la precisión, si hay corridas, se verifica "
             "contra lo que declara el fabricante (EP15-A3)."),
         supuestos=supuestos, formula=f.formula, citas=list(f.citas),
-        lectura=_lectura(final, motivos, prec),
+        lectura=_lectura(final, motivos, prec, permitido, tea, verac),
         matiz=("El veredicto vale para los niveles evaluados y el sesgo permitido que se "
                "cargó: el requisito de calidad no lo elige el programa (sale de la "
                "variabilidad biológica, de la regulación o del uso clínico). Un «cumple» "
@@ -175,14 +196,69 @@ def validar_metodo(df, comparativo, candidato, opciones=None) -> Resultado:
                                               comparativo, candidato)),
                  *ba.figuras[:1], *elegido.figuras[:1]],
         crudo={"eleccion": eleccion, "sesgos": sesgos, "niveles": filas,
-               "veredicto": final, "motivos": motivos, "cusum": cusum},
+               "veredicto": final, "motivos": motivos, "cusum": cusum,
+               "error_total": error_total, "veracidad": verac},
         partes=partes)
 
 
 # ---------------- El veredicto ----------------
 
-def _veredicto_final(filas, prec, no_lineal, permitido):
-    """(veredicto, motivos). Sin sesgo permitido no hay veredicto."""
+Z_ERROR_TOTAL = 1.65
+
+
+def _error_total(filas, prec, tea, en_pct):
+    """Error total en cada nivel: |sesgo| + 1,65·s_WL (Westgard, Carey y Wold 1974).
+
+    La imprecisión es la intralaboratorio de EP15, la que ve un paciente de un
+    día a otro. EP15 la mide en un solo nivel; para llevarla a los demás se
+    supone lo mismo que dice la escala del TEa: CV constante si viene en %, DE
+    constante si viene en unidades. El veredicto sigue la lógica del sesgo:
+    con el extremo del IC del sesgo más lejos de cero el error total queda
+    dentro del TEa → cumple; con el más cerca ya lo pasa → no cumple; si no,
+    no concluyente. La incertidumbre de s_WL no entra, y se dice.
+    """
+    if prec is None:
+        return {"error": "el error total necesita la imprecisión intralaboratorio: "
+                         "tildá las corridas de EP15"}
+    e = prec.crudo["ep15"]
+    if en_pct and e["cv_wl"] is None:
+        return {"error": "la media de las corridas es 0: no hay CV para llevar la "
+                         "imprecisión a cada nivel"}
+    z = Z_ERROR_TOTAL
+    niveles = []
+    for f in filas:
+        s = abs(e["cv_wl"] * f["nivel"] / 100) if en_pct else e["s_wl"]
+        tea_u = abs(tea * f["nivel"] / 100) if en_pct else tea
+        lo, hi = f["ic"]
+        te = abs(f["sesgo"]) + z * s
+        if not (np.isfinite(lo) and np.isfinite(hi)) or tea_u <= 0:
+            estado, rango = NO_EVALUABLE, (math.nan, math.nan)
+        else:
+            cerca = (0.0 if lo <= 0 <= hi else min(abs(lo), abs(hi))) + z * s
+            lejos = max(abs(lo), abs(hi)) + z * s
+            estado = (CUMPLE if lejos <= tea_u else
+                      NO_CUMPLE if cerca > tea_u else NO_CONCLUYENTE)
+            rango = (cerca, lejos)
+        niveles.append({"nivel": f["nivel"], "s": s, "te": te, "te_rango": rango,
+                        "tea": tea_u, "estado": estado})
+    return {"z": z, "s_wl": e["s_wl"], "cv_wl": e["cv_wl"], "niveles": niveles}
+
+
+def _estado_veracidad(verac, permitido, en_pct):
+    """EP15-A3 §3.6: dentro del intervalo de verificación, el sesgo no se
+    distingue del azar. Fuera, se compara con el sesgo permitido: puede ser real
+    y aun así aceptable."""
+    if verac["dentro"]:
+        return CUMPLE
+    if permitido is None:
+        return NO_CONCLUYENTE
+    perm = abs(permitido * verac["valor_asignado"] / 100) if en_pct else permitido
+    return CUMPLE if abs(verac["sesgo"]) <= perm else NO_CUMPLE
+
+
+def _veredicto_final(filas, prec, no_lineal, permitido, error_total=None, verac=None,
+                     en_pct=True):
+    """(veredicto, motivos). Sin sesgo permitido ni TEa no hay veredicto."""
     motivos = []
     estados = []
     if permitido is not None:
@@ -204,10 +280,33 @@ def _veredicto_final(filas, prec, no_lineal, permitido):
             estados.append(CUMPLE if ver["verificado"] else NO_CUMPLE)
             if not ver["verificado"]:
                 motivos.append(f"{nombre} no se verificó contra lo declarado")
+    if error_total is not None:
+        if error_total.get("error"):
+            estados.append(NO_EVALUABLE)
+            motivos.append(error_total["error"])
+        else:
+            for t in error_total["niveles"]:
+                estados.append(t["estado"])
+                if t["estado"] == NO_CUMPLE:
+                    motivos.append(f"el error total en {num(t['nivel'])} supera el TEa")
+                elif t["estado"] == NO_CONCLUYENTE:
+                    motivos.append(f"en {num(t['nivel'])} el error total puede quedar de "
+                                   "cualquiera de los dos lados del TEa")
+                elif t["estado"] == NO_EVALUABLE:
+                    motivos.append(f"en {num(t['nivel'])} el error total no se pudo evaluar")
+    if verac is not None:
+        estado = _estado_veracidad(verac, permitido, en_pct)
+        estados.append(estado)
+        if estado == NO_CUMPLE:
+            motivos.append("el sesgo contra el valor asignado del material (EP15) supera "
+                           "el permitido")
+        elif estado == NO_CONCLUYENTE:
+            motivos.append("el sesgo contra el valor asignado del material (EP15) se "
+                           "distingue del azar, y sin sesgo permitido no se puede juzgar")
     if no_lineal:
         motivos.append("la relación entre los métodos no parece lineal (Cusum), y el sesgo "
                        "que da una recta no vale en todo el rango")
-    if permitido is None or not estados:
+    if (permitido is None and error_total is None) or not estados:
         return None, motivos
     if NO_CUMPLE in estados:
         return NO_CUMPLE, motivos
@@ -216,19 +315,32 @@ def _veredicto_final(filas, prec, no_lineal, permitido):
     return CUMPLE, motivos
 
 
-def _lectura(final, motivos, prec) -> str:
+def _lectura(final, motivos, prec, permitido=None, tea=None, verac=None) -> str:
     if final is None:
-        return ("Sin sesgo permitido no hay veredicto: el programa no sabe qué diferencia "
-                "tolera este analito. Arriba está el sesgo en cada nivel con su intervalo; "
-                "cargá el sesgo permitido (por ejemplo, el deseable por variabilidad "
-                "biológica) para compararlos.")
+        return ("Sin sesgo permitido ni error total permitido (TEa) no hay veredicto: el "
+                "programa no sabe qué diferencia tolera este analito. Arriba está el sesgo "
+                "en cada nivel con su intervalo; cargá el sesgo permitido (por ejemplo, el "
+                "deseable por variabilidad biológica) o el TEa para compararlos.")
     if final == CUMPLE:
         verificada = prec is not None and any(
             prec.crudo.get(k) is not None for k in ("repetibilidad", "intralaboratorio"))
-        return ("El método CUMPLE: en todos los niveles evaluados el intervalo de confianza "
-                "del sesgo queda entero dentro del sesgo permitido"
-                + (", y la precisión verificó lo que declara el fabricante." if verificada
-                   else "."))
+        partes = []
+        if permitido is not None:
+            partes.append("el intervalo de confianza del sesgo queda entero dentro del "
+                          "sesgo permitido")
+        if tea is not None:
+            partes.append("el error total, aun con el extremo del intervalo del sesgo más "
+                          "alejado, queda dentro del TEa")
+        extra = ""
+        if verificada:
+            extra += ", y la precisión verificó lo que declara el fabricante"
+        if verac is not None:
+            extra += ("; el sesgo contra el valor asignado del material no se distingue "
+                      "del azar" if verac["dentro"] else
+                      "; el sesgo contra el valor asignado del material es real pero "
+                      "queda dentro del permitido")
+        return ("El método CUMPLE: en todos los niveles evaluados "
+                + "; y ".join(partes) + extra + ".")
     detalle = "; ".join(motivos)
     if final == NO_CUMPLE:
         return f"El método NO CUMPLE: {detalle}."
@@ -240,7 +352,7 @@ def _lectura(final, motivos, prec) -> str:
 # ---------------- Valores y pasos ----------------
 
 def _valores(final, filas, metodo, sesgos, ba, prec, comp, n, de_cuartiles, en_pct,
-             permitido):
+             permitido, error_total=None, verac=None):
     valores = [
         Valor("Veredicto", final or "Sin criterio: no hay veredicto"),
         Valor("Pares usados", n),
@@ -257,6 +369,21 @@ def _valores(final, filas, metodo, sesgos, ba, prec, comp, n, de_cuartiles, en_p
             nota += (f"; permitido ±{num(fila['permitido'])}"
                      + (f" ({num(permitido)} %)" if en_pct else "") + f" → {fila['estado']}")
         valores.append(Valor(rotulo, fila["sesgo"], ic=fila["ic"], nota=nota))
+    if error_total is not None and not error_total.get("error"):
+        for t in error_total["niveles"]:
+            valores.append(Valor(
+                f"Error total en {comp} = {num(t['nivel'])}", t["te"],
+                nota=(f"|sesgo| + 1,65·s_WL, con s_WL = {num(t['s'])}; TEa "
+                      f"±{num(t['tea'])} → {t['estado']}")))
+    if verac is not None:
+        lo_v, hi_v = verac["intervalo"]
+        pct_v = (f" ({verac['sesgo_pct']:.2f} %)" if verac.get("sesgo_pct") is not None
+                 else "")
+        valores.append(Valor(
+            "Sesgo contra el valor asignado (EP15)", verac["sesgo"],
+            nota=(f"{pct_v.strip()} media {num(verac['media'])}, valor asignado "
+                  f"{num(verac['valor_asignado'])}, intervalo de verificación "
+                  f"{num(lo_v)} a {num(hi_v)}").strip()))
     b = ba.crudo["bland_altman"]
     valores.append(Valor("Sesgo medio (Bland-Altman)", b["mean_difference"], ic=b["ci_mean"],
                          nota=f"diferencia = {ba.crudo['diferencia']}"))
@@ -331,9 +458,19 @@ def _paso_linealidad(cusum) -> Supuesto:
                     alternativa="con desvío, la recta no describiría los datos.")
 
 
-def _paso_criterio(permitido, en_pct, de_cuartiles, comp) -> Supuesto:
+def _paso_criterio(permitido, en_pct, de_cuartiles, comp, tea=None) -> Supuesto:
     niveles = (f"los cuartiles de {comp} (no se cargaron niveles de decisión)" if de_cuartiles
                else "los niveles de decisión cargados")
+    u = " %" if en_pct else " unidades"
+    if permitido is None and tea is not None:
+        return Supuesto(
+            pregunta="¿Contra qué se juzga el sesgo?",
+            medicion=f"error total permitido (TEa) ±{num(tea)}{u}; niveles: {niveles}",
+            respuesta="Error total (TEa)",
+            consecuencia=("Se juzga el error total, sesgo más imprecisión, en vez del "
+                          "sesgo solo: es el criterio de Westgard, Carey y Wold (1974)."),
+            alternativa="con un sesgo permitido, se juzgaría además el sesgo solo.",
+            ok=not de_cuartiles)
     if permitido is None:
         return Supuesto(
             pregunta="¿Contra qué se juzga el sesgo?",
@@ -344,12 +481,65 @@ def _paso_criterio(permitido, en_pct, de_cuartiles, comp) -> Supuesto:
                         "o no concluyente.", ok=False)
     return Supuesto(
         pregunta="¿Contra qué se juzga el sesgo?",
-        medicion=(f"sesgo permitido ±{num(permitido)}{' %' if en_pct else ' unidades'}; "
-                  f"niveles: {niveles}"),
+        medicion=(f"sesgo permitido ±{num(permitido)}{u}"
+                  + (f" y error total permitido (TEa) ±{num(tea)}{u}" if tea is not None
+                     else "") + f"; niveles: {niveles}"),
         respuesta="Criterio cargado",
         consecuencia=("Cumple si todo el IC 95 % del sesgo cae dentro de ± el permitido; no "
                       "cumple si cae todo afuera; no concluyente si lo cruza."),
         ok=not de_cuartiles)
+
+
+def _paso_error_total(error_total, tea, en_pct) -> Supuesto:
+    pregunta = "¿El error total queda dentro del TEa?"
+    if error_total.get("error"):
+        return Supuesto(pregunta, "sin imprecisión de EP15", "No evaluable",
+                        f"No se puede: {error_total['error']}.",
+                        alternativa="con corridas de EP15, TE = |sesgo| + 1,65·s_WL en cada "
+                                    "nivel.", ok=False)
+    cv = error_total["cv_wl"]
+    medicion = (f"TE = |sesgo| + 1,65·s_WL; s_WL de EP15 = {_f(error_total['s_wl'])}"
+                + (f" (CV {cv:.2f} %)" if cv is not None else "")
+                + f", llevada a cada nivel con {'CV' if en_pct else 'DE'} constante")
+    malos = [t for t in error_total["niveles"] if t["estado"] != CUMPLE]
+    return Supuesto(
+        pregunta, medicion,
+        "Sí, en todos los niveles" if not malos else
+        "No en " + ", ".join(f"{num(t['nivel'])} ({t['estado']})" for t in malos),
+        ("Cumple si el error total, calculado con el extremo del intervalo del sesgo más "
+         "lejos de cero, queda dentro del TEa; no cumple si ya lo pasa con el extremo más "
+         "cercano. 1,65 es el cuantil del 95 % a una cola (Westgard, Carey y Wold 1974). "
+         "No suma la incertidumbre de s_WL, que sale de 5 corridas."),
+        alternativa="con el sesgo solo, el criterio sería el sesgo permitido.",
+        ok=not malos)
+
+
+def _paso_veracidad(verac, permitido, en_pct) -> Supuesto:
+    lo, hi = verac["intervalo"]
+    estado = _estado_veracidad(verac, permitido, en_pct)
+    if verac["dentro"]:
+        consecuencia = ("La media de las corridas cae dentro del intervalo de "
+                        "verificación: el sesgo no se distingue del azar (EP15-A3 §3).")
+    elif estado == CUMPLE:
+        consecuencia = ("La media cae fuera del intervalo: el sesgo es real, pero queda "
+                        "dentro del sesgo permitido (EP15-A3 §3.6).")
+    elif estado == NO_CUMPLE:
+        consecuencia = ("La media cae fuera del intervalo y el sesgo supera el permitido: "
+                        "el método no reproduce el valor asignado del material.")
+    else:
+        consecuencia = ("La media cae fuera del intervalo: el sesgo es real, y sin sesgo "
+                        "permitido no se puede decir si importa.")
+    return Supuesto(
+        pregunta="¿El sesgo contra el valor asignado del material es aceptable? (EP15-A3)",
+        medicion=(f"media {_f(verac['media'])} contra el valor asignado "
+                  f"{_f(verac['valor_asignado'])}; intervalo de verificación {_f(lo)} a "
+                  f"{_f(hi)}"),
+        respuesta={CUMPLE: "Sí", NO_CUMPLE: "No"}.get(estado, "No se puede juzgar"),
+        consecuencia=consecuencia,
+        alternativa=("fuera del intervalo, se compararía el sesgo con el permitido."
+                     if verac["dentro"] else
+                     "dentro del intervalo, no se distinguiría del azar."),
+        ok=estado == CUMPLE)
 
 
 def _paso_precision(prec) -> Supuesto:
