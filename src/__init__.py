@@ -3,5 +3,8 @@
 # 12 defectos de calculo, varios de ellos capaces de cambiar una decision
 # clinica. Todo build anterior a esta version produce numeros equivocados en
 # Passing-Bablok, Cox, tamano muestral y AUC con puntajes empatados.
+# 1.1.0 marca la segunda auditoria, del 26 de septiembre: 42 defectos mas,
+# entre ellos los pares desalineados con una sola celda vacia, y la envoltura
+# Resultado en los 78 analisis.
 # Ver CHANGELOG.md.
-__version__ = "1.0.0"
+__version__ = "1.1.0"

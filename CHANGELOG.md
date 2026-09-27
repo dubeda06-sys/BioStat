@@ -3,12 +3,124 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado [semántico](https://semver.org/lang/es/).
 
-> [!warning] Todo build anterior a **1.0.0** produce números equivocados
+> [!warning] Todo build anterior a **1.1.0** puede producir números equivocados
+> La auditoría del 26 de septiembre de 2026 encontró 42 defectos más en la
+> 1.0.0; el peor desalineaba los pares con una sola celda vacía. Ver la
+> entrada 1.1.0 y `docs/AUDITORIA-2026-09.md`.
+>
+> **Anteriores a 1.0.0:**
 > La auditoría del 23 de agosto de 2026 encontró 12 defectos de cálculo, varios
 > capaces de cambiar una decisión clínica. Si validaste un método con una
 > versión anterior usando **Passing-Bablok**, **Cox**, **tamaño muestral** o
 > **AUC con puntajes empatados**, conviene rehacer ese análisis. El detalle
 > está en `docs/AUDITORIA-2026-08.md`.
+
+---
+
+## [1.1.0] — 2026-09-27
+
+Una segunda auditoría, esta vez de las fórmulas, de qué columnas y filas llega a
+cada análisis, y de las reglas de decisión del Omnianálisis contra CLSI EP09c.
+Encontró **42 defectos que la 1.0.0 todavía tiene**; diez de ellos cambian el
+número o la conclusión que ve el usuario. Detalle en `docs/AUDITORIA-2026-09.md`.
+
+### Corregido — el análisis recibía otros datos
+
+- **Los análisis pareados comparaban cada fila con la del paciente siguiente.**
+  Cada columna descartaba sus faltantes por separado y después se cortaban a la
+  misma longitud: con **una sola celda vacía**, todo lo que seguía quedaba
+  desalineado. En Bland-Altman, con un NaN en 20 pares, los límites de acuerdo
+  pasaban de ±2,4 a **±90**, sin aviso. Afectaba a 22 análisis (t pareado,
+  Wilcoxon, signos, Bland-Altman, Passing-Bablok, Deming, ICC, regresión,
+  Kaplan-Meier, ROC, bootstrap y otros). **Los informes del panel manual hechos
+  con hojas que tenían celdas vacías pueden estar mal.**
+- **ANOVA, Kruskal-Wallis, Friedman y Cronbach tomaban todas las columnas
+  numéricas de la hoja**, no las elegidas: comparaban los valores contra los
+  códigos de grupo (F = 7460 donde corresponde p = 0,79).
+- **Fisher, McNemar, OR, RR, prueba diagnóstica y razones de verosimilitud
+  leían las dos primeras filas como una tabla de conteos**, en vez de tabular
+  los datos crudos: sobre 80 pacientes codificados 0/1, Fisher daba «OR = nan,
+  p = 1» donde p ≈ 0.
+- **Tamaño muestral, poder y las calculadoras de 2 medias, 2 proporciones y 2
+  AUC** calculaban siempre el mismo ejemplo fijo, o las primeras celdas de la
+  hoja. Ahora piden sus números en el diálogo.
+- Regresión múltiple y logística: el objetivo era la última columna y las
+  predictoras, todas las demás. Ahora, las elegidas.
+
+### Corregido — cálculo
+
+- **ANCOVA**: pendiente total en vez de intragrupo, ajuste de medias con el
+  signo invertido y suma de cuadrados del error negativa. Ahora statsmodels.
+- **Probit**: todos los errores estándar valían 0,1 (el mismo defecto que Cox
+  tenía en la 1.0.0) y el AIC tenía el signo cambiado.
+- **Medidas repetidas**: el ε de Greenhouse-Geisser sin doble centrado.
+- **Random Forest** informaba la exactitud sobre los datos de entrenamiento
+  (0,95 con predictoras de ruido puro). Ahora fuera de muestra, contra no tener
+  modelo, con importancia por permutación.
+- **Deming**: λ se aplicaba al revés de su propia definición (latente con λ = 1).
+  El IC jackknife usaba t(N−1); EP09c pide t(N−2). Nuevo **Deming ponderado**
+  (EP09c, apéndice B) para CV constante; el IC de su intercepto usa el n
+  efectivo de los pesos (con t(N−2) cubría ~91 %).
+- Límites de referencia con los rangos de EP28-A3c e IC del 90 %; intervalos por
+  edad que perdían el último tramo; razones de verosimilitud con el EE cruzado
+  (IC con 100 % de cobertura); IC de la media recortada (86 % de cobertura);
+  p de Grubbs; log-rank con tiempos 0; kappa con el EE de H1 y sin IC;
+  asimetría y curtosis; F de varianzas con p > 1; mediciones seriales con un
+  «p global» que trataba las mediciones repetidas como independientes.
+- **Kaplan-Meier** imprimía una «supervivencia media» que era el promedio de
+  los puntos de la curva: ahora la mediana con IC. **Cox** avisaba «no
+  convergió» en 19 de cada 20 ajustes sanos y dejaba pasar la separación
+  completa como convergida.
+
+### Corregido — Omnianálisis
+
+- Con la referencia en la segunda columna, el **sesgo en los niveles de
+  decisión salía con el signo invertido** (−9,3 % para un método que lee
+  +10 %).
+- Elegía la regresión por el sesgo medio en vez de por la variabilidad de las
+  diferencias (EP09c §5.4), y no tenía Deming ponderado.
+- El mismo par decía «significativo» en su bloque y «no significativo» en la
+  matriz: ahora una sola familia de Benjamini-Hochberg.
+- Grupos con dispersiones distintas iban a Kruskal-Wallis (16,7 % de falsos
+  positivos con medias iguales). Ahora Welch con Games-Howell, normales o no.
+- Grupos codificados 1/2/3 se leían como una cantidad; tablas ralas con χ²
+  (ahora Fisher o Monte Carlo); Dunn con corrección por empates.
+
+### Agregado
+
+- **Asistente «Validar un método»** (menú *Comparación de métodos*): EP09c +
+  EP15-A3 en un veredicto. Bland-Altman con CCC, la recta que corresponde, el
+  sesgo en los niveles de decisión con su IC, la precisión por EP15-A3 y el
+  sesgo contra el valor asignado; contra el sesgo permitido y/o el error total
+  (TEa) da **cumple / no cumple / no concluyente**.
+- **Precisión EP15-A3** como análisis suelto, verificado contra la norma con
+  sus fe de erratas de 2015 y 2017.
+- **Prueba Cusum de linealidad** para Passing-Bablok (Passing y Bablok 1983).
+- **Omnianálisis**: series temporales (Mann-Kendall, pendiente de Sen,
+  Ljung-Box); el puntaje de cada par candidato a comparación de métodos en la
+  auditoría.
+- Todos los informes llevan el método y por qué ese, los supuestos
+  verificados, la fórmula con sus citas, la lectura y lo que **no** se puede
+  concluir. Ningún informe dice «significativo» ni imprime un p como cero.
+- Kaplan-Meier con cuantiles e IC log-log; log-rank con k grupos y HR; Cox con
+  riesgos proporcionales (Schoenfeld); meta-análisis con τ², intervalo de
+  predicción y Egger; bootstrap BCa; intervalos por edad por regresión (Altman
+  1993); verificación de un intervalo de referencia publicado.
+
+### Cambiado a propósito
+
+- La t de una muestra prueba contra el μ₀ elegido (antes, siempre contra 0).
+- CMH pide exposición, evento y estrato como columnas crudas.
+- «Youden plot» es el interlaboratorio de MedCalc; el índice J pasó a la curva
+  ROC. El «Mountain plot» es el de Krouwer (antes, un histograma).
+- Passing-Bablok ya no dice «métodos concordantes» por un criterio del 10 % de
+  la media que no sale de ninguna norma: decide por los intervalos, y un
+  intervalo demasiado ancho no concluye.
+
+### Quitado
+
+- **La pestaña Control de Calidad** (estadísticas y tendencias de control), que
+  no tenía ni núcleo de cálculo ni tests. Si vuelve, será verificada.
 
 ---
 

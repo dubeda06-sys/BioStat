@@ -2,8 +2,8 @@
 
 Software estadístico para laboratorio clínico. Inspirado en MedCalc.
 
-> [!warning] Usá 1.0.0 o posterior
-> Toda versión anterior a **1.0.0** tiene defectos de cálculo que pueden cambiar
+> [!warning] Usá 1.1.0 o posterior
+> Toda versión anterior a **1.1.0** tiene defectos de cálculo que pueden cambiar
 > una decisión clínica — ver [CHANGELOG.md](CHANGELOG.md). La pantalla de carga
 > dice qué build estás corriendo: versión, fecha, rama y commit.
 

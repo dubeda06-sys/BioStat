@@ -5,7 +5,8 @@
 > commits atrás, y como `origin/HEAD` apunta ahí, quien clonaba aterrizaba en
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
-> Versión actual: **v1.0.0**.
+> Versión actual: **v1.1.0** (27 sep; `master` y la etiqueta, al día con esa
+> versión).
 > Última puesta al día: **27 sep, noche** — las deudas que quedaban, cerradas:
 > sin control de calidad, K10 y Deming ponderado arreglados, score calibrado,
 > series temporales, TEa en el asistente y **el mixin borrado** (paso 5).
@@ -845,7 +846,7 @@ python build_exe.py                              # dist/BioStat.exe + copia al E
 | Rama | Estado |
 |---|---|
 | `develop` | **fuente de verdad** |
-| `master` | al día con `develop` desde el 23 ago (v1.0.0). Se adelanta solo al publicar, así que entre versiones queda atrás: `origin/HEAD` apunta acá, por eso igual conviene `git clone -b develop` |
+| `master` | en v1.1.0 (27 sep). Se adelanta solo al publicar, así que entre versiones queda atrás: `origin/HEAD` apunta acá, por eso igual conviene `git clone -b develop` |
 | `feat/medcalc-informed-agreement` | fusionada, borrable |
 | `fix/correctness-and-refactor`, `optimización-de-código-d7fdb` | viejas |
 
