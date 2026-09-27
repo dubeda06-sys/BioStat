@@ -81,7 +81,6 @@ from html import escape
 import pandas as pd
 
 from src.core.roc import auc_delong
-from src.core.sample_size import power_two_means
 from src.ui.analysis_specs import parametros as spec_parametros
 from src.resultado.datos import filas_completas
 from src.resultado.constructores import (
@@ -109,6 +108,9 @@ from src.resultado.constructores.regresion import (
 )
 from src.resultado.constructores.referencia import intervalo_referencia, intervalos_por_edad
 from src.resultado.constructores.roc import comparar_auc, curva_roc
+from src.resultado.constructores.tamano import (
+    poder_t, tam_correlacion, tam_dos_medias, tam_dos_proporciones, tam_una_media,
+)
 from src.resultado.constructores.supervivencia import kaplan_meier, log_rank, regresion_cox
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
@@ -117,10 +119,6 @@ from src.resultado.constructores.resumen import (
 from src.resultado.lenguaje import texto_descartes
 from src.resultado.modelo import Resultado
 from src.core.meta_analysis import meta_analysis
-from src.core.sample_size import (
-    sample_size_mean, sample_size_two_means,
-    sample_size_proportions, sample_size_correlation, power_analysis
-)
 from src.core.bootstrap import (
     bootstrap_mean, bootstrap_median, bootstrap_correlation,
     bootstrap_difference, bootstrap_regression
@@ -563,105 +561,37 @@ class AnalysisMethodsMixin:
 
         return h
 
-    # --- Tamano muestral (1 media) ---
+    # --- Tamaño de muestra y poder: src/resultado/constructores/tamano.py ---
+    def _calculadora(self, nombre, constructor, extra=None):
+        """Los parámetros del diálogo (o los de ejemplo) a una calculadora."""
+        try:
+            opciones = {p.clave: self._param(nombre, p.clave)
+                        for p in spec_parametros(nombre)}
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        opciones.update(extra or {})
+        res = constructor(opciones)
+        if res.ok and not getattr(self, "parametros", None):
+            res.advertencias.append("Son los valores de ejemplo. Para calcular con los "
+                                    "tuyos, abrí el análisis desde el menú Estadísticas: "
+                                    "el diálogo los pide.")
+        return res
+
     def _ss_mean(self):
-        """Tamaño muestral para comparar una media con un valor de referencia."""
-        nombre = "Tamano muestral (1 media)"
-        try:
-            delta, sd = self._param(nombre, "delta"), self._param(nombre, "sd")
-            alfa, poder = self._param(nombre, "alpha"), self._param(nombre, "poder")
-        except ValueError as e:
-            return f"<b>Error:</b> {e}"
-        r = sample_size_mean(delta, sd, alfa, poder)
-        if _sin_resultado(r):
-            return _msg_error(r, "La diferencia a detectar no puede ser 0.")
-        self._set_formula("Formula: Tamaño muestral — 1 media",
-                          "El n más chico cuyo poder EXACTO llega al pedido:\n"
-                          "poder = P(|T| > t crítico), T ~ t no central(gl = n−1, λ = (Δ/DE)·√n)")
-        h = self._h(" Tamaño Muestral — 1 media")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Diferencia a detectar (Δ)", f"{delta:g}"), ("DE esperada", f"{sd:g}"),
-                     ("Alfa (dos colas)", f"{alfa:g}"), ("Poder buscado", f"{poder:g}"),
-                     ("Tamaño del efecto (Δ/DE)", f"{r['effect_size']:.3f}"),
-                     ("n necesario", f"<b>{r['n_per_group']}</b>"),
-                     ("Poder real con ese n", f"{r['power_real']:.3f}")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._nota_parametros()
+        return self._calculadora("Tamano muestral (1 media)", tam_una_media)
 
-    # --- Tamano muestral (2 medias) ---
     def _ss_two_means(self):
-        """Tamaño muestral para comparar dos medias independientes."""
-        nombre = "Tamano muestral (2 medias)"
-        try:
-            delta, sd = self._param(nombre, "delta"), self._param(nombre, "sd")
-            ratio = self._param(nombre, "ratio")
-            alfa, poder = self._param(nombre, "alpha"), self._param(nombre, "poder")
-        except ValueError as e:
-            return f"<b>Error:</b> {e}"
-        r = sample_size_two_means(delta, sd, alfa, poder, ratio)
-        if _sin_resultado(r):
-            return _msg_error(r, "La diferencia a detectar no puede ser 0.")
-        self._set_formula("Formula: Tamaño muestral — 2 medias",
-                          "El n1 más chico cuyo poder EXACTO llega al pedido, con n2 = ratio·n1:\n"
-                          "T ~ t no central(gl = n1+n2−2, λ = (Δ/DE)/√(1/n1 + 1/n2))")
-        h = self._h(" Tamaño Muestral — 2 medias")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Diferencia a detectar (Δ)", f"{delta:g}"), ("DE común", f"{sd:g}"),
-                     ("Razón n2/n1", f"{ratio:g}"), ("Alfa (dos colas)", f"{alfa:g}"),
-                     ("Poder buscado", f"{poder:g}"),
-                     ("n grupo 1", f"<b>{r['n_group1']}</b>"), ("n grupo 2", f"<b>{r['n_group2']}</b>"),
-                     ("n total", r['n_total'])]:
-            h += self._r(l, v)
-        return h + "</table>" + self._nota_parametros()
+        return self._calculadora("Tamano muestral (2 medias)", tam_dos_medias)
 
-    # --- Tamano muestral (2 proporciones) ---
     def _ss_prop(self):
-        """Tamaño muestral para comparar dos proporciones."""
-        nombre = "Tamano muestral (2 proporciones)"
-        try:
-            p1, p2 = self._param(nombre, "p1"), self._param(nombre, "p2")
-            alfa, poder = self._param(nombre, "alpha"), self._param(nombre, "poder")
-        except ValueError as e:
-            return f"<b>Error:</b> {e}"
-        r = sample_size_proportions(p1, p2, alfa, poder)
-        if _sin_resultado(r):
-            return _msg_error(r, "Las dos proporciones no pueden ser iguales.")
-        self._set_formula("Formula: Tamaño muestral — 2 proporciones",
-                          "n por grupo = [z(α/2)·√(2·p̄·q̄) + z(β)·√(p1q1 + p2q2)]² / (p1 − p2)²\n"
-                          "(Fleiss, sin corrección de continuidad)")
-        h = self._h(" Tamaño Muestral — 2 proporciones")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("p1", f"{p1:g}"), ("p2", f"{p2:g}"), ("Alfa (dos colas)", f"{alfa:g}"),
-                     ("Poder buscado", f"{poder:g}"),
-                     ("n por grupo", f"<b>{r['n_per_group']}</b>"), ("n total", r['n_total'])]:
-            h += self._r(l, v)
-        return h + "</table>" + self._nota_parametros()
+        return self._calculadora("Tamano muestral (2 proporciones)", tam_dos_proporciones)
 
-    # --- Poder estadistico ---
+    def _ss_corr(self):
+        return self._calculadora("Tamaño muestral (correlacion)", tam_correlacion)
+
     def _power(self):
-        """Poder de una prueba t, para una muestra/pareada o dos grupos."""
-        nombre = "Poder estadistico"
-        try:
-            n, delta = self._param(nombre, "n"), self._param(nombre, "delta")
-            sd, alfa = self._param(nombre, "sd"), self._param(nombre, "alpha")
-        except ValueError as e:
-            return f"<b>Error:</b> {e}"
-        dos = (self.opciones_metodo or {}).get("diseno") == "dos"
-        r = power_two_means(n, delta, sd, alfa) if dos else power_analysis(n, delta, sd, alfa)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Poder de la prueba t",
-                          "poder = P(|T| > t crítico) con T ~ t no central\n"
-                          + ("gl = 2n − 2, λ = (Δ/DE)·√(n/2)" if dos else "gl = n − 1, λ = (Δ/DE)·√n"))
-        h = self._h(" Poder Estadístico — " + ("dos grupos independientes" if dos
-                                               else "una muestra o datos pareados"))
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n" + (" por grupo" if dos else ""), n), ("Diferencia (Δ)", f"{delta:g}"),
-                     ("DE", f"{sd:g}"), ("Alfa (dos colas)", f"{alfa:g}"),
-                     ("Tamaño del efecto (Δ/DE)", f"{r['effect_size']:.3f}"),
-                     ("Poder", f"<b>{r['power']:.1%}</b>")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._nota_parametros()
+        diseno = (getattr(self, "opciones_metodo", None) or {}).get("diseno", "una")
+        return self._calculadora("Poder estadistico", poder_t, {"diseno": diseno})
 
     # --- Bootstrap (media) ---
     def _boot_mean(self, col):
@@ -1169,23 +1099,6 @@ class AnalysisMethodsMixin:
                 h += self._r("Pendiente", f"{result['original_slope']:.4f}")
                 h += self._r("95% CI pendiente", f"[{result['ci_slope'][0]:.4f}, {result['ci_slope'][1]:.4f}]")
                 h += self._r("Intercepto", f"{result['original_intercept']:.4f}")
-                return h + "</table>"
-
-            elif func_name == "sample_size_corr":
-                if c1 is None or c2 is None:
-                    return "<b>Error:</b> Selecciona 2 columnas para calcular r."
-                if c1 not in self.data.columns or c2 not in self.data.columns:
-                    return "<b>Error:</b> Columnas no encontradas."
-                pares = self._filas_completas(c1, c2)
-                r_result = pearson_r(pares[c1], pares[c2])
-                r = abs(r_result['r'])
-                result = sample_size_correlation(r)
-                self._set_formula("Formula: Tamaño Muestral (Correlación)", "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3")
-                h = self._h(f" Tamaño Muestral (Correlación)")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("r observado", f"{r:.4f}")
-                h += self._r("n necesario", result['n'])
-                h += self._r("Poder", f"{result['power']:.4f}")
                 return h + "</table>"
 
             else:

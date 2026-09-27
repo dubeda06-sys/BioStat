@@ -279,6 +279,17 @@ ALTMAN_1993 = Cita("Altman DG (1993). Construction of age-related reference cent
                    "absolute residuals. Stat Med 12:917-924.")
 ALTMAN_CHITTY_1994 = Cita("Altman DG, Chitty LS (1994). Charts of fetal size: 1. Methodology. "
                           "Br J Obstet Gynaecol 101:29-34.")
+CHOW_2008 = Cita("Chow SC, Shao J, Wang H (2008). Sample size calculations in clinical "
+                 "research, 2.ª ed. Boca Raton: Chapman & Hall/CRC.")
+HODGES_LEHMANN_1956 = Cita("Hodges JL, Lehmann EL (1956). The efficiency of some nonparametric "
+                           "competitors of the t-test. Ann Math Stat 27:324-335.")
+HOENIG_2001 = Cita("Hoenig JM, Heisey DM (2001). The abuse of power: the pervasive fallacy of "
+                   "power calculations for data analysis. Am Stat 55:19-24.")
+FLEISS_2003 = Cita("Fleiss JL, Levin B, Paik MC (2003). Statistical methods for rates and "
+                   "proportions, 3.ª ed. Hoboken: Wiley. Cap. 4.")
+HULLEY_2013 = Cita("Hulley SB, Cummings SR, Browner WS, Grady DG, Newman TB (2013). Designing "
+                   "clinical research, 4.ª ed. Philadelphia: Lippincott Williams & Wilkins. "
+                   "Cap. 6.")
 PEDUZZI_1995 = Cita("Peduzzi P, Concato J, Feinstein AR, Holford TR (1995). Importance of "
                     "events per independent variable in proportional hazards regression "
                     "analysis. II. Accuracy and precision of regression estimates. J Clin "
@@ -894,6 +905,44 @@ FICHAS: dict[str, Ficha] = {
             "Por grupos: percentiles 2,5 y 97,5 con el rango p(n + 1) de EP28 en cada grupo"
         ),
         citas=(ALTMAN_1993, ALTMAN_CHITTY_1994, CLSI_EP28),
+    ),
+
+    # ---------------- Tamaño de muestra y poder: src/resultado/constructores/tamano.py
+    "tam_una_media": Ficha(
+        formula=(
+            "n = el más chico con poder exacto ≥ el pedido\n"
+            "poder = P(|T| > t(1 − α/2; n − 1)),  T ~ t no central(gl = n − 1, λ = (Δ/DE)·√n)"
+        ),
+        citas=(CHOW_2008, HODGES_LEHMANN_1956),
+    ),
+    "tam_dos_medias": Ficha(
+        formula=(
+            "n₁ = el más chico con poder exacto ≥ el pedido, n₂ = ⌈razón·n₁⌉\n"
+            "T ~ t no central(gl = n₁ + n₂ − 2, λ = (Δ/DE) / √(1/n₁ + 1/n₂))"
+        ),
+        citas=(CHOW_2008, HODGES_LEHMANN_1956),
+    ),
+    "poder_t": Ficha(
+        formula=(
+            "poder = P(|T| > t crítico) con T ~ t no central\n"
+            "una muestra o pareada: gl = n − 1, λ = (Δ/DE)·√n\n"
+            "dos grupos de n: gl = 2n − 2, λ = (Δ/DE)·√(n/2)"
+        ),
+        citas=(CHOW_2008, HOENIG_2001),
+    ),
+    "tam_dos_proporciones": Ficha(
+        formula=(
+            "n por grupo = [z(1 − α/2)·√(2·p̄·q̄) + z(poder)·√(p₁q₁ + p₂q₂)]² / (p₁ − p₂)²\n"
+            "p̄ = (p₁ + p₂)/2; sin corrección de continuidad"
+        ),
+        citas=(FLEISS_2003,),
+    ),
+    "tam_correlacion": Ficha(
+        formula=(
+            "n = [(z(1 − α/2) + z(poder)) / atanh(r)]² + 3\n"
+            "poder(n) = Φ(atanh(r)·√(n − 3) − z(1 − α/2))  (z de Fisher)"
+        ),
+        citas=(HULLEY_2013, HOENIG_2001),
     ),
 }
 

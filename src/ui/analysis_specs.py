@@ -87,7 +87,7 @@ VARIABLES = {
     'Outliers (ESD)': ('c1',),
     'Bootstrap (mediana)': ('c1',),
     'Bootstrap (regresion)': ('c1', 'c2'),
-    'Tamaño muestral (correlacion)': ('c1', 'c2'),
+    'Tamaño muestral (correlacion)': (),
     'ANOVA dos vias': ('c1', 'c2', 'c3'),
     'ANCOVA': ('c1', 'c2', 'c3'),
     'Medidas repetidas': (),
@@ -291,6 +291,8 @@ PARAMETROS = {
         Parametro("n", "n (por grupo si son dos)", 100, 2, 10_000_000, entero=True),
         Parametro("delta", "Diferencia a detectar", 5.0),
         Parametro("sd", "DE esperada", 10.0, 1e-12), _ALFA),
+    "Tamaño muestral (correlacion)": (
+        Parametro("r", "Correlación esperada (r)", 0.30, -0.999, 0.999), _ALFA, _PODER),
 }
 
 

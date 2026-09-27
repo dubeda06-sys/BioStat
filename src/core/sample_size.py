@@ -112,6 +112,7 @@ def sample_size_two_means(delta, sd, alpha=0.05, power=0.80, ratio=1):
         "n_group1": n1,
         "n_group2": n2,
         "n_total": n1 + n2,
+        "power_real": _poder_dos_muestras(n1, n2, efecto, alpha),
         "delta": delta,
         "sd": sd,
         "alpha": alpha,
@@ -150,6 +151,7 @@ def sample_size_proportions(p1, p2, alpha=0.05, power=0.80):
     return {
         "n_per_group": n,
         "n_total": 2 * n,
+        "power_real": power_proportions(n, p1, p2, alpha),
         "p1": p1,
         "p2": p2,
         "delta": abs(p1 - p2),
@@ -171,11 +173,13 @@ def sample_size_correlation(r, alpha=0.05, power=0.80):
     """
     if r == 0:
         return None
-    
+    if not -1 < r < 1:
+        return {"error": f"r = {r:g}: una correlación va entre -1 y 1, sin incluirlos."}
+
     z_alpha = stats.norm.ppf(1 - alpha / 2)
     z_beta = stats.norm.ppf(power)
 
-    z_r = np.arctanh(r)
+    z_r = np.arctanh(abs(r))
     n = ((z_alpha + z_beta) / z_r) ** 2 + 3
     n = int(np.ceil(n))
 
@@ -184,16 +188,36 @@ def sample_size_correlation(r, alpha=0.05, power=0.80):
         "r": r,
         "alpha": alpha,
         "power": power,
+        "power_real": power_correlation(n, r, alpha),
     }
 
 
-def power_two_means(n_por_grupo, delta, sd, alpha=0.05):
-    """Poder exacto (t no central) para dos grupos independientes de n cada uno."""
-    if sd == 0 or n_por_grupo is None or n_por_grupo < 2:
+def power_proportions(n_por_grupo, p1, p2, alpha=0.05):
+    """Poder de la z de dos proporciones, la misma aproximacion de Fleiss que
+    `sample_size_proportions` (sin correccion de continuidad)."""
+    z_alpha = stats.norm.ppf(1 - alpha / 2)
+    p_bar = (p1 + p2) / 2
+    num = abs(p1 - p2) * np.sqrt(n_por_grupo) - z_alpha * np.sqrt(2 * p_bar * (1 - p_bar))
+    return float(stats.norm.cdf(num / np.sqrt(p1 * (1 - p1) + p2 * (1 - p2))))
+
+
+def power_correlation(n, r, alpha=0.05):
+    """Poder de la prueba de r = 0 por la z de Fisher: atanh(r)·sqrt(n - 3)."""
+    if n <= 3:
+        return 0.0
+    z_alpha = stats.norm.ppf(1 - alpha / 2)
+    return float(stats.norm.cdf(np.arctanh(abs(r)) * np.sqrt(n - 3) - z_alpha))
+
+
+def power_two_means(n_por_grupo, delta, sd, alpha=0.05, ratio=1):
+    """Poder exacto (t no central) para dos grupos independientes: n en el
+    primero y ceil(n·ratio) en el segundo."""
+    if sd == 0 or n_por_grupo is None or n_por_grupo < 2 or ratio <= 0:
         return None
     efecto = abs(delta) / abs(sd)
+    n2 = int(np.ceil(int(n_por_grupo) * ratio))
     return {"n_por_grupo": int(n_por_grupo),
-            "power": _poder_dos_muestras(int(n_por_grupo), int(n_por_grupo), efecto, alpha),
+            "power": _poder_dos_muestras(int(n_por_grupo), n2, efecto, alpha),
             "delta": delta, "sd": sd, "alpha": alpha, "effect_size": delta / sd}
 
 

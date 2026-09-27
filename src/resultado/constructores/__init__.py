@@ -53,6 +53,9 @@ from src.resultado.constructores.resumen import (
     media_recortada, percentiles, shapiro_wilk, tukey,
 )
 from src.resultado.constructores.supervivencia import kaplan_meier, log_rank, regresion_cox
+from src.resultado.constructores.tamano import (
+    poder_t, tam_correlacion, tam_dos_medias, tam_dos_proporciones, tam_una_media,
+)
 from src.resultado.constructores.tablas import (
     chi_cuadrado, cmh, dos_proporciones, fisher, mcnemar, odds_ratio_tabla,
     riesgo_relativo,
@@ -133,6 +136,12 @@ CONSTRUCTORES = {
     # Valores de referencia
     "intervalo_referencia": intervalo_referencia,
     "intervalos_edad": intervalos_por_edad,
+    # Tamaño de muestra y poder
+    "tam_una_media": tam_una_media,
+    "tam_dos_medias": tam_dos_medias,
+    "tam_dos_proporciones": tam_dos_proporciones,
+    "tam_correlacion": tam_correlacion,
+    "poder_t": poder_t,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -166,11 +175,15 @@ FIRMAS["kaplan_meier"] = "tiempo_evento"
 FIRMAS["log_rank"] = "tiempo_evento_grupo"
 FIRMAS["regresion_cox"] = "tiempo_evento_covariables"
 FIRMAS["intervalo_referencia"] = "una"
+for _n in ("tam_una_media", "tam_dos_medias", "tam_dos_proporciones", "tam_correlacion",
+           "poder_t"):
+    FIRMAS[_n] = "calculadora"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402
 from src.resultado.constructores.roc import EJEMPLOS as _EJ_ROC  # noqa: E402
+from src.resultado.constructores.tamano import EJEMPLOS as _EJ_TAMANO  # noqa: E402
 
-EJEMPLOS = {**EJEMPLOS, **_EJ_TABLAS, **_EJ_ROC}
+EJEMPLOS = {**EJEMPLOS, **_EJ_TABLAS, **_EJ_ROC, **_EJ_TAMANO}
 
 __all__ = ["CONSTRUCTORES", "EJEMPLOS", "FIRMAS", *sorted(CONSTRUCTORES)]

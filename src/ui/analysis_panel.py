@@ -19,10 +19,6 @@ from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 from src.core.passing_bablok import passing_bablok
 from src.core.meta_analysis import meta_analysis
-from src.core.sample_size import (
-    sample_size_mean, sample_size_two_means,
-    sample_size_proportions, sample_size_correlation, power_analysis
-)
 from src.core.bootstrap import (
     bootstrap_mean, bootstrap_median, bootstrap_correlation,
     bootstrap_difference, bootstrap_regression
@@ -318,7 +314,7 @@ ANALYSIS_LEGENDS = {
         "formula": "IC para β = [β*_(α/2), β*_(1-α/2)]"
     },
     "Tamaño muestral (correlacion)": {
-        "legend": "Determina el número de sujetos necesarios para detectar si un coeficiente de correlación específico es estadísticamente diferente de cero.",
+        "legend": "El número de sujetos para detectar una correlación esperada (r, de un piloto o de la literatura), con el alfa y el poder que se eligen en el diálogo.",
         "formula": "n = [(Z_α/2 + Z_β) / arctanh(r)]² + 3"
     },
     "ANOVA dos vias": {
@@ -622,7 +618,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Outliers (ESD)": lambda: self._esd(c1),
             "Bootstrap (mediana)": lambda: self._run_core("bootstrap_median", c1),
             "Bootstrap (regresion)": lambda: self._run_core("bootstrap_regression", c1, c2),
-            "Tamaño muestral (correlacion)": lambda: self._run_core("sample_size_corr", c1, c2),
+            "Tamaño muestral (correlacion)": lambda: self._ss_corr(),
             "ANOVA dos vias": lambda: self._run_two_way_anova(c1, c2, c3),
             "ANCOVA": lambda: self._run_ancova(c1, c2, c3),
             "Medidas repetidas": lambda: self._run_repeated_measures(),

@@ -67,7 +67,7 @@ ANALYSIS_HELP = {
     "Outliers (ESD)": "Prueba de Desviación Estudentizada Extrema Generalizada (Rosner). Detecta progresivamente múltiples outliers simultáneos en una serie, superando el límite de Grubbs.",
     "Bootstrap (mediana)": "Remuestreo para calcular el intervalo de confianza de la mediana. Extremadamente útil en datos fuertemente asimétricos como tiempos de hospitalización.",
     "Bootstrap (regresion)": "Genera estimaciones robustas e intervalos empíricos para las pendientes de regresión. Se emplea cuando se violan los supuestos de homocedasticidad o normalidad de los residuos.",
-    "Tamaño muestral (correlacion)": "Determina el número de sujetos necesarios para detectar si un coeficiente de correlación específico es estadísticamente diferente de cero.",
+    "Tamaño muestral (correlacion)": "El número de sujetos para detectar una correlación esperada (r, de un piloto o de la literatura), con el alfa y el poder que se eligen en el diálogo.",
     "ANOVA dos vias": "Analiza simultáneamente el efecto de dos variables categóricas independientes sobre una respuesta continua. También evalúa si existe interacción entre los factores.",
     "ANCOVA": "Análisis de covarianza. Compara grupos ajustando por variables continuas de confusión (covariables, ej. edad basal). Aumenta el poder estadístico al reducir el error residual.",
     "Medidas repetidas": "Compara promedios de la misma variable medida en múltiples ocasiones en los mismos sujetos. Aplica correcciones automáticas (Greenhouse-Geisser) para violaciones de esfericidad. Datos: una columna por tiempo (se tildan en el diálogo), una fila por sujeto.",
