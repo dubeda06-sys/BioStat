@@ -109,6 +109,9 @@ class Resultado:
     figuras: list[Figura] = field(default_factory=list)
     crudo: dict = field(default_factory=dict)
     error: str | None = None
+    # Los análisis que corrió un asistente, cada uno con su informe completo:
+    # el asistente da el veredicto y las partes muestran de dónde sale.
+    partes: list[Resultado] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:

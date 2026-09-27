@@ -85,6 +85,7 @@ def _descartar(destino: dict, id_: str, motivo: str):
 
 
 from src.core.passing_bablok import passing_bablok
+from src.core.ep09 import regla_ep09
 from src.core.agreement import deming_regression, deming_ponderado
 from src.core.outliers import tukey_outliers
 
@@ -1089,9 +1090,7 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
     #    CV constante + diferencias normales  → Deming ponderado (apéndice B)
     #    mixta, o diferencias no normales     → Passing-Bablok (§6.2.3, §6.2.4)
     reg_slope = reg_intercept = None
-    elegida = "passing_bablok"
-    if norm_diff["normal"] and clase in (DE_CONSTANTE, CV_CONSTANTE):
-        elegida = "deming" if clase == DE_CONSTANTE else "deming_ponderado"
+    elegida = regla_ep09(clase, norm_diff["normal"])
     if elegida == "deming":
         dem = deming_regression(x, y, lambda_ratio=cfg.DEMING_LAMBDA)
         _descartar(block, "deming_ponderado",

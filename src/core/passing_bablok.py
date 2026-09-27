@@ -39,6 +39,51 @@ def _pendientes(m1, m2):
     return np.sort(s[s != -1])
 
 
+def _recta(m1, m2):
+    """Pendiente de Passing-Bablok: la mediana de las Sij corrida K lugares.
+
+    Aparte del resto porque el sesgo en los niveles de decision se acota por
+    bootstrap (`src/core/ep09.py`), que reajusta la recta mil veces y no
+    necesita intervalos, residuos ni Cusum en cada vuelta.
+    """
+    slopes = _pendientes(m1, m2)
+    N = len(slopes)
+    if N == 0:
+        return {"error": "Todos los valores del metodo de referencia son "
+                         "iguales: no hay pendientes que estimar."}
+
+    # K desplaza la mediana. Es lo que vuelve simetrico al estimador.
+    K = int(np.count_nonzero(slopes < -1))
+
+    if N % 2:
+        centro = (N + 1) // 2 + K - 1
+        fuera = centro >= N
+        slope = slopes[min(centro, N - 1)]
+    else:
+        i1, i2 = N // 2 + K - 1, N // 2 + K
+        fuera = i2 >= N
+        slope = (slopes[min(i1, N - 1)] + slopes[min(i2, N - 1)]) / 2
+
+    if fuera:
+        # Mas de la mitad de las pendientes por pares son menores que -1: la
+        # asociacion es predominantemente negativa y Passing-Bablok no aplica.
+        # Supone relacion creciente entre los dos metodos.
+        return {"error": "Mas de la mitad de las pendientes por pares son "
+                         "negativas: los dos metodos no crecen juntos y "
+                         "Passing-Bablok no aplica. Revisa si las columnas "
+                         "estan invertidas o si miden cosas distintas."}
+
+    if not np.isfinite(slope):
+        # Con los pares verticales como +-inf (EP09c I2), la mediana solo cae en
+        # uno si la mayoria de los pares tiene el mismo valor en X.
+        return {"error": "El metodo de referencia repite tanto sus valores que la "
+                         "pendiente mediana cae en un par vertical (pendiente "
+                         "infinita). Hace falta un rango de concentraciones mas "
+                         "amplio en la variable 1."}
+    return {"pendientes": slopes, "N": N, "K": K, "pendiente": slope,
+            "intercepto": float(np.median(m2 - slope * m1))}
+
+
 def cusum_linealidad(x, y, pendiente, intercepto):
     """Prueba Cusum de linealidad de Passing y Bablok (1983).
 
@@ -123,40 +168,10 @@ def passing_bablok(method1, method2, alpha=0.05):
             f"(Bablok & Passing, 1985; Ludbrook, 2010 sugiere n>=50). El "
             f"intervalo de confianza sera demasiado ancho para descartar sesgo.")
 
-    slopes = _pendientes(m1, m2)
-    N = len(slopes)
-    if N == 0:
-        return {"error": "Todos los valores del metodo de referencia son "
-                         "iguales: no hay pendientes que estimar."}
-
-    # K desplaza la mediana. Es lo que vuelve simetrico al estimador.
-    K = int(np.count_nonzero(slopes < -1))
-
-    if N % 2:
-        centro = (N + 1) // 2 + K - 1
-        fuera = centro >= N
-        slope = slopes[min(centro, N - 1)]
-    else:
-        i1, i2 = N // 2 + K - 1, N // 2 + K
-        fuera = i2 >= N
-        slope = (slopes[min(i1, N - 1)] + slopes[min(i2, N - 1)]) / 2
-
-    if fuera:
-        # Mas de la mitad de las pendientes por pares son menores que -1: la
-        # asociacion es predominantemente negativa y Passing-Bablok no aplica.
-        # Supone relacion creciente entre los dos metodos.
-        return {"error": "Mas de la mitad de las pendientes por pares son "
-                         "negativas: los dos metodos no crecen juntos y "
-                         "Passing-Bablok no aplica. Revisa si las columnas "
-                         "estan invertidas o si miden cosas distintas."}
-
-    if not np.isfinite(slope):
-        # Con los pares verticales como +-inf (EP09c I2), la mediana solo cae en
-        # uno si la mayoria de los pares tiene el mismo valor en X.
-        return {"error": "El metodo de referencia repite tanto sus valores que la "
-                         "pendiente mediana cae en un par vertical (pendiente "
-                         "infinita). Hace falta un rango de concentraciones mas "
-                         "amplio en la variable 1."}
+    recta = _recta(m1, m2)
+    if "error" in recta:
+        return recta
+    slopes, N, K, slope = recta["pendientes"], recta["N"], recta["K"], recta["pendiente"]
 
     intercept = np.median(m2 - slope * m1)
 

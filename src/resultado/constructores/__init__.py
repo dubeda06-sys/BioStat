@@ -12,6 +12,7 @@ from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
 from src.resultado.constructores.precision import precision_ep15
+from src.resultado.constructores.validacion import validar_metodo
 
 CONSTRUCTORES = {
     "bland_altman": bland_altman,
@@ -21,7 +22,9 @@ CONSTRUCTORES = {
     "icc": icc,
     "bland_altman_multiple": bland_altman_multiple,
     "precision_ep15": precision_ep15,
+    "validar_metodo": validar_metodo,
 }
 
 __all__ = ["CONSTRUCTORES", "bland_altman", "bland_altman_multiple", "cv_duplicados",
-           "deming", "icc", "passing_bablok", "precision_ep15"]
+           "deming", "icc", "passing_bablok", "precision_ep15",
+           "validar_metodo"]

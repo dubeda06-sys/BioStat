@@ -134,6 +134,18 @@ def _citas(res: Resultado) -> str:
             f"<ul style='margin:2px 0 0 0;'>{''.join(items)}</ul></div>")
 
 
+def _partes(res: Resultado) -> str:
+    """Cada análisis que corrió el asistente, con su informe entero debajo."""
+    if not res.partes:
+        return ""
+    h = (f"<div style='margin-top:18px;font-size:12px;color:{_GRIS};'><b>De dónde sale: "
+         f"el informe de cada análisis</b></div>")
+    for parte in res.partes:
+        h += ("<div style='margin-top:10px;padding-top:6px;border-top:1px dashed #cbd5e1;'>"
+              f"{render_html(parte)}</div>")
+    return h
+
+
 def render_html(res: Resultado) -> str:
     """El informe completo. Un rechazo muestra el motivo del core, nada más."""
     h = _encabezado(res.titulo)
@@ -142,4 +154,4 @@ def render_html(res: Resultado) -> str:
         return h + _descartes(res)
     return (h + _entrada(res) + _valores(res) + _metodo(res) + _supuestos(res)
             + _lectura(res) + _advertencias(res) + _descartes(res)
-            + _formula(res) + _citas(res))
+            + _formula(res) + _citas(res) + _partes(res))

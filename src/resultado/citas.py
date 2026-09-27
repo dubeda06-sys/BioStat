@@ -65,6 +65,8 @@ CLSI_EP15_ERRATA_2017 = Cita("CLSI (2017). EP15-A3, fe de erratas del 23 may: ec
                              "https://clsi.org/media/1649/ep15_correction_notice_20170523_web.pdf")
 GRUBBS_1969 = Cita("Grubbs FE (1969). Procedures for detecting outlying observations in "
                    "samples. Technometrics 11:1-21.")
+EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
+                  "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
                       "coefficients in method-comparison analysis. Clin Chem 25:432-438.")
 LINNET_1990 = Cita("Linnet K (1990). Estimation of the linear relationship between the "
@@ -198,6 +200,22 @@ FICHAS: dict[str, Ficha] = {
             "Intervalo de verificación = VA ± t(1 − α/(2·nMuestras); gl)·se_c"
         ),
         citas=(CLSI_EP15, CLSI_EP15_ERRATA_2015, CLSI_EP15_ERRATA_2017, GRUBBS_1969),
+    ),
+    # core: src/core/ep09.py; arma: src/resultado/constructores/validacion.py
+    "validar_metodo": Ficha(
+        formula=(
+            "x = comparativo, y = en prueba, sesgo = y − x (EP09c, tabla 1)\n"
+            "Recta (EP09c §6.2): DE constante y diferencias normales → Deming;\n"
+            "    CV constante y diferencias normales → Deming ponderado;\n"
+            "    variabilidad mixta o diferencias no normales → Passing-Bablok\n"
+            "Sesgo en Xc = a + (b − 1)·Xc  (EP09c §6.3)\n"
+            "IC 95 %: Deming, jackknife con t(N−2); Passing-Bablok, bootstrap percentil\n"
+            "Permitido en Xc = permitido % · Xc / 100 (o fijo, en unidades)\n"
+            "Cumple: IC entero dentro de ±permitido; no cumple: IC entero afuera;\n"
+            "    no concluyente: el IC cruza el límite\n"
+            "Precisión (si hay corridas): EP15-A3, ver su ficha"
+        ),
+        citas=(CLSI_EP09, CLSI_EP15, KROUWER_2008, PASSING_1983, LINNET_1990, EFRON_1993),
     ),
 }
 
