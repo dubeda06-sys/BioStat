@@ -23,7 +23,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation  # noqa: E402
 from src.resultado import render_html  # noqa: E402
 from src.resultado.citas import ficha  # noqa: E402
-from src.resultado.constructores import CONSTRUCTORES, FIRMAS, bland_altman  # noqa: E402
+from src.resultado.constructores import (  # noqa: E402
+    CONSTRUCTORES, EJEMPLOS, FIRMAS, bland_altman,
+)
 from src.resultado.lenguaje import p_token  # noqa: E402
 
 MODOS = ("auto", "parametrico", "no_parametrico")
@@ -217,7 +219,8 @@ _LLAMADAS = {"una": lambda f, df: f(df, "A"),
              "trio": lambda f, df: f(df.assign(C=df["A"] * 0.5 + np.arange(len(df))),
                                      "A", "B", "C"),
              "respuesta_binaria": lambda f, df: f(_con_binaria(df), "Y", "A"),
-             "dosis_respuesta": lambda f, df: f(_con_binaria(df), "A", "Y")}
+             "dosis_respuesta": lambda f, df: f(_con_binaria(df), "A", "Y"),
+             "calculadora": lambda f, df: f(EJEMPLOS[f.__name__])}
 
 
 def _con_binaria(df):

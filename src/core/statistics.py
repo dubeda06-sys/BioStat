@@ -184,11 +184,13 @@ def ttest_1sample(data, mu=0):
     if np.ptp(data) == 0:
         return {"error": f"Todos los valores son iguales a {data[0]:g}: el "
                          f"error estandar es cero y la t no esta definida."}
-    t, p = stats.ttest_1samp(data, mu)
+    res = stats.ttest_1samp(data, mu)
     mean = np.mean(data)
     sd = np.std(data, ddof=1)
     se = sd / np.sqrt(n)
-    return {"t": t, "p": p, "df": n-1, "mean": mean, "sd": sd, "se": se, "mu": mu, "n": n}
+    ic = res.confidence_interval(0.95)
+    return {"t": res.statistic, "p": res.pvalue, "df": n-1, "mean": mean, "sd": sd,
+            "se": se, "mu": mu, "n": n, "ci95": (float(ic.low), float(ic.high))}
 
 
 def ttest_paired(d1, d2):
@@ -200,9 +202,15 @@ def ttest_paired(d1, d2):
     n = len(d1)
     if n < 2:
         return None
-    t, p = stats.ttest_rel(d1, d2)
     diff = d1 - d2
-    return {"t": t, "p": p, "df": n-1, "mean_diff": np.mean(diff), "sd_diff": np.std(diff, ddof=1), "n": n}
+    if np.ptp(diff) == 0:
+        return {"error": f"Todas las diferencias valen {diff[0]:g}: sin dispersion de las "
+                         f"diferencias la t no esta definida."}
+    res = stats.ttest_rel(d1, d2)
+    ic = res.confidence_interval(0.95)
+    return {"t": res.statistic, "p": res.pvalue, "df": n-1, "mean_diff": np.mean(diff),
+            "sd_diff": np.std(diff, ddof=1), "n": n, "diffs": diff,
+            "ci95": (float(ic.low), float(ic.high))}
 
 
 def ttest_ind(d1, d2):
@@ -216,10 +224,12 @@ def ttest_ind(d1, d2):
     if np.ptp(d1) == 0 and np.ptp(d2) == 0:
         return {"error": "Los dos grupos son constantes: no hay dispersion "
                          "contra la cual medir la diferencia de medias."}
-    t, p = stats.ttest_ind(d1, d2, equal_var=False)
-    return {"t": t, "p": p, "mean1": np.mean(d1), "mean2": np.mean(d2),
+    res = stats.ttest_ind(d1, d2, equal_var=False)
+    ic = res.confidence_interval(0.95)
+    return {"t": res.statistic, "p": res.pvalue, "mean1": np.mean(d1), "mean2": np.mean(d2),
             "sd1": np.std(d1, ddof=1), "sd2": np.std(d2, ddof=1),
-            "n1": len(d1), "n2": len(d2)}
+            "n1": len(d1), "n2": len(d2), "df": float(res.df),
+            "diff": np.mean(d1) - np.mean(d2), "ci95": (float(ic.low), float(ic.high))}
 
 
 def anova_oneway(groups):

@@ -90,6 +90,9 @@ from src.resultado.constructores import (
     passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
 )
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
+from src.resultado.constructores.medias import (
+    comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
+)
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
@@ -396,57 +399,32 @@ class AnalysisMethodsMixin:
         return esd(self.data, col)
 
     # --- t-test pareado ---
+    # --- Comparacion de medias: la arma src/resultado/constructores/medias.py ---
     def _t_paired(self, c1, c2, a):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        d1, d2 = pares[c1], pares[c2]
-        n = len(pares)
-        if n < 2:
-            return "<b>Error:</b> Minimo 2 pares."
-        
-        result = ttest_paired(d1, d2)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-        
-        self._set_formula(
-            "Formula: t-test Pareado",
-            "t = (d̄ - μ₀) / (sd / √n)\ndonde d̄ = media de diferencias\nsd = DE de diferencias\nμ₀ = 0 (hipotesis nula)"
-        )
-        
-        h = self._h(f" t-test Pareado")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Var 1", c1), ("Var 2", c2), ("Pares (n)", result['n']),
-                      ("Media diff", f"{result['mean_diff']:.4f}"), ("DE diff", f"{result['sd_diff']:.4f}"),
-                      ("t", f"{result['t']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < a)
+        return t_pareada(self.data, c1, c2, {"alpha": a})
+
+    def _t_una(self, c1):
+        try:
+            mu = self._param("t-test 1 muestra", "mu")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        return t_una_muestra(self.data, c1, {"mu": mu})
+
+    def _comparar_medias(self):
+        try:
+            opciones = {k: self._param("Comparar 2 medias", k)
+                        for k in ("m1", "de1", "n1", "m2", "de2", "n2")}
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        res = comparar_medias(opciones)
+        if res.ok and not getattr(self, "parametros", None):
+            res.advertencias.append("Son los valores de ejemplo. Para calcular con los "
+                                    "tuyos, abrí el análisis desde el menú Estadísticas.")
+        return res
 
     # --- t-test independiente ---
     def _t_ind(self, c1, c2, a):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        if len(d1) < 2 or len(d2) < 2:
-            return "<b>Error:</b> Minimo 2 obs por grupo."
-        
-        result = ttest_ind(d1, d2)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-        
-        self._set_formula(
-            "Formula: t-test Independiente (Welch)",
-            "t = (x̄₁ - x̄₂) / √(s₁²/n₁ + s₂²/n₂)\ndonde x̄ = media, s = DE, n = tamano"
-        )
-        
-        h = self._h(f" t-test Independiente")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Grupo 1", c1), ("Grupo 2", c2),
-                      ("n1", result['n1']), ("n2", result['n2']),
-                      ("Media 1", f"{result['mean1']:.4f}"), ("Media 2", f"{result['mean2']:.4f}"),
-                      ("t", f"{result['t']:.4f}"), ("p", f"{result['p']:.6f}"), ("Alpha", a)]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(result['p'] < a)
+        return t_independiente(self.data, c1, c2, {"alpha": a})
 
     # --- ANOVA ---
     def _anova(self, c1, c2, a):
@@ -1281,21 +1259,7 @@ class AnalysisMethodsMixin:
 
     # --- F-test ---
     def _ftest(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        if len(d1) < 3 or len(d2) < 3:
-            return "<b>Error:</b> Minimo 3 obs por grupo."
-        r = f_test_variances(d1.values, d2.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: F-test", "F = s1^2 / s2^2 (mayor/menor)", f"F = {r['f']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" F-test — {c1} vs {c2}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("DE 1", f"{r['sd1']:.4f}"), ("DE 2", f"{r['sd2']:.4f}"),
-                      ("F", f"{r['f']:.4f}"), ("p", f"{r['p']:.6f}")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05, "Se detectó diferencia entre las varianzas", "No se detectó diferencia entre las varianzas")
+        return f_varianzas(self.data, c1, c2)
 
     # --- Kappa ---
     def _kappa(self, c1, c2):
@@ -1531,21 +1495,7 @@ class AnalysisMethodsMixin:
     def _run_core(self, func_name, c1=None, c2=None):
         """Run a core module function and display results."""
         try:
-            if func_name == "ttest_1sample":
-                if c1 is None or c1 not in self.data.columns:
-                    return "<b>Error:</b> Selecciona una columna."
-                d = self.data[c1].dropna()
-                result = ttest_1sample(d, mu=0)
-                self._set_formula("Formula: t-test 1 Muestra", "t = (x̄ - μ₀) / (s / √n)")
-                h = self._h(f" t-test 1 Muestra — {c1}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("t", f"{result['t']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
-                h += self._r("gl", result['df'])
-                h += self._r("Media", f"{result['mean']:.4f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "La media difiere del valor de referencia", "No se detectó que la media difiera del valor de referencia")
-
-            elif func_name == "anova_oneway":
+            if func_name == "anova_oneway":
                 if self.data.shape[1] < 2:
                     return "<b>Error:</b> Se necesitan al menos 2 columnas."
                 groups = [self.data.iloc[:, i].dropna().values for i in range(self.data.shape[1])]
@@ -1646,27 +1596,6 @@ class AnalysisMethodsMixin:
                     h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
                 return h + "</table>" + self._avisos_html(avisos)
 
-            elif func_name == "compare_means":
-                valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
-                if len(valores) != 6:
-                    return ("<b>Error:</b> esta calculadora lee exactamente 6 valores de la "
-                            "primera columna, en este orden: m1, DE1, n1, m2, DE2, n2. La columna tiene "
-                            f"{len(valores)}. Si tenés los datos de cada sujeto, usá la prueba "
-                            "correspondiente, que los toma de las columnas.")
-                m1, sd1, n1, m2, sd2, n2 = valores.iloc[:6]
-                n1, n2 = int(n1), int(n2)
-                result = compare_two_means(m1, sd1, n1, m2, sd2, n2)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo comparar las medias.")
-                self._set_formula("Formula: Comparar 2 Medias (Welch)",
-                                  "t = (m1 − m2) / √(DE1²/n1 + DE2²/n2), gl de Welch-Satterthwaite")
-                h = self._h(" Comparar 2 Medias")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Diferencia", f"{result['diff']:.4f}")
-                h += self._r("IC 95%", f"{result['ci95'][0]:.4f} a {result['ci95'][1]:.4f}")
-                h += self._r("t", f"{result['t']:.4f} (gl {result['df']:.1f})")
-                h += self._r("p", _p_html(result['p']))
-                return h + "</table>" + self._ok(result['p'] < 0.05)
             elif func_name == "compare_props":
                 valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
                 if len(valores) != 4:

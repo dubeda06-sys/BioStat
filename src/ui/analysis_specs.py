@@ -377,6 +377,20 @@ OPCIONES["Probit regression"] = (
            "original."),
 )
 
+# t de una muestra: el valor de referencia lo pone el usuario (antes era 0 fijo).
+PARAMETROS["t-test 1 muestra"] = (
+    Parametro("mu", "Valor de referencia μ₀ (el valor asignado, el objetivo…)", 0.0),
+)
+# Medias resumidas: seis campos en vez de seis celdas de la primera columna.
+PARAMETROS["Comparar 2 medias"] = (
+    Parametro("m1", "Media del grupo 1", 5.2),
+    Parametro("de1", "DE del grupo 1", 1.1, 0.0),
+    Parametro("n1", "n del grupo 1", 30, 2, 10_000_000, entero=True),
+    Parametro("m2", "Media del grupo 2", 4.6),
+    Parametro("de2", "DE del grupo 2", 1.3, 0.0),
+    Parametro("n2", "n del grupo 2", 28, 2, 10_000_000, entero=True),
+)
+
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",
            (("una", "Una muestra o datos pareados (t de una muestra)"),

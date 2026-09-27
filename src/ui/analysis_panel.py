@@ -289,7 +289,7 @@ ANALYSIS_LEGENDS = {
         "formula": "LR+ = Sens / (1 - Spec)\nLR- = (1 - Sens) / Spec\nPre-odds × LR = Post-odds"
     },
     "Comparar 2 medias": {
-        "legend": "Calcula diferencias significativas entre dos grupos ingresando directamente datos resumidos (media, DE, n) sin necesidad de tener los datos crudos originales.",
+        "legend": "Compara las medias de dos grupos a partir de la media, la DE y el n de cada uno, sin los datos crudos.",
         "formula": "t = (m₁ - m₂) / √(s₁²/n₁ + s₂²/n₂)\ngl = Welch-Satterthwaite"
     },
     "Comparar 2 proporciones": {
@@ -609,7 +609,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Correlacion parcial": lambda: self._partial_corr(c1, c2, c3),
             "Media geometrica": lambda: self._geo_mean(c1),
             "Media armonica": lambda: self._harm_mean(c1),
-            "t-test 1 muestra": lambda: self._run_core("ttest_1sample", c1),
+            "t-test 1 muestra": lambda: self._t_una(c1),
             "ANOVA una via (core)": lambda: self._anova(c1, c2, alpha),
             "Sign test": lambda: self._run_core("sign_test", c1, c2),
             "Cochran Q": lambda: self._run_core("cochran_q"),
@@ -617,7 +617,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Deming regression": lambda: self._deming(c1, c2),
             "CV duplicatas": lambda: self._cv_dup(c1, c2),
             "Likelihood Ratios": lambda: self._run_core("likelihood_ratios", c1, c2),
-            "Comparar 2 medias": lambda: self._run_core("compare_means"),
+            "Comparar 2 medias": lambda: self._comparar_medias(),
             "Comparar 2 proporciones": lambda: self._run_core("compare_props"),
             "Comparar 2 AUC": lambda: self._run_core("compare_auc"),
             "Tabla de percentiles": lambda: self._percentiles(c1),

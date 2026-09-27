@@ -128,6 +128,16 @@ VENABLES_2002 = Cita("Venables WN, Ripley BD (2002). Modern applied statistics w
                      "Springer. `dose.p`: dosis efectiva con IC por el método delta.")
 CLSI_EP17 = Cita("CLSI (2012). EP17-A2: Evaluation of detection capability for clinical "
                  "laboratory measurement procedures, 2.ª ed. LoD por probit.")
+STUDENT_1908 = Cita("Student (1908). The probable error of a mean. Biometrika 6:1-25.")
+WELCH_1947 = Cita("Welch BL (1947). The generalization of «Student's» problem when several "
+                  "different population variances are involved. Biometrika 34:28-35.")
+DELACRE_2017 = Cita("Delacre M, Lakens D, Leys C (2017). Why psychologists should by default "
+                    "use Welch's t-test instead of Student's t-test. Int Rev Soc Psychol "
+                    "30:92-101.")
+BROWN_FORSYTHE_1974 = Cita("Brown MB, Forsythe AB (1974). Robust tests for the equality of "
+                           "variances. J Am Stat Assoc 69:364-367.")
+SNEDECOR_1989 = Cita("Snedecor GW, Cochran WG (1989). Statistical methods, 8.ª ed. Ames: Iowa "
+                     "State University Press.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -435,6 +445,46 @@ FICHAS: dict[str, Ficha] = {
             "En log10, x = log10(dosis) y el resultado se retransforma"
         ),
         citas=(FINNEY_1971, VENABLES_2002, CLSI_EP17),
+    ),
+
+    # ---------------- Comparación de medias: src/resultado/constructores/medias.py
+    # core: src/core/statistics.py (scipy.stats), src/core/diagnostic_tests.py
+    "t_una_muestra": Ficha(
+        formula=(
+            "t = (x̄ − μ₀) / (s/√n),  n − 1 gl\n"
+            "IC 95 % de la media: x̄ ± t(0,975; n − 1)·s/√n"
+        ),
+        citas=(STUDENT_1908, ALTMAN_1991),
+    ),
+    "t_pareada": Ficha(
+        formula=(
+            "dᵢ = x₁ᵢ − x₂ᵢ;  t = d̄ / (s_d/√n),  n − 1 gl\n"
+            "IC 95 % de d̄: d̄ ± t(0,975; n − 1)·s_d/√n"
+        ),
+        citas=(STUDENT_1908, ALTMAN_1991),
+    ),
+    "t_independiente": Ficha(
+        formula=(
+            "t = (x̄₁ − x̄₂) / √(s₁²/n₁ + s₂²/n₂)\n"
+            "gl de Welch-Satterthwaite = (s₁²/n₁ + s₂²/n₂)² / ((s₁²/n₁)²/(n₁−1) + (s₂²/n₂)²/(n₂−1))\n"
+            "IC 95 %: (x̄₁ − x̄₂) ± t(0,975; gl)·√(s₁²/n₁ + s₂²/n₂)"
+        ),
+        citas=(WELCH_1947, DELACRE_2017),
+    ),
+    "comparar_medias": Ficha(
+        formula=(
+            "Con m, DE y n de cada grupo: t = (m₁ − m₂) / √(DE₁²/n₁ + DE₂²/n₂)\n"
+            "gl de Welch-Satterthwaite; IC 95 % = (m₁ − m₂) ± t(0,975; gl)·EE"
+        ),
+        citas=(WELCH_1947, ALTMAN_1991),
+    ),
+    "f_varianzas": Ficha(
+        formula=(
+            "F = s²_mayor / s²_menor, con (n_mayor − 1, n_menor − 1) gl\n"
+            "p a dos colas = 2·mín(P(F ≥ f), P(F ≤ f))\n"
+            "Brown-Forsythe: ANOVA de |x − mediana del grupo|, no supone normalidad"
+        ),
+        citas=(SNEDECOR_1989, BROWN_FORSYTHE_1974),
     ),
 }
 

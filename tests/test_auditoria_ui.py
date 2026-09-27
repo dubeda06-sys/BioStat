@@ -195,8 +195,11 @@ def test_el_poder_para_dos_grupos_es_el_de_statsmodels(qt_app):
 
 
 def test_la_calculadora_de_2_medias_no_lee_una_hoja_de_datos(qt_app):
+    """Antes leía seis celdas de la primera columna (y rechazaba una hoja de
+    datos); desde el paso 4 toma los seis números del diálogo y la hoja no entra."""
     p = _panel(pd.DataFrame({"Glucosa": np.random.default_rng(0).normal(95, 12, 40)}))
-    assert "exactamente 6 valores" in _texto(p._run_core("compare_means"))
+    t = _texto(p._comparar_medias())
+    assert "Glucosa" not in t and "valores de ejemplo" in t
 
 
 # ------------------------------------------------------------------ K8
