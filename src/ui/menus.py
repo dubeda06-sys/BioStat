@@ -1,6 +1,6 @@
 """Estructura de la barra de menus, al estilo MedCalc.
 
-Los 76 analisis viven en un solo combo dentro del panel Analisis. Buscarlos ahi
+Los 78 analisis viven en un solo combo dentro del panel Analisis. Buscarlos ahi
 obliga a recorrer una lista plana; MedCalc los agrupa por familia estadistica y
 por eso se encuentran sin saber el nombre exacto de la rutina. Esta tabla es esa
 agrupacion.
@@ -9,7 +9,7 @@ Cada entrada es `(etiqueta_visible, texto_del_combo)`:
 
 - la **etiqueta** es lo que lee el usuario, con acentos y nombre corriente;
 - el **texto del combo** tiene que coincidir *exacto* con la clave de
-  `ANALYSIS_HELP` (o de `GRAPH_HELP` / `QC_HELP`), porque el menu selecciona el
+  `ANALYSIS_HELP` (o de `GRAPH_HELP`), porque el menu selecciona el
   item por texto. Si no coincide, la accion no hace nada en silencio.
 
 `tests/test_menus.py` verifica las dos direcciones: que ningun menu apunte a un
@@ -143,12 +143,6 @@ MENU_GRAFICOS = [
     ("Diagrama de dispersion", "Dispersion"),
     ("Grafico de barras", "Barras"),
     ("Serie temporal", "Serie temporal"),
-]
-
-# Menu "Control de calidad": claves de QC_HELP (panel Control de Calidad).
-MENU_QC = [
-    ("Estadisticas de control", "Estadisticas"),
-    ("Analisis de tendencias", "Tendencias"),
 ]
 
 

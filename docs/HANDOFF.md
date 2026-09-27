@@ -757,12 +757,13 @@ calidad. Ver su `LEEME.md`.
    `Resultado`; el mixin son envoltorios que leen el diálogo. El paso 5 del plan
    (borrarlo y que el dispatch llame a los constructores) es opcional: ya no
    hay lógica ahí que pueda divergir.
-2. **Levey-Jennings y Westgard, eliminados el 22 ago.** Vivían en
-   `src/ui/qc_panel.py` (`_lj`, `_wj`, `_wj_rules`), sin core ni tests: la parte
-   que decide si un lote se acepta o rechaza era la única sin verificación de
-   referencia. La pestaña QC queda con **Estadísticas** y **Tendencias**;
-   `src/core/qc/__init__.py` sigue **vacío**. Si el QC vuelve, entra por el core
-   con tests contra un caso publicado, no dentro del panel.
+2. **Control de calidad, eliminado entero el 27 sep.** Levey-Jennings y
+   Westgard se habían sacado el 22 ago (vivían en el panel, sin core ni tests).
+   Lo que quedaba —**Estadísticas** y **Tendencias**, también sin core ni
+   tests— se fue el 27 sep por decisión del usuario, con la pestaña, el menú y
+   el `src/core/qc/` vacío. Las pestañas pasaron a ser cuatro y la navegación
+   va por panel, no por índice (`tests/test_menus.py`). Si el QC vuelve, entra
+   por el core con tests contra un caso publicado, no dentro de un panel.
 3. **Asistente B, hecho el 27 sep.** Lo que podría seguir: error total contra
    TEa como criterio alternativo; el sesgo de EP15 contra valor asignado dentro
    del asistente; que el caso narrado del Omnianálisis cuente la Cusum. Y

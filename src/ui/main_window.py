@@ -12,10 +12,9 @@ from src.ui.icons import Icons
 from src.ui.data_panel import DataPanel
 from src.ui.analysis_panel import AnalysisPanel
 from src.ui.graphs_panel import GraphsPanel
-from src.ui.qc_panel import QCPanel
 from src.ui.omni_panel import OmniPanel
 from src.ui.menus import (
-    MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS, MENU_QC,
+    MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS,
 )
 from src.ui.dialogs import DialogoAnalisis
 from src.ui import previews
@@ -75,17 +74,20 @@ class MainWindow(QMainWindow):
         copy.triggered.connect(self._copy_results)
         em.addAction(copy)
 
+        # Por panel y no por indice: al sacar la pestaña de Control de Calidad
+        # (27 sep) un indice fijo habria mandado "Omnianálisis" al vacio.
         vm = mb.addMenu("Ver")
-        for i, (nombre, atajo) in enumerate([
-            ("Datos", "Ctrl+1"), ("Analisis", "Ctrl+2"), ("Graficos", "Ctrl+3"),
-            ("Control de Calidad", "Ctrl+4"), ("Omnianálisis", "Ctrl+5"),
-        ]):
+        for nombre, atajo, panel in [
+            ("Datos", "Ctrl+1", "data_panel"), ("Analisis", "Ctrl+2", "analysis_panel"),
+            ("Graficos", "Ctrl+3", "graphs_panel"), ("Omnianálisis", "Ctrl+4", "omni_panel"),
+        ]:
             act = QAction(nombre, self)
             act.setShortcut(atajo)
-            act.triggered.connect(lambda _checked, idx=i: self.tabs.setCurrentIndex(idx))
+            act.triggered.connect(
+                lambda _checked, p=panel: self.tabs.setCurrentWidget(getattr(self, p)))
             vm.addAction(act)
 
-        # Menu "Estadisticas": los 76 analisis agrupados por familia, como en
+        # Menu "Estadisticas": los 78 analisis agrupados por familia, como en
         # MedCalc. La tabla vive en src/ui/menus.py y tests/test_menus.py
         # comprueba que cada entrada apunte a un analisis que existe.
         sm = mb.addMenu("Estadisticas")
@@ -110,15 +112,9 @@ class MainWindow(QMainWindow):
         for label, combo_text in MENU_PRUEBAS:
             pm.addAction(self._accion_analisis(label, combo_text))
 
-        qm = mb.addMenu("Control de Calidad")
-        for label, combo_text in MENU_QC:
-            act = QAction(label, self)
-            act.triggered.connect(lambda _checked, t=combo_text: self._goto_qc(t))
-            qm.addAction(act)
-
         om = mb.addMenu("Herramientas")
         act = QAction("Omnianálisis (elegir la prueba por mi)", self)
-        act.triggered.connect(lambda: self.tabs.setCurrentIndex(4))
+        act.triggered.connect(lambda: self.tabs.setCurrentWidget(self.omni_panel))
         om.addAction(act)
 
         # Menu "Ventana": se arma cada vez que se abre, con los informes vivos.
@@ -134,7 +130,7 @@ class MainWindow(QMainWindow):
         """Entrada de menu con vista previa en el tooltip.
 
         Al pasar el mouse se ve la forma tipica del resultado antes de abrir
-        nada: entre 76 rutinas, el nombre solo no alcanza para elegir.
+        nada: entre 78 rutinas, el nombre solo no alcanza para elegir.
         """
         act = QAction(label, self)
         act.setToolTip(previews.tooltip(combo_text, ANALYSIS_HELP.get(combo_text, "")))
@@ -205,14 +201,12 @@ class MainWindow(QMainWindow):
         self.data_panel = DataPanel()
         self.analysis_panel = AnalysisPanel()
         self.graphs_panel = GraphsPanel()
-        self.qc_panel = QCPanel()
         self.omni_panel = OmniPanel()
 
         tabs_config = [
             (self.data_panel, "Datos"),
             (self.analysis_panel, "Analisis"),
             (self.graphs_panel, "Graficos"),
-            (self.qc_panel, "Control de Calidad"),
             (self.omni_panel, "Omnianálisis"),
         ]
         for panel, name in tabs_config:
@@ -228,21 +222,15 @@ class MainWindow(QMainWindow):
             return
         self.analysis_panel.set_data(data)
         self.graphs_panel.set_data(data)
-        self.qc_panel.set_data(data)
         self.omni_panel.set_data(data)
 
     def _on_tab_changed(self, index):
         data = self.data_panel.get_data()
         if data is None:
             return
-        if index == 1:
-            self.analysis_panel.set_data(data)
-        elif index == 2:
-            self.graphs_panel.set_data(data)
-        elif index == 3:
-            self.qc_panel.set_data(data)
-        elif index == 4:
-            self.omni_panel.set_data(data)
+        panel = self.tabs.widget(index)
+        if panel is not self.data_panel:
+            panel.set_data(data)
 
     def _run_analysis(self):
         """Ejecuta el analisis seleccionado: empuja datos y cambia a la pestaña Análisis."""
@@ -252,7 +240,7 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentIndex(0)
             return
         self.analysis_panel.set_data(data)
-        self.tabs.setCurrentIndex(1)
+        self.tabs.setCurrentWidget(self.analysis_panel)
         self.analysis_panel._run()
 
     def _goto_analysis(self, combo_text):
@@ -334,20 +322,10 @@ class MainWindow(QMainWindow):
         data = self.data_panel.get_data()
         if data is not None:
             self.graphs_panel.set_data(data)
-        self.tabs.setCurrentIndex(2)
+        self.tabs.setCurrentWidget(self.graphs_panel)
         idx = self.graphs_panel.combo_graph.findText(combo_text)
         if idx >= 0:
             self.graphs_panel.combo_graph.setCurrentIndex(idx)
-
-    def _goto_qc(self, combo_text):
-        """Va al panel Control de Calidad y selecciona el análisis QC."""
-        data = self.data_panel.get_data()
-        if data is not None:
-            self.qc_panel.set_data(data)
-        self.tabs.setCurrentIndex(3)
-        idx = self.qc_panel.combo_qc.findText(combo_text)
-        if idx >= 0:
-            self.qc_panel.combo_qc.setCurrentIndex(idx)
 
     def _copy_results(self):
         """Copia el texto de resultados del análisis al portapapeles."""
@@ -382,12 +360,14 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f"Guardado: {path.split('/')[-1]}")
 
     def _show_about(self):
+        from src.version import etiqueta
         QMessageBox.about(
             self, "Acerca de BioStat",
-            "<h2>BioStat v0.1.0</h2>"
+            "<h2>BioStat</h2>"
+            f"<p>{etiqueta()}</p>"
             "<p>Software estadistico para laboratorio clinico.</p>"
-            "<p>Permite importar datos, realizar analisis estadisticos, "
-            "generar graficos y control de calidad.</p>"
+            "<p>Permite importar datos, realizar analisis estadisticos "
+            "y generar graficos.</p>"
         )
 
     def _export_csv(self):

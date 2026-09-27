@@ -106,10 +106,6 @@ El ejecutable `BioStat.exe` se copiará automáticamente al Escritorio.
 - Random Forest (clasificación y regresión)
 - Bootstrap (media, mediana, diferencia, correlación, regresión)
 
-### Control de Calidad
-- Estadísticas de control (media, DE, CV%, z-scores)
-- Análisis de tendencias
-
 ### Tamaño Muestral
 - 1 media, 2 medias, 2 proporciones
 - Correlación, poder estadístico
@@ -162,15 +158,13 @@ BioStat/
 │   │   ├── probit.py
 │   │   ├── cmh.py
 │   │   ├── serial_measurements.py
-│   │   ├── plots.py         # Youden, Polar, Waterfall, Mountain
-│   │   └── qc/              # Control de calidad
+│   │   └── plots.py         # Youden, Polar, Waterfall, Mountain
 │   ├── io/                  # Lectura/escritura de archivos
 │   └── ui/                  # Interfaz gráfica
 │       ├── main_window.py   # Ventana principal
 │       ├── analysis_panel.py # Panel de análisis
 │       ├── data_panel.py    # Panel de datos
 │       ├── graphs_panel.py  # Panel de gráficos
-│       ├── qc_panel.py      # Panel de control de calidad
 │       ├── styles.py        # Tema visual (Clean Clinical)
 │       └── icons.py         # Iconos (qtawesome)
 └── tests/

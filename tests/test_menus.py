@@ -16,7 +16,6 @@ from src.ui.menus import (
     MENU_ESTADISTICAS,
     MENU_GRAFICOS,
     MENU_PRUEBAS,
-    MENU_QC,
     analisis_referenciados,
 )
 
@@ -44,12 +43,6 @@ def test_menu_de_graficos_coincide_con_el_panel():
     assert faltan == [], f"entradas de Graficos sin grafico detras: {faltan}"
 
 
-def test_menu_de_qc_coincide_con_el_panel():
-    from src.ui.qc_panel import QC_HELP
-    faltan = [c for _, c in MENU_QC if c not in QC_HELP]
-    assert faltan == [], f"entradas de Control de Calidad sin analisis detras: {faltan}"
-
-
 def test_no_hay_grupos_vacios():
     vacios = [grupo for grupo, items in MENU_ESTADISTICAS if not items]
     assert vacios == [], f"submenus sin items: {vacios}"
@@ -62,3 +55,25 @@ def test_etiquetas_no_vacias(grupo, items):
     assert grupo.strip(), "submenu sin nombre"
     for label, combo in items:
         assert label.strip(), f"item sin etiqueta en {grupo} (apunta a {combo})"
+
+
+def test_control_de_calidad_eliminado_y_los_atajos_llegan_a_su_panel():
+    """El QC se saco entero el 27 sep. Con indices fijos, "Herramientas >
+    Omnianálisis" habria quedado apuntando a una pestaña que ya no existe:
+    ahora cada accion nombra su panel."""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    from src.ui.main_window import MainWindow
+
+    w = MainWindow()
+    pestañas = [w.tabs.tabText(i) for i in range(w.tabs.count())]
+    assert pestañas == ["Datos", "Analisis", "Graficos", "Omnianálisis"]
+    menus = {m.text(): m.menu() for m in w.menuBar().actions()}
+    assert "Control de Calidad" not in menus
+    for accion in menus["Ver"].actions():
+        accion.trigger()
+        assert w.tabs.tabText(w.tabs.currentIndex()) == accion.text()
+    menus["Herramientas"].actions()[0].trigger()
+    assert w.tabs.currentWidget() is w.omni_panel
