@@ -39,6 +39,55 @@ def _pendientes(m1, m2):
     return np.sort(s[s != -1])
 
 
+def cusum_linealidad(x, y, pendiente, intercepto):
+    """Prueba Cusum de linealidad de Passing y Bablok (1983).
+
+    Si la relacion es lineal, los residuos por encima y por debajo de la recta
+    se alternan al azar a lo largo de ella; si es curva, se agrupan (arriba en
+    los extremos, abajo en el medio). Pasos, como NCSS y el paquete `mcr`:
+
+    1. puntaje r = +sqrt(n_neg/n_pos) arriba de la recta, -sqrt(n_pos/n_neg)
+       abajo, 0 sobre ella (asi la suma total es cero);
+    2. los puntos se ordenan por su proyeccion sobre la recta,
+       D = (y + x/B - A) / sqrt(1 + 1/B^2);
+    3. cusum = suma acumulada de r en ese orden;
+    4. H = max|cusum| / sqrt(n_neg + 1), contra la distribucion de
+       Kolmogorov-Smirnov (1,36 al 5 %, 1,63 al 1 %).
+
+    El p sale de la distribucion limite de Kolmogorov. Solo dice si Passing-
+    Bablok es aplicable: nada sobre si los metodos concuerdan. Simulado con
+    datos lineales, rechaza entre el 4 y el 9 % de las veces al 5 % nominal
+    (tests/test_cusum.py): un p apenas debajo de 0,05 es evidencia debil.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if not (np.isfinite(pendiente) and pendiente > 0):
+        return {"error": "La pendiente no es positiva: la prueba Cusum no se puede calcular."}
+    res = y - intercepto - pendiente * x
+    n_pos = int(np.count_nonzero(res > 0))
+    n_neg = int(np.count_nonzero(res < 0))
+    if n_pos == 0 or n_neg == 0:
+        return {"error": "Todos los residuos caen del mismo lado de la recta: la prueba "
+                         "Cusum no se puede calcular."}
+    r = np.where(res > 0, np.sqrt(n_neg / n_pos),
+                 np.where(res < 0, -np.sqrt(n_pos / n_neg), 0.0))
+    d = (y + x / pendiente - intercepto) / np.sqrt(1 + 1 / pendiente ** 2)
+    orden = np.argsort(d, kind="mergesort")
+    acumulada = np.cumsum(r[orden])
+    maximo = float(np.max(np.abs(acumulada)))
+    h = maximo / np.sqrt(n_neg + 1)
+    return {
+        "max_cusum": maximo,
+        "h": float(h),
+        "p": float(stats.kstwobign.sf(h)),
+        "critico_05": float(stats.kstwobign.isf(0.05)),
+        "n_pos": n_pos,
+        "n_neg": n_neg,
+        "cusum": acumulada,
+        "orden": orden,
+    }
+
+
 def passing_bablok(method1, method2, alpha=0.05):
     """Regresion de Passing-Bablok.
 
@@ -138,6 +187,7 @@ def passing_bablok(method1, method2, alpha=0.05):
 
     residuals = m2 - (slope * m1 + intercept)
     se_residuals = np.std(residuals, ddof=1)
+    cusum = cusum_linealidad(m1, m2, slope, intercept)
 
     if np.ptp(m2) > 0:
         r, p = stats.pearsonr(m1, m2)
@@ -156,6 +206,7 @@ def passing_bablok(method1, method2, alpha=0.05):
         "k_desplazamiento": K,
         "se_residuals": se_residuals,
         "residuals": residuals,
+        "cusum": cusum,
         "correlation_r": r,
         "correlation_p": p,
         "method1_mean": np.mean(m1),

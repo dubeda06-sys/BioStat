@@ -587,6 +587,18 @@ def passing_bablok(df, c1, c2, opciones=None) -> Resultado:
               nota="no mide acuerdo: sirve para ver si la recta tiene sentido"),
     ]
     pasos, lectura = _pasos_recta(b, res["ci_slope"], a, res["ci_intercept"], c1, c2)
+    lineal = _paso_cusum(res["cusum"])
+    cusum = res["cusum"]
+    if not cusum.get("error"):
+        valores.insert(3, Valor("Cusum de linealidad (H)", cusum["h"],
+                                nota=f"({p_token(cusum['p'])}; crítico al 5 %: 1,36)"))
+    if not lineal.ok and not cusum.get("error"):
+        lectura = ("La prueba Cusum detectó que la relación no es lineal: la recta de "
+                   "Passing-Bablok no describe estos datos y su pendiente y su intercepto no "
+                   "se deben leer. Mirá el gráfico de residuos: si forman una curva, conviene "
+                   "comparar por tramos de concentración. " + lectura)
+        advertencias.append("Cusum: se detectó desvío de la linealidad. Passing-Bablok supone "
+                            "una relación lineal entre los métodos.")
     n = res["n"]
     suficiente = Supuesto(
         pregunta="¿Hay muestras suficientes para que la recta discrimine?",
@@ -604,15 +616,40 @@ def passing_bablok(df, c1, c2, opciones=None) -> Resultado:
                       "Recta no paramétrica: no supone ninguna distribución de los errores "
                       "y aguanta valores atípicos. Supone relación lineal entre los dos "
                       "métodos y correlación alta (Passing y Bablok 1983)."),
-        supuestos=[suficiente, *pasos], formula=f.formula, citas=list(f.citas),
+        supuestos=[suficiente, lineal, *pasos], formula=f.formula, citas=list(f.citas),
         lectura=lectura,
-        matiz=_MATIZ_RECTA + (" El programa no corre la prueba Cusum de linealidad: si los "
-                              "residuos dibujan una curva, la recta no aplica."),
+        matiz=_MATIZ_RECTA + (" La prueba Cusum solo dice si la recta es aplicable: que no "
+                              "detecte curvatura no dice nada sobre si los métodos "
+                              "concuerdan."),
         advertencias=advertencias,
         figuras=[Figura("Passing-Bablok", lambda: _figura_recta(x, y, b, a, c1, c2,
                                                                 "Passing-Bablok")),
                  Figura("Residuos", lambda: _figura_residuos(x, res["residuals"], rsd, c1))],
         crudo={"passing_bablok": res})
+
+
+def _paso_cusum(cusum) -> Supuesto:
+    """Passing y Bablok (1983): ¿los residuos se alternan al azar a lo largo de la recta?"""
+    pregunta = "¿La relación entre los dos métodos es lineal?"
+    if cusum.get("error"):
+        return Supuesto(pregunta, "prueba Cusum", "No evaluable", cusum["error"], ok=False)
+    medicion = (f"Cusum: H = {_f(cusum['h'])}, {p_token(cusum['p'])} "
+                f"({cusum['n_pos']} residuos arriba de la recta, {cusum['n_neg']} abajo)")
+    if cusum["p"] < 0.05:
+        return Supuesto(
+            pregunta, medicion, "Se detectó desvío",
+            "Los residuos de un mismo signo se agrupan a lo largo de la recta en vez de "
+            "alternarse: la relación es curva y Passing-Bablok no aplica (Passing y Bablok "
+            "1983). La prueba es algo liberal: con datos lineales rechaza hasta un 9 % de "
+            "las veces, así que un p apenas debajo de 0,05 es evidencia débil.",
+            alternativa="si los residuos se alternaran al azar, la recta sería aplicable.",
+            ok=False)
+    return Supuesto(
+        pregunta, medicion, "No se detectó desvío",
+        "Los residuos se alternan a los dos lados de la recta sin agruparse: la recta es "
+        "aplicable.",
+        alternativa="si se agruparan (arriba en los extremos y abajo en el medio, o al "
+                    "revés), la relación sería curva y la recta no aplicaría.")
 
 
 def _figura_residuos(x, residuos, rsd, nx):

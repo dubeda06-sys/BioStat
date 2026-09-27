@@ -51,6 +51,10 @@ MAYER_2016 = Cita("Mayer B, Gaus W, Braisch U (2016). The fallacy of the Passing
                   "regression. Jökull 66:95-106.")
 MEDCALC_PASSING = Cita("MedCalc, manual: Passing-Bablok regression.",
                        "https://www.medcalc.org/en/manual/passing-bablok-regression.php")
+NCSS_PASSING = Cita("NCSS, manual: Passing-Bablok Regression for Method Comparison "
+                    "(cap. 313), prueba Cusum de linealidad.",
+                    "https://www.ncss.com/wp-content/themes/ncss/pdf/Procedures/NCSS/"
+                    "Passing-Bablok_Regression_for_Method_Comparison.pdf")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
                       "coefficients in method-comparison analysis. Clin Chem 25:432-438.")
 LINNET_1990 = Cita("Linnet K (1990). Estimation of the linear relationship between the "
@@ -116,9 +120,13 @@ FICHAS: dict[str, Ficha] = {
             "IC 95 % de B: estadísticos de orden M₁ + K y M₂ + K, con\n"
             "    C = 1,96·√(n(n−1)(2n+5)/18),  M₁ = redondeo((N − C)/2),  M₂ = N − M₁ + 1\n"
             "IC 95 % de A: mediana de (y − B·x) con los extremos del IC de B\n"
-            "RSD = DE de los residuos;  sesgo en Xc = A + (B − 1)·Xc"
+            "RSD = DE de los residuos;  sesgo en Xc = A + (B − 1)·Xc\n"
+            "Cusum de linealidad: r = +√(n₋/n₊) arriba de la recta, −√(n₊/n₋) abajo;\n"
+            "    orden por D = (y + x/B − A)/√(1 + 1/B²);  H = máx|Σr| / √(n₋ + 1)\n"
+            "    contra la distribución de Kolmogorov-Smirnov (1,36 al 5 %)"
         ),
-        citas=(PASSING_1983, BABLOK_1985, CLSI_EP09, MAYER_2016, MEDCALC_PASSING),
+        citas=(PASSING_1983, BABLOK_1985, CLSI_EP09, MAYER_2016, MEDCALC_PASSING,
+               NCSS_PASSING),
     ),
     # "Deming regression"; core: src/core/agreement.py
     "deming": Ficha(

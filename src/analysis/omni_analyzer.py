@@ -1173,6 +1173,19 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
                 "sesgo_proporcional": not slope_no_prop,
                 "sesgo_constante": not intercept_no_const,
             }
+            # Cusum de linealidad (Passing y Bablok 1983): lo mismo que dice el panel.
+            cusum = pb.get("cusum") or {}
+            if not cusum.get("error") and "p" in cusum:
+                block["resultados"]["regresion"]["cusum_h"] = round(cusum["h"], 4)
+                block["resultados"]["regresion"]["cusum_p"] = cusum["p"]
+                if cusum["p"] < 0.05:
+                    block["advertencias"].append(
+                        f"Passing-Bablok: la prueba Cusum detectó desvío de la linealidad "
+                        f"({_p(cusum['p'])}). La recta no describe estos datos.")
+                block["traza"].append(
+                    f"Cusum de linealidad: H={round(cusum['h'], 4)}, {_p(cusum['p'])} → "
+                    f"{'se detectó' if cusum['p'] < 0.05 else 'no se detectó'} desvío de "
+                    f"la linealidad.")
             _marcar(block, "passing_bablok",
                     f"pendiente={round(float(pb['slope']), 4)}, intercepto={round(float(pb['intercept']), 4)}")
             block["traza"].append(

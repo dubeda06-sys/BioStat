@@ -605,3 +605,19 @@ def test_m15_el_catalogo_no_repite_las_dos_afirmaciones_falsas():
     assert "dos direcciones" in POR_ID["ba_eje_referencia"].porque
     assert "desviaciones triviales" not in POR_ID["anderson"].porque
     assert "No es más indulgente" in POR_ID["anderson"].porque
+
+
+def test_passing_bablok_del_omnianalisis_corre_la_cusum():
+    """Lo mismo que el panel: si Passing-Bablok es la recta elegida y los datos
+    son curvos, el Omnianálisis lo avisa en vez de leer la pendiente."""
+    rng = np.random.default_rng(3)
+    X = rng.uniform(1, 400, 120)
+    sd = np.where(X < 100, 3.0, 0.03 * X)
+    x = X + rng.normal(0, 1, 120) * sd
+    y = X + 0.3 * (X - 200) ** 2 / 200 + rng.normal(0, 1, 120) * sd
+    b = _clase(x, y)
+    reg = b["resultados"]["regresion"]
+    assert reg["metodo"] == "Passing-Bablok"
+    assert reg["cusum_p"] < 0.05
+    assert any("Cusum" in a and "linealidad" in a for a in b["advertencias"])
+    assert any(t.startswith("Cusum de linealidad") for t in b["traza"])
