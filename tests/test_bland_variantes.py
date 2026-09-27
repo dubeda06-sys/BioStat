@@ -120,7 +120,7 @@ def panel(qt_app):
 
 def _informe(panel, opciones):
     panel.opciones_metodo = opciones
-    return _sin_html(panel._bland("Referencia", "Prueba", opciones))
+    return _sin_html(panel.correr("Bland-Altman", "Referencia", "Prueba"))
 
 
 def test_el_modo_elegido_cambia_los_numeros(panel):
@@ -169,8 +169,8 @@ def test_forzar_parametrico_sobre_diferencias_no_normales_avisa(qt_app):
     df = pd.DataFrame({"A": a, "B": a + rng.exponential(4, 60) - 2})
     p = AnalysisPanel()
     p.set_data(df)
-    texto = _sin_html(p._bland("A", "B", {"limites": "parametrico",
-                                          "referencia": "promedio"}))
+    p.opciones_metodo = {"limites": "parametrico", "referencia": "promedio"}
+    texto = _sin_html(p.correr("Bland-Altman", "A", "B"))
     assert "no son normales" in texto
     assert "no son los que corresponden" in texto
 
@@ -183,7 +183,8 @@ def test_el_automatico_elige_no_parametrico_si_las_diferencias_no_lo_son(qt_app)
     df = pd.DataFrame({"A": a, "B": a + rng.exponential(4, 60) - 2})
     p = AnalysisPanel()
     p.set_data(df)
-    texto = _sin_html(p._bland("A", "B", {"limites": "auto", "referencia": "promedio"}))
+    p.opciones_metodo = {"limites": "auto", "referencia": "promedio"}
+    texto = _sin_html(p.correr("Bland-Altman", "A", "B"))
     assert "no paramétrico" in texto
     assert "por ese resultado" in texto
 

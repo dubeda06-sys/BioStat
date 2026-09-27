@@ -60,19 +60,19 @@ def hoja_larga():
 
 
 def test_la_anova_usa_respuesta_y_grupo_elegidos(qt_app, hoja_larga):
-    t = _texto(_panel(hoja_larga)._anova("Valor", "Grupo", 0.05))
+    t = _texto(_panel(hoja_larga).correr("ANOVA una via", "Valor", "Grupo"))
     esperado = stats.f_oneway(*[g["Valor"] for _, g in hoja_larga.groupby("Grupo")])
     assert f"{esperado.statistic:.4f}" in t
     assert "7460" not in t
 
 
 def test_la_anova_rechaza_un_grupo_que_parece_una_medicion(qt_app, hoja_larga):
-    t = _texto(_panel(hoja_larga)._anova("Valor", "ID", 0.05))
+    t = _texto(_panel(hoja_larga).correr("ANOVA una via", "Valor", "ID"))
     assert "parece una medición" in t
 
 
 def test_kruskal_usa_respuesta_y_grupo(qt_app, hoja_larga):
-    t = _texto(_panel(hoja_larga)._kruskal("Valor", "Grupo"))
+    t = _texto(_panel(hoja_larga).correr("Kruskal-Wallis", "Valor", "Grupo"))
     esperado = stats.kruskal(*[g["Valor"] for _, g in hoja_larga.groupby("Grupo")])
     assert f"{esperado.statistic:.4f}" in t
 
@@ -81,7 +81,7 @@ def test_la_anova_avisa_y_usa_welch_con_varianzas_distintas(qt_app):
     rng = np.random.default_rng(5)
     df = pd.DataFrame({"v": np.r_[rng.normal(50, 1, 30), rng.normal(50, 8, 30), rng.normal(50, 20, 30)],
                        "g": np.repeat(["A", "B", "C"], 30)})
-    t = _texto(_panel(df)._anova("v", "g", 0.05))
+    t = _texto(_panel(df).correr("ANOVA una via", "v", "g"))
     assert "ANOVA de Welch" in t and "no supone varianzas iguales" in t
 
 
@@ -102,7 +102,7 @@ def _tabla(df):
 
 
 def test_fisher_tabula_los_datos_crudos(qt_app, crudos):
-    t = _texto(_panel(crudos)._fisher("Prueba", "Oro"))
+    t = _texto(_panel(crudos).correr("Fisher exact", "Prueba", "Oro"))
     tabla = _tabla(crudos)
     _, p_ok = stats.fisher_exact(tabla)
     # Desde el paso 4, junto a Fisher va el OR condicional con su IC exacto.
@@ -114,14 +114,14 @@ def test_fisher_tabula_los_datos_crudos(qt_app, crudos):
 
 def test_una_tabla_de_conteos_ya_armada_se_reconoce_y_se_dice(qt_app):
     df = pd.DataFrame({"Enfermos": [34, 9], "Sanos": [3, 34]})
-    t = _texto(_panel(df)._fisher("Enfermos", "Sanos"))
+    t = _texto(_panel(df).correr("Fisher exact", "Enfermos", "Sanos"))
     assert "tabla de conteos ya armada" in t
     from scipy.stats.contingency import odds_ratio
     assert f"{odds_ratio([[34, 3], [9, 34]], kind='conditional').statistic:.4f}" in t
 
 
 def test_la_prueba_diagnostica_cuenta_vp_fp_fn_vn(qt_app, crudos):
-    t = _texto(_panel(crudos)._diag_test("Prueba", "Oro"))
+    t = _texto(_panel(crudos).correr("Diagnostic test", "Prueba", "Oro"))
     (a, b), (c, d) = _tabla(crudos)
     assert f"Sensibilidad {a / (a + c):.4f}" in t
     assert f"Especificidad {d / (b + d):.4f}" in t
@@ -129,7 +129,7 @@ def test_la_prueba_diagnostica_cuenta_vp_fp_fn_vn(qt_app, crudos):
 
 def test_mcnemar_usa_los_pares_discordantes(qt_app, crudos):
     from statsmodels.stats.contingency_tables import mcnemar
-    t = _texto(_panel(crudos)._mcnemar("Prueba", "Oro"))
+    t = _texto(_panel(crudos).correr("McNemar", "Prueba", "Oro"))
     tabla = _tabla(crudos)
     b, c = tabla[0, 1], tabla[1, 0]
     assert f"b = {b}, c = {c}" in t
@@ -140,20 +140,20 @@ def test_mcnemar_usa_los_pares_discordantes(qt_app, crudos):
 def test_odds_ratio_y_riesgo_relativo_sobre_crudos(qt_app, crudos):
     (a, b), (c, d) = _tabla(crudos)
     p = _panel(crudos)
-    assert f"{(a * d) / (b * c):.4f}" in _texto(p._odds_ratio("Prueba", "Oro"))
-    assert f"{(a / (a + b)) / (c / (c + d)):.4f}" in _texto(p._riesgo_relativo("Prueba", "Oro"))
+    assert f"{(a * d) / (b * c):.4f}" in _texto(p.correr("Odds Ratio", "Prueba", "Oro"))
+    assert f"{(a / (a + b)) / (c / (c + d)):.4f}" in _texto(p.correr("Riesgo Relativo", "Prueba", "Oro"))
 
 
 def test_una_variable_con_tres_valores_no_arma_tabla_2x2(qt_app):
     df = pd.DataFrame({"x": [0, 1, 2, 0, 1, 2], "y": [0, 1, 0, 1, 0, 1]})
-    assert "exactamente 2" in _texto(_panel(df)._fisher("x", "y"))
+    assert "exactamente 2" in _texto(_panel(df).correr("Fisher exact", "x", "y"))
 
 
 def test_chi_cuadrado_sobre_las_variables_elegidas(qt_app):
     rng = np.random.default_rng(3)
     df = pd.DataFrame({"a": rng.choice(["x", "y", "z"], 90), "b": rng.choice(["p", "q"], 90),
                        "otra": rng.normal(0, 1, 90)})
-    t = _texto(_panel(df)._chi2("a", "b"))
+    t = _texto(_panel(df).correr("Chi-cuadrado", "a", "b"))
     esperado = stats.chi2_contingency(pd.crosstab(df["a"], df["b"]).values)
     assert f"{esperado.statistic:.4f}" in t
 
@@ -163,7 +163,7 @@ def test_kappa_sobre_las_dos_clasificaciones(qt_app):
     rng = np.random.default_rng(4)
     a = rng.integers(1, 4, 60)
     b = np.where(rng.random(60) < 0.7, a, rng.integers(1, 4, 60))
-    t = _texto(_panel(pd.DataFrame({"A": a, "B": b}))._kappa("A", "B"))
+    t = _texto(_panel(pd.DataFrame({"A": a, "B": b})).correr("Kappa", "A", "B"))
     assert f"Kappa {cohen_kappa_score(a, b):.4f}" in t and "IC 95 %" in t
 
 
@@ -172,20 +172,20 @@ def test_el_tamano_muestral_usa_los_parametros_del_dialogo(qt_app):
     from src.core.sample_size import sample_size_mean
     p = _panel(pd.DataFrame({"x": [1.0]}))
     p.parametros = {"delta": "2", "sd": "4", "alpha": "0,05", "poder": "0.9"}
-    t = _texto(p._ss_mean())
+    t = _texto(p.correr("Tamano muestral (1 media)"))
     assert f"n necesario {sample_size_mean(2, 4, 0.05, 0.9)['n_per_group']}" in t
     assert "valores de ejemplo" not in t
 
 
 def test_sin_dialogo_el_tamano_muestral_dice_que_es_un_ejemplo(qt_app):
-    t = _texto(_panel(pd.DataFrame({"x": [1.0]}))._ss_mean())
+    t = _texto(_panel(pd.DataFrame({"x": [1.0]})).correr("Tamano muestral (1 media)"))
     assert "valores de ejemplo" in t
 
 
 def test_un_parametro_que_no_es_numero_se_rechaza_con_su_nombre(qt_app):
     p = _panel(pd.DataFrame({"x": [1.0]}))
     p.parametros = {"delta": "dos"}
-    assert "Diferencia a detectar" in _texto(p._ss_mean())
+    assert "Diferencia a detectar" in _texto(p.correr("Tamano muestral (1 media)"))
 
 
 def test_el_poder_para_dos_grupos_es_el_de_statsmodels(qt_app):
@@ -194,14 +194,14 @@ def test_el_poder_para_dos_grupos_es_el_de_statsmodels(qt_app):
     p.parametros = {"n": "30", "delta": "5", "sd": "10", "alpha": "0.05"}
     p.opciones_metodo = {"diseno": "dos"}
     esperado = TTestIndPower().power(effect_size=0.5, nobs1=30, alpha=0.05)
-    assert f"{esperado:.1%}" in _texto(p._power())
+    assert f"{esperado:.1%}" in _texto(p.correr("Poder estadistico"))
 
 
 def test_la_calculadora_de_2_medias_no_lee_una_hoja_de_datos(qt_app):
     """Antes leía seis celdas de la primera columna (y rechazaba una hoja de
     datos); desde el paso 4 toma los seis números del diálogo y la hoja no entra."""
     p = _panel(pd.DataFrame({"Glucosa": np.random.default_rng(0).normal(95, 12, 40)}))
-    t = _texto(p._comparar_medias())
+    t = _texto(p.correr("Comparar 2 medias"))
     assert "Glucosa" not in t and "valores de ejemplo" in t
 
 
@@ -210,7 +210,7 @@ def test_random_forest_informa_la_validacion_cruzada(qt_app):
     rng = np.random.default_rng(0)
     df = pd.DataFrame(rng.normal(0, 1, (80, 5)), columns=list("abcde"))
     df["clase"] = rng.integers(0, 2, 80)
-    t = _texto(_panel(df)._rf_class("clase"))
+    t = _texto(_panel(df).correr("Random Forest (clasificacion)", "clase"))
     # Desde la familia 15 del paso 4 el rótulo es «Exactitud (validación cruzada)».
     cv = float(re.search(r"Exactitud \(validación cruzada\) ([0-9.]+)", t).group(1))
     assert cv < 0.75          # ruido puro: cerca de 0,5; la de entrenamiento daba 0,95
@@ -222,7 +222,7 @@ def test_la_roc_da_el_ic_del_auc_por_delong(qt_app):
     rng = np.random.default_rng(3)
     df = pd.DataFrame({"S": np.r_[rng.normal(10, 2, 50), rng.normal(6, 2, 50)],
                        "L": np.r_[np.ones(50), np.zeros(50)]})
-    t = _texto(_panel(df)._roc("S", "L"))
+    t = _texto(_panel(df).correr("Curva ROC", "S", None, "L"))
     assert "EE de DeLong" in t and "AUC" in t and "IC 95 %" in t
 
 
@@ -230,7 +230,7 @@ def test_una_roc_invertida_no_se_llama_pobre(qt_app):
     rng = np.random.default_rng(3)
     df = pd.DataFrame({"S": np.r_[rng.normal(10, 2, 50), rng.normal(6, 2, 50)],
                        "L": np.r_[np.zeros(50), np.ones(50)]})
-    t = _texto(_panel(df)._roc("S", "L"))
+    t = _texto(_panel(df).correr("Curva ROC", "S", None, "L"))
     assert "invertida" in t and "pobre" not in t.lower()
 
 
@@ -254,7 +254,7 @@ def test_el_ee_de_delong_se_parece_al_bootstrap():
 def test_el_mountain_plot_es_de_las_diferencias_entre_dos_metodos(qt_app):
     rng = np.random.default_rng(0)
     a = rng.normal(100, 10, 60)
-    t = _texto(_panel(pd.DataFrame({"A": a, "B": a - 2 + rng.normal(0, 1, 60)}))._run_mountain("A", "B"))
+    t = _texto(_panel(pd.DataFrame({"A": a, "B": a - 2 + rng.normal(0, 1, 60)})).correr("Mountain plot", "A", "B"))
     assert "Mediana de las diferencias" in t
     assert f"{np.median(a - (a - 2 + np.random.default_rng(0).normal(0, 1, 60)))}"  # noqa
 
@@ -264,7 +264,7 @@ def test_bland_altman_multiple_compara_cada_metodo_contra_la_referencia(qt_app):
     rng = np.random.default_rng(1)
     ref = rng.uniform(50, 150, 40)
     df = pd.DataFrame({"Ref": ref, "M1": ref + rng.normal(2, 3, 40), "M2": ref * 1.05 + rng.normal(0, 3, 40)})
-    t = _texto(_panel(df)._run_bland_multi("Ref"))
+    t = _texto(_panel(df).correr("Bland-Altman múltiple", "Ref"))
     esperado = bland_altman_analysis(df["M1"].values, df["Ref"].values, reference="y")
     assert f"{esperado['mean_difference']:.4f}" in t and f"{esperado['ci_upper'][1]:.4f}" in t
     assert "M1 vs M2" not in t
@@ -279,7 +279,7 @@ def test_el_icc_es_el_de_dos_vias_acuerdo_absoluto(qt_app):
                           "y": np.r_[df["A"], df["B"]]})
     icc = pg.intraclass_corr(data=largo, targets="s", raters="r", ratings="y")
     esperado = float(icc.loc[icc["Type"] == "ICC(A,1)", "ICC"].iloc[0])
-    assert f"ICC(A,1) — acuerdo absoluto {esperado:.4f}" in _texto(_panel(df)._icc("A", "B"))
+    assert f"ICC(A,1) — acuerdo absoluto {esperado:.4f}" in _texto(_panel(df).correr("ICC", "A", "B"))
 
 
 # ------------------------------------------------------------------ listas de columnas
@@ -290,7 +290,7 @@ def test_friedman_usa_las_columnas_tildadas(qt_app):
                        "C3": base + 4 + rng.normal(0, 1, 30), "Edad": rng.integers(20, 80, 30)})
     p = _panel(df)
     p.columnas_elegidas = ["C1", "C2", "C3"]
-    t = _texto(p._friedman())
+    t = _texto(p.correr("Friedman"))
     assert f"{stats.friedmanchisquare(df['C1'], df['C2'], df['C3']).statistic:.4f}" in t
     # Migrado a Resultado: las columnas que entraron van en la línea de entrada.
     assert "n = 30 · C1, C2, C3" in t and "Edad" not in t
@@ -300,7 +300,7 @@ def test_sin_dialogo_el_informe_nombra_todas_las_columnas_que_entraron(qt_app):
     rng = np.random.default_rng(4)
     df = pd.DataFrame({"C1": rng.normal(0, 1, 20), "C2": rng.normal(0, 1, 20),
                        "C3": rng.normal(0, 1, 20), "Edad": rng.integers(20, 80, 20)})
-    t = _texto(_panel(df)._friedman())
+    t = _texto(_panel(df).correr("Friedman"))
     assert "todas las columnas numéricas de la hoja como condiciones: C1, C2, C3, Edad" in t
 
 
@@ -334,5 +334,5 @@ def test_ningun_analisis_dice_significativo(qt_app):
 
 
 def test_shapiro_no_afirma_que_los_datos_son_normales(qt_app):
-    t = _texto(_panel(pd.DataFrame({"x": np.random.default_rng(0).normal(0, 1, 30)}))._shapiro("x"))
+    t = _texto(_panel(pd.DataFrame({"x": np.random.default_rng(0).normal(0, 1, 30)})).correr("Shapiro-Wilk", "x"))
     assert "Es normal" not in t and "no prueba que sea normal" in t

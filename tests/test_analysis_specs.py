@@ -1,32 +1,44 @@
-"""`analysis_specs.VARIABLES` tiene que seguir al dispatch real.
+"""`analysis_specs.VARIABLES` tiene que seguir a lo que cada análisis usa de verdad.
 
-La tabla se genero leyendo el `dispatch` de `AnalysisPanel._run`. Si manana
-alguien agrega un analisis o le cambia los argumentos y no toca la tabla, el
-dialogo va a pedir las variables equivocadas — o no pedir ninguna — sin que
-nada falle. Este test vuelve a leer el dispatch del archivo fuente y compara.
+La tabla se generó leyendo el `dispatch` de `AnalysisPanel._run`. Desde el paso 5
+(27 sep) ese dispatch es `src/ui/entradas.ENTRADAS`, y este test corre cada
+entrada con una elección espía que anota qué variables lee (c1, c2, c3, alfa).
+Si mañana alguien agrega un análisis o le cambia los argumentos y no toca la
+tabla, el diálogo va a pedir las variables equivocadas — o no pedir ninguna —
+sin que nada falle.
 """
-import io
-import re
-from pathlib import Path
+import numpy as np
+import pandas as pd
 
 from src.ui.analysis_specs import VARIABLES, sobre_toda_la_hoja, variables
 from src.ui.help_text import ANALYSIS_HELP
 
-FUENTE = Path(__file__).resolve().parents[1] / "src" / "ui" / "analysis_panel.py"
+_ORDEN = ("c1", "c2", "c3", "alpha")
 
 
 def _dispatch_real():
-    """Relee el dispatch de AnalysisPanel._run y deduce que usa cada analisis."""
-    s = io.open(FUENTE, encoding="utf-8").read()
-    i = s.index("dispatch = {")
-    j = s.index("}\n        fn = dispatch.get(at)")
-    cuerpo = s[i:j]
+    """Qué variables lee cada entrada de `entradas.ENTRADAS`."""
+    from src.ui import entradas
 
+    class Espia(entradas.Eleccion):
+        def __getattribute__(self, nombre):
+            if nombre in _ORDEN:
+                object.__getattribute__(self, "_leidas").add(nombre)
+            return object.__getattribute__(self, nombre)
+
+    rng = np.random.default_rng(0)
+    hoja = pd.DataFrame({"A": rng.normal(10, 1, 30), "B": rng.normal(10, 1, 30),
+                         "C": rng.integers(0, 2, 30).astype(float)})
     encontrado = {}
-    for nombre, expr in re.findall(r'"([^"]+)":\s*lambda:\s*(.+?),\n', cuerpo):
-        usadas = tuple(v for v in ("c1", "c2", "c3", "alpha")
-                       if re.search(r"\b" + v + r"\b", expr))
-        encontrado[nombre] = usadas
+    for nombre, (_, armar) in entradas.ENTRADAS.items():
+        e = Espia(hoja, "A", "B", "C")
+        object.__setattr__(e, "_leidas", set())
+        try:
+            armar(e)
+        except Exception:  # noqa: BLE001 — importa qué leyó, no si calculó
+            pass
+        leidas = object.__getattribute__(e, "_leidas")
+        encontrado[nombre] = tuple(v for v in _ORDEN if v in leidas)
     return encontrado
 
 

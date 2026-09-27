@@ -126,30 +126,30 @@ def _hoja_cox():
 
 # (nombre, hoja, columnas que el análisis empareja, llamada)
 CASOS = [
-    ("t pareado", _hoja_general, ["A", "B"], lambda p: p._t_paired("A", "B", 0.05)),
-    ("curva ROC", _hoja_general, ["A", "L"], lambda p: p._roc("A", "L")),
-    ("Bland-Altman", _hoja_general, ["A", "B"], lambda p: p._bland("A", "B")),
-    ("Passing-Bablok", _hoja_general, ["A", "B"], lambda p: p._passing("A", "B")),
-    ("Kaplan-Meier", _hoja_general, ["T", "E"], lambda p: p._kaplan_meier("T", "E")),
-    ("meta-análisis", _hoja_general, ["A", "SE"], lambda p: p._meta("A", "SE")),
-    ("bootstrap de correlación", _hoja_general, ["A", "B"], lambda p: p._boot_corr("A", "B")),
-    ("Wilcoxon", _hoja_general, ["A", "B"], lambda p: p._wilcoxon("A", "B")),
-    ("ICC", _hoja_general, ["A", "B"], lambda p: p._icc("A", "B")),
-    ("regresión lineal", _hoja_general, ["A", "B"], lambda p: p._reg_lineal("A", "B")),
-    ("sign test", _hoja_general, ["A", "B"], lambda p: p._signos("A", "B")),
-    ("Deming", _hoja_general, ["A", "B"], lambda p: p._deming("A", "B")),
-    ("CV de duplicados", _hoja_general, ["A", "B"], lambda p: p._cv_dup("A", "B")),
+    ("t pareado", _hoja_general, ["A", "B"], lambda p: p.correr("t-test pareado", "A", "B")),
+    ("curva ROC", _hoja_general, ["A", "L"], lambda p: p.correr("Curva ROC", "A", None, "L")),
+    ("Bland-Altman", _hoja_general, ["A", "B"], lambda p: p.correr("Bland-Altman", "A", "B")),
+    ("Passing-Bablok", _hoja_general, ["A", "B"], lambda p: p.correr("Passing-Bablok", "A", "B")),
+    ("Kaplan-Meier", _hoja_general, ["T", "E"], lambda p: p.correr("Kaplan-Meier", "T", "E")),
+    ("meta-análisis", _hoja_general, ["A", "SE"], lambda p: p.correr("Meta-analisis", "A", "SE")),
+    ("bootstrap de correlación", _hoja_general, ["A", "B"], lambda p: p.correr("Bootstrap (correlacion)", "A", "B")),
+    ("Wilcoxon", _hoja_general, ["A", "B"], lambda p: p.correr("Wilcoxon pareado", "A", "B")),
+    ("ICC", _hoja_general, ["A", "B"], lambda p: p.correr("ICC", "A", "B")),
+    ("regresión lineal", _hoja_general, ["A", "B"], lambda p: p.correr("Regresion lineal", "A", "B")),
+    ("sign test", _hoja_general, ["A", "B"], lambda p: p.correr("Sign test", "A", "B")),
+    ("Deming", _hoja_general, ["A", "B"], lambda p: p.correr("Deming regression", "A", "B")),
+    ("CV de duplicados", _hoja_general, ["A", "B"], lambda p: p.correr("CV duplicatas", "A", "B")),
     ("bootstrap de regresión", _hoja_general, ["A", "B"],
-     lambda p: p._boot_reg("A", "B")),
+     lambda p: p.correr("Bootstrap (regresion)", "A", "B")),
     # El tamaño muestral por correlación ya no lee la hoja: pide la r esperada en el
     # diálogo (tests/test_tamano_resultado.py).
-    ("probit", _hoja_general, ["A", "L"], lambda p: p._run_probit("A", "L")),
-    ("Youden", _hoja_general, ["A", "L"], lambda p: p._run_youden("A", "L")),
-    ("chi-cuadrado", _hoja_categorica, ["X", "Y"], lambda p: p._chi2("X", "Y")),
-    ("kappa ponderado", _hoja_categorica, ["X", "Y"], lambda p: p._kappa_ponderado("X", "Y")),
-    ("Friedman", _hoja_tres_condiciones, ["C1", "C2", "C3"], lambda p: p._friedman()),
-    ("intervalos por edad", _hoja_edad, ["Edad", "Valor"], lambda p: p._edad("Edad", "Valor")),
-    ("Cox", _hoja_cox, ["T", "E", "Z"], lambda p: p._run_cox("T", "E")),
+    ("probit", _hoja_general, ["A", "L"], lambda p: p.correr("Probit regression", "A", "L")),
+    ("Youden", _hoja_general, ["A", "L"], lambda p: p.correr("Youden plot", "A", "L")),
+    ("chi-cuadrado", _hoja_categorica, ["X", "Y"], lambda p: p.correr("Chi-cuadrado", "X", "Y")),
+    ("kappa ponderado", _hoja_categorica, ["X", "Y"], lambda p: p.correr("Kappa ponderado", "X", "Y")),
+    ("Friedman", _hoja_tres_condiciones, ["C1", "C2", "C3"], lambda p: p.correr("Friedman")),
+    ("intervalos por edad", _hoja_edad, ["Edad", "Valor"], lambda p: p.correr("Edad-relacionada", "Edad", "Valor")),
+    ("Cox", _hoja_cox, ["T", "E", "Z"], lambda p: p.correr("Cox regression", "T", "E")),
 ]
 
 
@@ -177,7 +177,7 @@ def test_bland_altman_con_un_hueco_no_infla_los_limites(qt_app):
     df.loc[0, "A"] = np.nan
 
     panel = _panel(df)
-    texto = _texto(panel._bland("A", "B"))
+    texto = _texto(panel.correr("Bland-Altman", "A", "B"))
     esperado = bland_altman_analysis(df.dropna()["A"].values, df.dropna()["B"].values)
 
     assert f"{esperado['sd_difference']:.4f}" in texto

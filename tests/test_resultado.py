@@ -193,7 +193,7 @@ def qt_app():
 
 
 def test_el_panel_muestra_un_resultado(qt_app, monkeypatch):
-    """Mientras dura la migración, el dispatch acepta HTML o Resultado."""
+    """El panel muestra el Resultado: informe, fórmula y figura."""
     import matplotlib.pyplot as plt
     from src.ui.analysis_panel import AnalysisPanel
 
@@ -207,7 +207,9 @@ def test_el_panel_muestra_un_resultado(qt_app, monkeypatch):
 
     panel = AnalysisPanel()
     panel.set_data(pd.DataFrame({"A": [1.0, 2.0, 3.0], "B": [1.1, 2.1, 2.9]}))
-    monkeypatch.setattr(panel, "_desc", lambda col: res)
+    from src.ui import entradas
+    monkeypatch.setitem(entradas.ENTRADAS, "Estadisticas descriptivas",
+                        ("descriptivas", lambda e: res))
     panel.combo_analysis.setCurrentText("Estadisticas descriptivas")
     panel._run()
 
@@ -221,8 +223,9 @@ def test_el_panel_muestra_un_rechazo_sin_figura(qt_app, monkeypatch):
 
     panel = AnalysisPanel()
     panel.set_data(pd.DataFrame({"A": [1.0, 2.0, 3.0]}))
-    monkeypatch.setattr(panel, "_desc",
-                        lambda col: Resultado.rechazo("x", "X", "Todos los valores son iguales."))
+    from src.ui import entradas
+    monkeypatch.setitem(entradas.ENTRADAS, "Estadisticas descriptivas", ("descriptivas",
+                        lambda e: Resultado.rechazo("x", "X", "Todos los valores son iguales.")))
     panel.combo_analysis.setCurrentText("Estadisticas descriptivas")
     panel._run()
 

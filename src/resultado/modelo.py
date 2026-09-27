@@ -1,9 +1,10 @@
 """La envoltura `Resultado`: lo que un análisis tiene para decir, sin HTML.
 
-Hoy cada análisis del panel arma su HTML a mano (`src/ui/analysis_methods.py`),
-así que el número, la fórmula, la cita y la lectura viven mezclados con el
-estilo, y cada rama los escribe a su manera. Acá el análisis devuelve datos y un
-solo renderizador decide cómo se ven. Propuesta completa:
+Antes cada análisis del panel armaba su HTML a mano (en el mixin
+`analysis_methods.py`, borrado el 27 sep), así que el número, la fórmula, la
+cita y la lectura vivían mezclados con el estilo, y cada rama los escribía a
+su manera. Acá el análisis devuelve datos y un solo renderizador decide cómo
+se ven; los 78 análisis salen así. Propuesta completa:
 `docs/plans/2026-09-26-envoltura-resultado.md`.
 
 Sin Qt ni matplotlib en tiempo de importación: se prueba sin levantar ventana.

@@ -1,8 +1,8 @@
 """El único renderizador de `Resultado` a HTML.
 
-Reproduce el estilo que ya tenía el panel (`_h`, `_r` y los recuadros de
-color de `analysis_methods`) para que un análisis migrado no se note distinto
-de uno viejo. Rediseñar el informe es otra discusión.
+Reproduce el estilo que tenía el panel antes de la migración (los recuadros de
+color del viejo mixin `analysis_methods`), para que el cambio no se notara en
+el informe. Rediseñar el informe es otra discusión.
 
 Todo texto que viene del `Resultado` se escapa: los nombres de columna los
 escribe el usuario, y una columna llamada `<b>` no puede romper el informe.

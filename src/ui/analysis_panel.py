@@ -11,7 +11,7 @@ from src.ui.grafico_editable import GraficoEditable
 import matplotlib.pyplot as plt
 
 from src.ui.icons import Icons
-from src.resultado import Resultado, render_html
+from src.resultado import render_html
 
 plt.rcParams.update({
     'figure.facecolor': 'white', 'axes.facecolor': '#fafbfd',
@@ -21,6 +21,7 @@ plt.rcParams.update({
 })
 
 from src.ui.help_text import ANALYSIS_HELP
+from src.ui import entradas
 
 ANALYSIS_LEGENDS = {
     "Estadisticas descriptivas": {
@@ -332,10 +333,9 @@ ANALYSIS_LEGENDS = {
         "formula": "s_R = √MS dentro;  s_WL = √(MS dentro + (MS entre − MS dentro)/n0)\nUVL = σ declarada · √(χ²(1−α/nMuestras; gl)/gl)"
     },
 }
-from src.ui.analysis_methods import AnalysisMethodsMixin
 
 
-class AnalysisPanel(AnalysisMethodsMixin, QWidget):
+class AnalysisPanel(QWidget):
     def __init__(self):
         super().__init__()
         self.data = None
@@ -504,104 +504,26 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             return
 
         at = self.combo_analysis.currentText()
-        c1 = self.combo_col1.currentText()
-        c2 = self.combo_col2.currentText()
+        if at not in entradas.ENTRADAS:
+            return
         c3 = self.combo_col3.currentText()
         try:
             alpha = float(self.input_alpha.text())
         except ValueError:
             alpha = 0.05
+        self._mostrar_resultado(self.correr(
+            at, self.combo_col1.currentText() or None, self.combo_col2.currentText() or None,
+            None if c3 in ("", "(ninguna)") else c3, alpha))
 
-        dispatch = {
-            "Estadisticas descriptivas": lambda: self._desc(c1),
-            "t-test pareado": lambda: self._t_paired(c1, c2, alpha),
-            "t-test independiente": lambda: self._t_ind(c1, c2, alpha),
-            "ANOVA una via": lambda: self._anova(c1, c2, alpha),
-            "Correlacion de Pearson": lambda: self._corr_p(c1, c2),
-            "Correlacion de Spearman": lambda: self._corr_s(c1, c2),
-            "Shapiro-Wilk": lambda: self._shapiro(c1),
-            "Curva ROC": lambda: self._roc(c1, c3),
-            "Bland-Altman": lambda: self._bland(c1, c2, self.opciones_metodo),
-            "Passing-Bablok": lambda: self._passing(c1, c2),
-            "Kaplan-Meier": lambda: self._kaplan_meier(c1, c2),
-            "Log-rank test": lambda: self._log_rank(c1, c2, c3),
-            "Meta-analisis": lambda: self._meta(c1, c2),
-            "Tamano muestral (1 media)": lambda: self._ss_mean(),
-            "Tamano muestral (2 medias)": lambda: self._ss_two_means(),
-            "Tamano muestral (2 proporciones)": lambda: self._ss_prop(),
-            "Poder estadistico": lambda: self._power(),
-            "Bootstrap (media)": lambda: self._boot_mean(c1),
-            "Bootstrap (diferencia)": lambda: self._boot_diff(c1, c2),
-            "Bootstrap (correlacion)": lambda: self._boot_corr(c1, c2),
-            "Random Forest (clasificacion)": lambda: self._rf_class(c1),
-            "Random Forest (regresion)": lambda: self._rf_regress(c1),
-            "Mann-Whitney U": lambda: self._mannwhitney(c1, c2),
-            "Wilcoxon pareado": lambda: self._wilcoxon(c1, c2),
-            "Chi-cuadrado": lambda: self._chi2(c1, c2),
-            "Fisher exact": lambda: self._fisher(c1, c2),
-            "McNemar": lambda: self._mcnemar(c1, c2),
-            "Kruskal-Wallis": lambda: self._kruskal(c1, c2),
-            "Friedman": lambda: self._friedman(),
-            "F-test (varianzas)": lambda: self._ftest(c1, c2),
-            "Kappa": lambda: self._kappa(c1, c2),
-            "ICC": lambda: self._icc(c1, c2),
-            "Cronbach alfa": lambda: self._cronbach(),
-            "Regresion lineal": lambda: self._reg_lineal(c1, c2),
-            "Regresion multiple": lambda: self._reg_multiple(c1),
-            "Regresion logistica": lambda: self._reg_logistica(c1),
-            "Odds Ratio": lambda: self._odds_ratio(c1, c2),
-            "Riesgo Relativo": lambda: self._riesgo_relativo(c1, c2),
-            "Diagnostic test": lambda: self._diag_test(c1, c2),
-            "Outliers (Grubbs)": lambda: self._outliers_grubbs(c1),
-            "Outliers (Tukey)": lambda: self._outliers_tukey(c1),
-            "Intervalos de referencia": lambda: self._ref_interval(c1),
-            "Asimetria y curtosis": lambda: self._skew_kurt(c1),
-            "Media recortada": lambda: self._trimmed(c1),
-            "Correlacion parcial": lambda: self._partial_corr(c1, c2, c3),
-            "Media geometrica": lambda: self._geo_mean(c1),
-            "Media armonica": lambda: self._harm_mean(c1),
-            "t-test 1 muestra": lambda: self._t_una(c1),
-            "ANOVA una via (core)": lambda: self._anova(c1, c2, alpha),
-            "Sign test": lambda: self._signos(c1, c2),
-            "Cochran Q": lambda: self._cochran(),
-            "Kappa ponderado": lambda: self._kappa_ponderado(c1, c2),
-            "Deming regression": lambda: self._deming(c1, c2),
-            "CV duplicatas": lambda: self._cv_dup(c1, c2),
-            "Likelihood Ratios": lambda: self._lr(c1, c2),
-            "Comparar 2 medias": lambda: self._comparar_medias(),
-            "Comparar 2 proporciones": lambda: self._dos_proporciones(),
-            "Comparar 2 AUC": lambda: self._comparar_auc(),
-            "Tabla de percentiles": lambda: self._percentiles(c1),
-            "Edad-relacionada": lambda: self._edad(c1, c2),
-            "Outliers (ESD)": lambda: self._esd(c1),
-            "Bootstrap (mediana)": lambda: self._boot_median(c1),
-            "Bootstrap (regresion)": lambda: self._boot_reg(c1, c2),
-            "Tamaño muestral (correlacion)": lambda: self._ss_corr(),
-            "ANOVA dos vias": lambda: self._run_two_way_anova(c1, c2, c3),
-            "ANCOVA": lambda: self._run_ancova(c1, c2, c3),
-            "Medidas repetidas": lambda: self._run_repeated_measures(),
-            "Cox regression": lambda: self._run_cox(c1, c2),
-            "Probit regression": lambda: self._run_probit(c1, c2),
-            "CMH test": lambda: self._run_cmh(c1, c2, c3),
-            "Mediciones seriales": lambda: self._run_serial(),
-            "Youden plot": lambda: self._run_youden(c1, c2),
-            "Polar plot": lambda: self._run_polar(),
-            "Waterfall chart": lambda: self._run_waterfall(c1),
-            "Mountain plot": lambda: self._run_mountain(c1, c2),
-            "Bland-Altman múltiple": lambda: self._run_bland_multi(c1),
-            "Precisión EP15": lambda: self._ep15(),
-            "Validar un método": lambda: self._validar(c1, c2),
-        }
-        fn = dispatch.get(at)
-        if fn:
-            salida = fn()
-            # Todos los analisis devuelven un Resultado, con los descartes en su
-            # Entrada. Lo unico que llega como texto es un parametro del dialogo
-            # mal escrito, que se rechaza antes de calcular.
-            if isinstance(salida, Resultado):
-                self._mostrar_resultado(salida)
-                return
-            self.txt_results.setHtml(salida)
+    def correr(self, nombre, c1=None, c2=None, c3=None, alpha=0.05):
+        """El análisis `nombre` con estas variables y lo que dejó el diálogo.
+
+        Lo arma `src/ui/entradas.py`; acá solo se junta el estado del panel.
+        Devuelve el `Resultado` sin mostrarlo.
+        """
+        return entradas.correr(nombre, entradas.Eleccion(
+            self.data, c1, c2, c3, alpha, dict(self.opciones_metodo or {}),
+            self.columnas_elegidas, dict(self.parametros or {})))
 
     def _mostrar_resultado(self, res):
         self.txt_results.setHtml(render_html(res))
