@@ -290,6 +290,12 @@ FLEISS_2003 = Cita("Fleiss JL, Levin B, Paik MC (2003). Statistical methods for 
 HULLEY_2013 = Cita("Hulley SB, Cummings SR, Browner WS, Grady DG, Newman TB (2013). Designing "
                    "clinical research, 4.ª ed. Philadelphia: Lippincott Williams & Wilkins. "
                    "Cap. 6.")
+EFRON_1987 = Cita("Efron B (1987). Better bootstrap confidence intervals. J Am Stat Assoc "
+                  "82:171-185. El IC BCa.")
+EFRON_1993_BOOT = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
+                       "York: Chapman & Hall. Cap. 13 y 14: IC percentil y BCa.")
+CAMPBELL_1988 = Cita("Campbell MJ, Gardner MJ (1988). Calculating confidence intervals for "
+                     "some non-parametric analyses. BMJ 296:1454-1456.")
 PEDUZZI_1995 = Cita("Peduzzi P, Concato J, Feinstein AR, Holford TR (1995). Importance of "
                     "events per independent variable in proportional hazards regression "
                     "analysis. II. Accuracy and precision of regression estimates. J Clin "
@@ -944,6 +950,26 @@ FICHAS: dict[str, Ficha] = {
         ),
         citas=(HULLEY_2013, HOENIG_2001),
     ),
+
+    # ---------------- Bootstrap: src/resultado/constructores/bootstrap.py
+    **{nombre: Ficha(
+        formula=(
+            f"{que} en B = 10.000 remuestreos con reposición (semilla fija)\n"
+            "IC percentil: percentiles 2,5 y 97,5 de la distribución bootstrap\n"
+            "IC BCa: percentiles Φ(z₀ + (z₀ + z)/(1 − a(z₀ + z))), con z₀ = Φ⁻¹(fracción\n"
+            "de remuestreos debajo del estimado) y a, la aceleración, por jackknife"
+            + extra
+        ),
+        citas=(EFRON_1987, EFRON_1993_BOOT) + citas_extra,
+    ) for nombre, que, extra, citas_extra in (
+        ("boot_media", "La media", "", ()),
+        ("boot_mediana", "La mediana",
+         "\nIC exacto por rangos: r y n − r + 1, r el mayor con P(X ≤ r − 1) ≤ 0,025,"
+         "\nX ~ Binomial(n, 1/2)", (CAMPBELL_1988,)),
+        ("boot_diferencia", "x̄₁ − x̄₂, cada grupo remuestreado por separado,", "", ()),
+        ("boot_correlacion", "r de los pares (x, y) remuestreados juntos,", "", ()),
+        ("boot_regresion", "Pendiente e intercepto de mínimos cuadrados de los pares,", "", ()),
+    )},
 }
 
 

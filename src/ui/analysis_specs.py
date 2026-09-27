@@ -394,6 +394,22 @@ OPCIONES["Edad-relacionada"] = (
 )
 ETIQUETAS["Edad-relacionada"] = {"c1": "Edad", "c2": "Valor medido"}
 
+_IC_BOOT = Opcion(
+    "metodo_ic", "Intervalo de confianza",
+    (("bca", "BCa — corrige sesgo y asimetría (Efron 1987)"),
+     ("percentil", "Percentil — los percentiles 2,5 y 97,5 de los remuestreos")),
+    "Con distribuciones asimétricas o n chico el BCa cubre mejor.")
+for _analisis in ("Bootstrap (media)", "Bootstrap (mediana)", "Bootstrap (diferencia)",
+                  "Bootstrap (regresion)"):
+    OPCIONES[_analisis] = (_IC_BOOT,)
+OPCIONES["Bootstrap (correlacion)"] = (
+    Opcion("coeficiente", "Coeficiente",
+           (("pearson", "Pearson — relación lineal"),
+            ("spearman", "Spearman — relación monótona, por rangos")), ""),
+    _IC_BOOT,
+)
+ETIQUETAS["Bootstrap (regresion)"] = {"c1": "X", "c2": "Y"}
+
 OPCIONES["Probit regression"] = (
     Opcion("escala", "Escala de la dosis (Variable 1)",
            (("lineal", "Lineal — la dosis tal como está"),

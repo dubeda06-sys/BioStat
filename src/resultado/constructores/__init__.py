@@ -30,6 +30,9 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
 from src.resultado.constructores.anova import (
     ancova, anova_dos_vias, anova_una_via, medidas_repetidas,
 )
+from src.resultado.constructores.bootstrap import (
+    boot_correlacion, boot_diferencia, boot_media, boot_mediana, boot_regresion,
+)
 from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
@@ -142,6 +145,12 @@ CONSTRUCTORES = {
     "tam_dos_proporciones": tam_dos_proporciones,
     "tam_correlacion": tam_correlacion,
     "poder_t": poder_t,
+    # Bootstrap
+    "boot_media": boot_media,
+    "boot_mediana": boot_mediana,
+    "boot_diferencia": boot_diferencia,
+    "boot_correlacion": boot_correlacion,
+    "boot_regresion": boot_regresion,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -178,6 +187,7 @@ FIRMAS["intervalo_referencia"] = "una"
 for _n in ("tam_una_media", "tam_dos_medias", "tam_dos_proporciones", "tam_correlacion",
            "poder_t"):
     FIRMAS[_n] = "calculadora"
+FIRMAS["boot_media"] = FIRMAS["boot_mediana"] = "una"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402

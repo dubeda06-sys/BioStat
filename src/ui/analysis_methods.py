@@ -107,6 +107,9 @@ from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
 from src.resultado.constructores.referencia import intervalo_referencia, intervalos_por_edad
+from src.resultado.constructores.bootstrap import (
+    boot_correlacion, boot_diferencia, boot_media, boot_mediana, boot_regresion,
+)
 from src.resultado.constructores.roc import comparar_auc, curva_roc
 from src.resultado.constructores.tamano import (
     poder_t, tam_correlacion, tam_dos_medias, tam_dos_proporciones, tam_una_media,
@@ -119,10 +122,6 @@ from src.resultado.constructores.resumen import (
 from src.resultado.lenguaje import texto_descartes
 from src.resultado.modelo import Resultado
 from src.core.meta_analysis import meta_analysis
-from src.core.bootstrap import (
-    bootstrap_mean, bootstrap_median, bootstrap_correlation,
-    bootstrap_difference, bootstrap_regression
-)
 from src.core.random_forest import RandomForestClassifier, RandomForestRegressor
 from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
@@ -593,146 +592,22 @@ class AnalysisMethodsMixin:
         diseno = (getattr(self, "opciones_metodo", None) or {}).get("diseno", "una")
         return self._calculadora("Poder estadistico", poder_t, {"diseno": diseno})
 
-    # --- Bootstrap (media) ---
+    # --- Bootstrap: src/resultado/constructores/bootstrap.py ---
     def _boot_mean(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        if len(d) < 5:
-            return "<b>Error:</b> Minimo 5 datos para bootstrap."
+        return boot_media(self.data, col, getattr(self, "opciones_metodo", None))
 
-        self._set_formula(
-            "Formula: Bootstrap IC para la Media",
-            "1. Remuestrear n datos con reemplazo\n2. Calcular media de cada remuestreo\n3. IC = [P(alpha/2), P(1-alpha/2)]\n   de las B medias bootstrap",
-            f"n original = {len(d)}\nB = 10000 remuestreos\nIC 95% calculado sobre distribucion bootstrap"
-        )
+    def _boot_median(self, col):
+        return boot_mediana(self.data, col, getattr(self, "opciones_metodo", None))
 
-        result = bootstrap_mean(d.values)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-
-        h = self._h(f" Bootstrap — Media de {col}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n original", result["n_original"]),
-                      ("Media original", f"{result['original_mean']:.6f}"),
-                      ("Media bootstrap", f"{result['bootstrap_mean']:.6f}"),
-                      ("SE bootstrap", f"{result['bootstrap_se']:.6f}"),
-                      ("IC 95%", f"[{result['ci_lower']:.4f}, {result['ci_upper']:.4f}]"),
-                      ("Sesgo", f"{result['bias']:.6f}"),
-                      ("Remuestreos", result["n_bootstrap"])]:
-            h += self._r(l, v)
-        h += "</table>"
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> Bootstrap no asume distribucion normal. El IC se obtiene directamente de la distribucion de medias remuestreadas.</div>"
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
-        ax1.hist(d.values, bins=_bins(d.values, 30), edgecolor='white', alpha=0.7, color='#4f6ef7')
-        ax1.axvline(result['original_mean'], color='#ef4444', ls='--', lw=2, label=f'Media={result["original_mean"]:.2f}')
-        ax1.set_title('Datos originales', fontweight='bold')
-        ax1.legend(framealpha=0.9)
-
-        ax2.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#22c55e')
-        ax2.axvline(result['ci_lower'], color='#ef4444', ls='--', lw=1.5, label=f'IC bajo={result["ci_lower"]:.2f}')
-        ax2.axvline(result['ci_upper'], color='#ef4444', ls='--', lw=1.5, label=f'IC alto={result["ci_upper"]:.2f}')
-        ax2.set_title('Distribucion bootstrap', fontweight='bold')
-        ax2.legend(framealpha=0.9)
-
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
-
-    # --- Bootstrap (diferencia) ---
     def _boot_diff(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        if len(d1) < 5 or len(d2) < 5:
-            return "<b>Error:</b> Minimo 5 obs por grupo."
+        return boot_diferencia(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
-        self._set_formula(
-            "Formula: Bootstrap IC para Diferencia de Medias",
-            "1. Remuestrear n1 datos de grupo1 con reemplazo\n2. Remuestrear n2 datos de grupo2 con reemplazo\n3. Diff* = mean(muestreo1) - mean(muestreo2)\n4. IC = [P(2.5%), P(97.5%)] de las B diferencias",
-            f"n1={len(d1)}, n2={len(d2)}\nB = 10000 remuestreos\nDiferencia original = {d1.mean()-d2.mean():.4f}"
-        )
-
-        result = bootstrap_difference(d1.values, d2.values)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-
-        h = self._h(f" Bootstrap — Diferencia {c1} - {c2}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Diferencia original", f"{result['original_diff']:.4f}"),
-                      ("Diferencia bootstrap", f"{result['bootstrap_diff']:.4f}"),
-                      ("SE bootstrap", f"{result['bootstrap_se']:.6f}"),
-                      ("IC 95%", f"[{result['ci_lower']:.4f}, {result['ci_upper']:.4f}]")]:
-            h += self._r(l, v)
-        h += "</table>"
-
-        includes_zero = result['ci_lower'] <= 0 <= result['ci_upper']
-        if includes_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> El IC incluye el 0: no se detectó diferencia</b><br><span style='font-size:11px;'>No detectarla no prueba que no exista.</span></div>"
-        else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> El IC no incluye el 0: se detectó diferencia</b></div>"
-
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#4f6ef7')
-        ax.axvline(result['ci_lower'], color='#ef4444', ls='--', lw=1.5)
-        ax.axvline(result['ci_upper'], color='#ef4444', ls='--', lw=1.5)
-        ax.axvline(0, color='#d1d5e0', ls='--', lw=1.5, label='0')
-        ax.set_title('Bootstrap: Diferencia de Medias', fontweight='bold')
-        ax.legend()
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
-
-    # --- Bootstrap (correlacion) ---
     def _boot_corr(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        d1, d2 = pares[c1], pares[c2]
-        n = len(pares)
-        if n < 5:
-            return "<b>Error:</b> Minimo 5 pares."
+        return boot_correlacion(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
-        self._set_formula(
-            "Formula: Bootstrap IC para Correlacion",
-            "1. Remuestrear pares (xi, yi) con reemplazo\n2. Calcular r de cada remuestreo\n3. IC = [P(2.5%), P(97.5%)] de las B correlaciones",
-            f"n = {n}\nB = 10000 remuestreos\nMetodo = Pearson"
-        )
-
-        result = bootstrap_correlation(d1.values, d2.values)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-
-        h = self._h(f" Bootstrap — Correlacion")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("r original", f"{result['original_r']:.6f}"),
-                      ("r bootstrap", f"{result['bootstrap_r']:.6f}"),
-                      ("SE bootstrap", f"{result['bootstrap_se']:.6f}"),
-                      ("IC 95%", f"[{result['ci_lower']:.4f}, {result['ci_upper']:.4f}]"),
-                      ("p original", f"{result['original_p']:.6f}")]:
-            h += self._r(l, v)
-        h += "</table>"
-
-        includes_zero = result['ci_lower'] <= 0 <= result['ci_upper']
-        if includes_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> El IC incluye el 0: no se detectó correlación</b><br><span style='font-size:11px;'>No detectarla no prueba que no exista.</span></div>"
-        else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> El IC no incluye el 0: se detectó correlación</b></div>"
-
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.hist(result['bootstrap_distribution'], bins=_bins(result['bootstrap_distribution']), edgecolor='white', alpha=0.7, color='#8b5cf6')
-        ax.axvline(result['ci_lower'], color='#ef4444', ls='--', lw=1.5)
-        ax.axvline(result['ci_upper'], color='#ef4444', ls='--', lw=1.5)
-        ax.axvline(0, color='#d1d5e0', ls='--', lw=1.5, label='0')
-        ax.set_title('Bootstrap: Correlacion', fontweight='bold')
-        ax.legend()
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
+    def _boot_reg(self, c1, c2):
+        """Variable 1 = X, Variable 2 = Y."""
+        return boot_regresion(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
     # --- Random Forest (clasificacion) ---
     def _rf_class(self, target_col):
@@ -1071,35 +946,6 @@ class AnalysisMethodsMixin:
                 if result.get('ci_nlr'):
                     h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
                 return h + "</table>" + self._avisos_html(avisos)
-
-            elif func_name == "bootstrap_median":
-                if c1 is None or c1 not in self.data.columns:
-                    return "<b>Error:</b> Selecciona una columna."
-                d = self.data[c1].dropna().values
-                result = bootstrap_median(d)
-                self._set_formula("Formula: Bootstrap Mediana", "IC = percentiles de la distribución bootstrap")
-                h = self._h(f" Bootstrap (Mediana) — {c1}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Mediana", f"{result['original_median']:.4f}")
-                h += self._r("Mediana bootstrap", f"{result['bootstrap_median']:.4f}")
-                h += self._r("95% CI", f"[{result['ci_lower']:.4f}, {result['ci_upper']:.4f}]")
-                return h + "</table>"
-
-            elif func_name == "bootstrap_regression":
-                if c1 is None or c2 is None:
-                    return "<b>Error:</b> Selecciona 2 columnas."
-                if c1 not in self.data.columns or c2 not in self.data.columns:
-                    return "<b>Error:</b> Columnas no encontradas."
-                pares = self._filas_completas(c1, c2)
-                x, y = pares[c1].values, pares[c2].values
-                result = bootstrap_regression(x, y)
-                self._set_formula("Formula: Bootstrap Regresión", "IC para coeficientes de regresión")
-                h = self._h(f" Bootstrap (Regresión) — {c1} vs {c2}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Pendiente", f"{result['original_slope']:.4f}")
-                h += self._r("95% CI pendiente", f"[{result['ci_slope'][0]:.4f}, {result['ci_slope'][1]:.4f}]")
-                h += self._r("Intercepto", f"{result['original_intercept']:.4f}")
-                return h + "</table>"
 
             else:
                 return f"<b>Error:</b> Función desconocida: {func_name}"

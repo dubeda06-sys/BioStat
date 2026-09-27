@@ -19,10 +19,6 @@ from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 from src.core.passing_bablok import passing_bablok
 from src.core.meta_analysis import meta_analysis
-from src.core.bootstrap import (
-    bootstrap_mean, bootstrap_median, bootstrap_correlation,
-    bootstrap_difference, bootstrap_regression
-)
 from src.core.random_forest import RandomForestClassifier, RandomForestRegressor
 from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
@@ -616,8 +612,8 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Tabla de percentiles": lambda: self._percentiles(c1),
             "Edad-relacionada": lambda: self._edad(c1, c2),
             "Outliers (ESD)": lambda: self._esd(c1),
-            "Bootstrap (mediana)": lambda: self._run_core("bootstrap_median", c1),
-            "Bootstrap (regresion)": lambda: self._run_core("bootstrap_regression", c1, c2),
+            "Bootstrap (mediana)": lambda: self._boot_median(c1),
+            "Bootstrap (regresion)": lambda: self._boot_reg(c1, c2),
             "Tamaño muestral (correlacion)": lambda: self._ss_corr(),
             "ANOVA dos vias": lambda: self._run_two_way_anova(c1, c2, c3),
             "ANCOVA": lambda: self._run_ancova(c1, c2, c3),

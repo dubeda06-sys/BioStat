@@ -140,7 +140,7 @@ CASOS = [
     ("Deming", _hoja_general, ["A", "B"], lambda p: p._deming("A", "B")),
     ("CV de duplicados", _hoja_general, ["A", "B"], lambda p: p._cv_dup("A", "B")),
     ("bootstrap de regresión", _hoja_general, ["A", "B"],
-     lambda p: p._run_core("bootstrap_regression", "A", "B")),
+     lambda p: p._boot_reg("A", "B")),
     # El tamaño muestral por correlación ya no lee la hoja: pide la r esperada en el
     # diálogo (tests/test_tamano_resultado.py).
     ("probit", _hoja_general, ["A", "L"], lambda p: p._run_probit("A", "L")),
