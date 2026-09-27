@@ -23,6 +23,9 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
     "lista_binaria": f(df, [columnas 0/1])
     "binarias":      f(df, binaria1, binaria2)
     "binarias_estrato": f(df, exposicion, evento, estrato)
+    "tiempo_evento":           f(df, tiempo, evento_0_1)
+    "tiempo_evento_grupo":     f(df, tiempo, evento_0_1, grupo)
+    "tiempo_evento_covariables": f(df, tiempo, evento_0_1, [covariables])
 """
 from src.resultado.constructores.anova import (
     ancova, anova_dos_vias, anova_una_via, medidas_repetidas,
@@ -48,6 +51,7 @@ from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
 )
+from src.resultado.constructores.supervivencia import kaplan_meier, log_rank, regresion_cox
 from src.resultado.constructores.tablas import (
     chi_cuadrado, cmh, dos_proporciones, fisher, mcnemar, odds_ratio_tabla,
     riesgo_relativo,
@@ -121,6 +125,10 @@ CONSTRUCTORES = {
     # Curvas ROC
     "curva_roc": curva_roc,
     "comparar_auc": comparar_auc,
+    # Supervivencia
+    "kaplan_meier": kaplan_meier,
+    "log_rank": log_rank,
+    "regresion_cox": regresion_cox,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -150,6 +158,9 @@ FIRMAS["polar"] = "lista_tres"
 FIRMAS["cascada"] = "una"
 FIRMAS["curva_roc"] = "dosis_respuesta"
 FIRMAS["comparar_auc"] = "calculadora"
+FIRMAS["kaplan_meier"] = "tiempo_evento"
+FIRMAS["log_rank"] = "tiempo_evento_grupo"
+FIRMAS["regresion_cox"] = "tiempo_evento_covariables"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402

@@ -129,9 +129,31 @@ def cox_regression(times, events, covariates):
     except np.linalg.LinAlgError:
         se = np.full(p, np.nan)
 
-    convergio = bool(resultado.success) and np.all(np.isfinite(se))
+    # Convergencia por el gradiente en el optimo, no por `resultado.success`:
+    # con gtol=1e-8 BFGS casi siempre termina con «precision loss» (success
+    # False) aunque el gradiente ya sea ~1e-5, y el panel avisaba «no
+    # convergio» en 19 de cada 20 ajustes sanos. Y al reves, con separacion
+    # (todos los eventos en un grupo) la verosimilitud se aplana, BFGS da
+    # success True con b = 17 y EE = 1258, y pasaba como convergido.
+    paso = 1e-6 * np.maximum(1.0, np.abs(beta))
+    gradiente = np.array([(neg_ll(beta + paso[i] * np.eye(p)[i])
+                           - neg_ll(beta - paso[i] * np.eye(p)[i])) / (2 * paso[i])
+                          for i in range(p)])
+    de_x = covariates.std(axis=0)
+    # Por DE de la covariable, para que no dependa de la unidad: un HR de
+    # e^10 por DE, o un IC que abarca e^±10 por DE, es una verosimilitud sin
+    # maximo finito, no un efecto.
+    separadas = [j for j in range(p)
+                 if np.isfinite(se[j]) and (abs(beta[j]) * de_x[j] > 10 or se[j] * de_x[j] > 5)]
+    convergio = bool(np.all(np.isfinite(se)) and np.all(np.isfinite(gradiente))
+                     and np.max(np.abs(gradiente)) < 1e-3 and not separadas)
     avisos = []
-    if not convergio:
+    if separadas:
+        avisos.append("La verosimilitud no tiene maximo finito para la(s) covariable(s) "
+                      + ", ".join(str(j + 1) for j in separadas) + " (separacion: por "
+                      "ejemplo, todos los eventos en un solo grupo): el HR tiende a "
+                      "infinito o a cero y su IC y su p no sirven.")
+    elif not convergio:
         avisos.append("El ajuste de Cox no convergio o la matriz de informacion "
                       "es singular: los errores estandar y los p no son "
                       "confiables. Suele pasar con separacion completa o con "
@@ -153,10 +175,18 @@ def cox_regression(times, events, covariates):
     # AIC = 2k - 2*logL. El signo del segundo termino estaba invertido, asi
     # que el AIC premiaba los modelos peores.
     aic = 2 * p - 2 * log_likelihood
+    # Razon de verosimilitudes contra el modelo sin covariables (beta = 0).
+    ll_nulo = -neg_ll(np.zeros(p))
+    lr = max(2 * (log_likelihood - ll_nulo), 0.0)
+
+    ph = None
+    if convergio:
+        ph = riesgos_proporcionales(times, events, covariates, beta, cov, grupos)
 
     return {
         'avisos': avisos,
         'convergio': convergio,
+        'separadas': separadas,
         'coefficients': beta,
         'hazard_ratios': hr,
         'se': se,
@@ -165,8 +195,101 @@ def cox_regression(times, events, covariates):
         'hr_ci_low': hr_ci_low,
         'hr_ci_high': hr_ci_high,
         'log_likelihood': log_likelihood,
+        'log_likelihood_nulo': ll_nulo,
+        'lr_chi2': lr,
+        'lr_gl': p,
+        'lr_p': float(stats.chi2.sf(lr, p)),
+        'cov': cov if convergio else None,
         'aic': aic,
         'n': n,
         'events': n_eventos,
         'empates': 'Efron',
+        'riesgos_proporcionales': ph,
+    }
+
+
+def _schoenfeld(beta, x, grupos):
+    """Residuos de Schoenfeld con la media de Efron, uno por evento.
+
+    En un tiempo con d eventos empatados, la media ponderada del conjunto de
+    riesgo se promedia sobre las d «bajas» parciales de Efron; sin empates es la
+    media de siempre. En el optimo suman cero: son la ecuacion de score.
+    Devuelve (residuos, indice de cada evento en `x`).
+    """
+    xb = x @ beta
+    w = np.exp(xb - np.max(xb))
+    acum0 = np.cumsum(w)
+    acum1 = np.cumsum(w[:, None] * x, axis=0)
+    filas, indices = [], []
+    for fin, idx_evt in grupos:
+        d = len(idx_evt)
+        s0d = np.sum(w[idx_evt])
+        s1d = np.sum(w[idx_evt, None] * x[idx_evt], axis=0)
+        media = np.mean([(acum1[fin] - (l / d) * s1d) / (acum0[fin] - (l / d) * s0d)
+                         for l in range(d)], axis=0)
+        for i in idx_evt:
+            filas.append(x[i] - media)
+            indices.append(i)
+    return np.array(filas), np.array(indices)
+
+
+def _km_izquierda(times, events, t):
+    """1 - KM(t-) de toda la muestra: la escala de tiempo `km` de R.
+
+    Continua por izquierda, como `cox.zph`: en un tiempo con evento vale la
+    supervivencia de justo antes."""
+    ts = np.unique(times[events == 1])
+    n_r = np.array([np.sum(times >= s) for s in ts])
+    d = np.array([np.sum((times == s) & (events == 1)) for s in ts])
+    S = np.cumprod(1 - d / n_r)
+    antes = np.searchsorted(ts, t, side="left")
+    return 1 - np.where(antes > 0, S[np.maximum(antes - 1, 0)], 1.0)
+
+
+def riesgos_proporcionales(times, events, covariates, beta, cov, grupos,
+                           transformacion="km"):
+    """Prueba de riesgos proporcionales de Grambsch y Therneau (1994).
+
+    Si el efecto de una covariable cambia con el tiempo, sus residuos de
+    Schoenfeld escalados siguen una tendencia contra el tiempo. Con g(t) el
+    tiempo transformado (`km`: 1 - KM(t-), el default de R; `rank`: el rango)
+    y r los residuos:
+
+        por covariable: T_j = (sum (g - g_media) r*_j)^2 / (D var(b_j) sum (g - g_media)^2)
+        global:         T = U' V U · D / sum (g - g_media)^2,  U = sum (g - g_media) r
+
+    con r* = D·r·V, D = eventos, V = var(b). chi2 con 1 y con p gl. Es la
+    aproximacion que usaba `cox.zph` de R hasta 2019 y la que usa lifelines.
+    `grupos` y los arreglos vienen como los deja `cox_regression`.
+    """
+    r, idx = _schoenfeld(beta, covariates, grupos)
+    t_ev = times[idx]
+    if transformacion == "rank":
+        g = stats.rankdata(t_ev)
+    else:
+        g = _km_izquierda(times, events, t_ev)
+    D, p = r.shape
+    xx = g - g.mean()
+    sxx = float(np.sum(xx ** 2))
+    if sxx <= 0:
+        return {"error": "Todos los eventos ocurrieron al mismo tiempo: no hay tendencia "
+                         "en el tiempo que probar."}
+    u = xx @ r
+    escalados = D * r @ cov
+    chi2 = (xx @ escalados) ** 2 / (D * np.diag(cov) * sxx)
+    chi2_global = float(u @ cov @ u * D / sxx)
+    with np.errstate(invalid="ignore"):
+        rho = np.array([np.corrcoef(xx, escalados[:, j])[0, 1] for j in range(p)])
+    return {
+        "chi2": chi2,
+        "p": stats.chi2.sf(chi2, 1),
+        "rho": rho,
+        "chi2_global": chi2_global,
+        "gl_global": p,
+        "p_global": float(stats.chi2.sf(chi2_global, p)),
+        "transformacion": transformacion,
+        "g": g,
+        # beta(t) estimado: lo que se grafica contra g
+        "residuos_escalados": escalados + beta,
+        "suma_residuos": r.sum(axis=0),
     }

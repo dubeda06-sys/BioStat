@@ -83,7 +83,6 @@ import pandas as pd
 from src.core.roc import auc_delong
 from src.core.sample_size import power_two_means
 from src.ui.analysis_specs import parametros as spec_parametros
-from src.core.survival import kaplan_meier, log_rank_test
 from src.resultado.datos import filas_completas
 from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
@@ -109,6 +108,7 @@ from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
 from src.resultado.constructores.roc import comparar_auc, curva_roc
+from src.resultado.constructores.supervivencia import kaplan_meier, log_rank, regresion_cox
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
@@ -143,7 +143,6 @@ from src.core.reference import reference_interval, age_related_reference
 from src.core.two_way_anova import two_way_anova
 from src.core.ancova import ancova
 from src.core.repeated_measures import repeated_measures_anova
-from src.core.cox_regression import cox_regression
 from src.core.probit import probit_regression
 from src.core.cmh import cmh_test
 from src.core.serial_measurements import serial_measurements_summary
@@ -500,98 +499,17 @@ class AnalysisMethodsMixin:
     def _cv_dup(self, c1, c2):
         return cv_duplicados(self.data, c1, c2)
 
-    # --- Kaplan-Meier ---
+    # --- Supervivencia: src/resultado/constructores/supervivencia.py ---
     def _kaplan_meier(self, time_col, event_col):
-        if time_col not in self.data.columns or event_col not in self.data.columns:
-            return "<b>Error:</b> Selecciona columna de tiempo y de evento (1=event, 0=censura)."
-        pares = self._filas_completas(time_col, event_col)
-        t, e = pares[time_col], pares[event_col]
-        if len(pares) < 5:
-            return "<b>Error:</b> Minimo 5 observaciones."
+        """Variable 1 = tiempo; Variable 2 = evento (1) o censura (0)."""
+        return kaplan_meier(self.data, time_col, event_col)
 
-        km = kaplan_meier(t.values, e.values.astype(int))
-        if _sin_resultado(km):
-            return _msg_error(km, "No se pudo calcular.")
-
-        h = self._h(f" Kaplan-Meier — {time_col}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n total", km["n_total"]), ("Eventos", km["n_events"]),
-                      ("Censurados", km["n_censored"]),
-                      ("Supervivencia media", f"{np.mean(km['survival']):.4f}")]:
-            h += self._r(l, v)
-        if km["median_survival"] is not None:
-            h += self._r("Supervivencia mediana", f"{km['median_survival']:.2f}")
-        h += "</table>"
-        h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#eef2ff;font-size:12px;'> <b>Interpretacion:</b> La curva muestra la probabilidad de supervivencia en cada tiempo. La mediana es el tiempo donde el 50% sobrevive.</div>"
-
-        fig, ax = plt.subplots(figsize=(9, 6))
-        ax.step(km["times"], km["survival"], where='post', color='#4f6ef7', lw=2)
-        ax.fill_between(km["times"], km["ci_lower"], km["ci_upper"], step='post', alpha=0.15, color='#4f6ef7')
-        ax.set_xlabel('Tiempo')
-        ax.set_ylabel('Probabilidad de supervivencia')
-        ax.set_title('Kaplan-Meier', fontweight='bold')
-        ax.set_ylim([0, 1.05])
-        ax.grid(True, alpha=0.25)
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
-
-    # --- Log-rank ---
     def _log_rank(self, time_col, event_col, group_col):
-        if time_col not in self.data.columns or event_col not in self.data.columns:
-            return "<b>Error:</b> Selecciona tiempo y evento."
-        if group_col not in self.data.columns:
-            return "<b>Error:</b> Selecciona columna de grupo en Variable 3."
-
-        groups = self.data[group_col].dropna().unique()
-        if len(groups) != 2:
-            return f"<b>Error:</b> Se necesitan exactamente 2 grupos. Encontrados: {len(groups)}"
-
-        g1 = self.data[self.data[group_col] == groups[0]]
-        g2 = self.data[self.data[group_col] == groups[1]]
-
-        valid1 = g1[time_col].notna() & g1[event_col].notna()
-        t1, e1 = g1.loc[valid1, time_col], g1.loc[valid1, event_col]
-        valid2 = g2[time_col].notna() & g2[event_col].notna()
-        t2, e2 = g2.loc[valid2, time_col], g2.loc[valid2, event_col]
-
-        if len(t1) < 3 or len(t2) < 3:
-            return "<b>Error:</b> Minimo 3 obs por grupo."
-
-        lr = log_rank_test(t1.values, e1.values.astype(int), t2.values, e2.values.astype(int))
-        if _sin_resultado(lr):
-            return _msg_error(lr, "No se pudo calcular.")
-
-        km1 = kaplan_meier(t1.values, e1.values.astype(int))
-        km2 = kaplan_meier(t2.values, e2.values.astype(int))
-
-        h = self._h(f" Log-rank Test")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Grupo 1", f"{groups[0]} (n={len(t1)})"),
-                      ("Grupo 2", f"{groups[1]} (n={len(t2)})"),
-                      ("Chi-cuadrado", f"{lr['chi2']:.4f}"),
-                      ("Valor p", f"{lr['p']:.6f}"),
-                      ("Observado (G1)", lr["observed"]),
-                      ("Esperado (G1)", f"{lr['expected']:.2f}")]:
-            h += self._r(l, v)
-        h += "</table>"
-        h += self._ok(lr['p'] < 0.05, "Se detectó diferencia entre las curvas", "No se detectó diferencia entre las curvas")
-
-        fig, ax = plt.subplots(figsize=(9, 6))
-        ax.step(km1["times"], km1["survival"], where='post', color='#4f6ef7', lw=2, label=str(groups[0]))
-        ax.step(km2["times"], km2["survival"], where='post', color='#ef4444', lw=2, label=str(groups[1]))
-        ax.fill_between(km1["times"], km1["ci_lower"], km1["ci_upper"], step='post', alpha=0.1, color='#4f6ef7')
-        ax.fill_between(km2["times"], km2["ci_lower"], km2["ci_upper"], step='post', alpha=0.1, color='#ef4444')
-        ax.set_xlabel('Tiempo')
-        ax.set_ylabel('Supervivencia')
-        ax.set_title('Comparacion de Curvas (Log-rank)', fontweight='bold')
-        ax.legend(framealpha=0.9)
-        ax.set_ylim([0, 1.05])
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
+        """Variable 3 = grupo (dos o más)."""
+        if group_col is None or group_col not in self.data.columns:
+            return Resultado.rechazo("log_rank", "Log-rank",
+                                     "Elegí el grupo en la Variable 3.")
+        return log_rank(self.data, time_col, event_col, group_col)
 
     # --- Meta-analisis ---
     def _meta(self, effect_col, se_col):
@@ -1340,30 +1258,10 @@ class AnalysisMethodsMixin:
                                        del_dialogo, "tiempos")
 
     def _run_cox(self, c1, c2):
-        """Run Cox Regression."""
-        if c1 is None or c2 is None:
-            return "<b>Error:</b> Selecciona Tiempo (V1) y Evento (V2, 0/1)."
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        try:
-            cols_cov = list(self.data.columns[3:]) if self.data.shape[1] > 2 else []
-            filas = self._filas_completas(c1, c2, *cols_cov)
-            times = filas[c1].values
-            events = filas[c2].values
-            covariates = filas[cols_cov].values if cols_cov else np.ones((len(times), 1))
-            result = cox_regression(times, events, covariates)
-            self._set_formula("Formula: Cox PH", "h(t) = h₀(t) × exp(β₁x₁ + β₂x₂ + ...)")
-            h = self._h(f" Cox Regression")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("n", result['n'])
-            h += self._r("Eventos", result['events'])
-            h += self._r("Log-likelihood", f"{result['log_likelihood']:.4f}")
-            h += self._r("AIC", f"{result['aic']:.4f}")
-            for i, (hr, p, ci_l, ci_h) in enumerate(zip(result['hazard_ratios'], result['p_values'], result['hr_ci_low'], result['hr_ci_high'])):
-                h += self._r(f"Covariable {i+1}", f"HR={hr:.4f}, p={p:.6f}, 95%CI=[{ci_l:.4f}, {ci_h:.4f}]")
-            return h + "</table>"
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+        """Variable 1 = tiempo, Variable 2 = evento; covariables = las tildadas."""
+        covariables, del_dialogo = self._columnas_multi(excluir=(c1, c2))
+        return self._con_nota_columnas(regresion_cox(self.data, c1, c2, covariables),
+                                       covariables, del_dialogo, "covariables")
 
     def _run_probit(self, c1, c2):
         """Variable 1 = dosis, Variable 2 = respuesta 0/1."""

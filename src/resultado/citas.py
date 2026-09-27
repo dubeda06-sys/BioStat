@@ -250,6 +250,30 @@ HOSMER_2000 = Cita("Hosmer DW, Lemeshow S (2000). Applied logistic regression, 2
                    "York: Wiley. Escala de discriminación del AUC.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
+KAPLAN_1958 = Cita("Kaplan EL, Meier P (1958). Nonparametric estimation from incomplete "
+                   "observations. J Am Stat Assoc 53:457-481.")
+GREENWOOD_1926 = Cita("Greenwood M (1926). The natural duration of cancer. Reports on Public "
+                      "Health and Medical Subjects 33:1-26. London: HMSO.")
+KALBFLEISCH_2002 = Cita("Kalbfleisch JD, Prentice RL (2002). The statistical analysis of failure "
+                        "time data, 2.ª ed. Hoboken: Wiley. IC log-log de la curva.")
+BROOKMEYER_1982 = Cita("Brookmeyer R, Crowley J (1982). A confidence interval for the median "
+                       "survival time. Biometrics 38:29-41.")
+POCOCK_2002 = Cita("Pocock SJ, Clayton TC, Altman DG (2002). Survival plots of time-to-event "
+                   "outcomes in clinical trials: good practice and pitfalls. Lancet "
+                   "359:1686-1689.")
+MANTEL_1966 = Cita("Mantel N (1966). Evaluation of survival data and two new rank order "
+                   "statistics arising in its consideration. Cancer Chemother Rep 50:163-170.")
+BLAND_2004_LOGRANK = Cita("Bland JM, Altman DG (2004). The logrank test. BMJ 328:1073.")
+GRAMBSCH_1994 = Cita("Grambsch PM, Therneau TM (1994). Proportional hazards tests and "
+                     "diagnostics based on weighted residuals. Biometrika 81:515-526.")
+COX_1972 = Cita("Cox DR (1972). Regression models and life-tables. J R Stat Soc B "
+                "34:187-220.")
+EFRON_1977 = Cita("Efron B (1977). The efficiency of Cox's likelihood function for censored "
+                  "data. J Am Stat Assoc 72:557-565.")
+PEDUZZI_1995 = Cita("Peduzzi P, Concato J, Feinstein AR, Holford TR (1995). Importance of "
+                    "events per independent variable in proportional hazards regression "
+                    "analysis. II. Accuracy and precision of regression estimates. J Clin "
+                    "Epidemiol 48:1503-1510.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
                       "coefficients in method-comparison analysis. Clin Chem 25:432-438.")
 LINNET_1990 = Cita("Linnet K (1990). Estimation of the linear relationship between the "
@@ -810,6 +834,37 @@ FICHAS: dict[str, Ficha] = {
             "IC 95 % de la diferencia = (AUC₁ − AUC₂) ± 1,96·√(EE₁² + EE₂²)"
         ),
         citas=(HANLEY_1983, DELONG_1988),
+    ),
+
+    # ---------------- Supervivencia: src/resultado/constructores/supervivencia.py
+    "kaplan_meier": Ficha(
+        formula=(
+            "S(t) = Π (1 − dᵢ/nᵢ) sobre los tiempos con evento tᵢ ≤ t\n"
+            "Greenwood: Var[S(t)] = S(t)² · Σ dᵢ / (nᵢ(nᵢ − dᵢ))\n"
+            "IC 95 % log-log: S(t)^exp(±1,96 · √Σ dᵢ/(nᵢ(nᵢ − dᵢ)) / |ln S(t)|)\n"
+            "Mediana: primer t con S(t) ≤ 0,5; su IC, donde las bandas del IC cruzan 0,5\n"
+            "(dᵢ eventos y nᵢ en riesgo en tᵢ; los censurados cuentan en riesgo hasta que salen)"
+        ),
+        citas=(KAPLAN_1958, GREENWOOD_1926, KALBFLEISCH_2002, BROOKMEYER_1982, POCOCK_2002),
+    ),
+    "log_rank": Ficha(
+        formula=(
+            "En cada tiempo con evento: Eⱼ += d · nⱼ/n  (lo que le tocaba al grupo j)\n"
+            "χ² = (O − E)ᵀ V⁻¹ (O − E) sobre k − 1 grupos, gl = k − 1\n"
+            "HR (dos grupos) = (O₂/E₂) / (O₁/E₁);  IC 95 % = exp(ln HR ± 1,96·√(1/E₁ + 1/E₂))\n"
+            "Riesgos proporcionales: Cox con el grupo y residuos de Schoenfeld"
+        ),
+        citas=(MANTEL_1966, BLAND_2004_LOGRANK, ALTMAN_1991, GRAMBSCH_1994),
+    ),
+    "regresion_cox": Ficha(
+        formula=(
+            "h(t | x) = h₀(t) · exp(β₁x₁ + … + βₚxₚ)\n"
+            "β por verosimilitud parcial con empates de Efron; EE de la información observada\n"
+            "HR = exp(β);  IC 95 % = exp(β ± 1,96·EE);  razón de verosimilitudes 2(ℓ − ℓ₀), gl = p\n"
+            "Schoenfeld: residuos escalados contra g(t) = 1 − KM(t⁻); χ² por covariable (1 gl)\n"
+            "y global (p gl), aproximación de Grambsch y Therneau"
+        ),
+        citas=(COX_1972, EFRON_1977, GRAMBSCH_1994, PEDUZZI_1995),
     ),
 }
 

@@ -229,7 +229,17 @@ _LLAMADAS = {"una": lambda f, df: f(df, "A"),
                                                         V=(df["B"] > df["B"].median()) * 1.0),
                                               ["U", "V"]),
              "binarias": lambda f, df: f(_binarias(df), "U", "V"),
-             "binarias_estrato": lambda f, df: f(_binarias(df), "U", "V", "E")}
+             "binarias_estrato": lambda f, df: f(_binarias(df), "U", "V", "E"),
+             "tiempo_evento": lambda f, df: f(_supervivencia(df), "A", "Y"),
+             "tiempo_evento_grupo": lambda f, df: f(_supervivencia(df), "A", "Y", "G"),
+             "tiempo_evento_covariables": lambda f, df: f(_supervivencia(df), "A", "Y", ["Z"])}
+
+
+def _supervivencia(df):
+    """A como tiempo, un evento 0/1 con censura, dos grupos y una covariable."""
+    rng = np.random.default_rng(12)
+    return df.assign(Y=(rng.uniform(0, 1, len(df)) < 0.7) * 1.0,
+                     G=np.arange(len(df)) % 2, Z=rng.normal(0, 1, len(df)))
 
 
 def _binarias(df):

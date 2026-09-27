@@ -230,6 +230,9 @@ MULTI = {
     "Random Forest (regresion)": Multi("Predictoras", 1),
     "Bland-Altman múltiple": Multi("Métodos a comparar contra la referencia", 1,
                                    "La Variable 1 es el método de referencia."),
+    "Cox regression": Multi("Covariables", 1,
+                            "Numéricas; una categórica de dos valores, como 0/1. La Variable 1 "
+                            "es el tiempo y la 2 el evento."),
 }
 
 
@@ -240,6 +243,10 @@ def multi(analisis):
 # Rotulos propios de las variables, cuando «Variable 1» no dice que va ahi.
 ETIQUETAS = {
     "Validar un método": {"c1": "Método en uso (comparativo)", "c2": "Método en prueba"},
+    "Kaplan-Meier": {"c1": "Tiempo de seguimiento", "c2": "Evento (1 = evento, 0 = censura)"},
+    "Log-rank test": {"c1": "Tiempo de seguimiento", "c2": "Evento (1 = evento, 0 = censura)",
+                      "c3": "Grupo"},
+    "Cox regression": {"c1": "Tiempo de seguimiento", "c2": "Evento (1 = evento, 0 = censura)"},
 }
 
 

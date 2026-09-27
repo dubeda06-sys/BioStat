@@ -18,7 +18,6 @@ from src.resultado import Resultado, render_html
 from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 from src.core.passing_bablok import passing_bablok
-from src.core.survival import kaplan_meier, log_rank_test
 from src.core.meta_analysis import meta_analysis
 from src.core.sample_size import (
     sample_size_mean, sample_size_two_means,
@@ -51,7 +50,6 @@ from src.core.reference import reference_interval, percentile_table, age_related
 from src.core.two_way_anova import two_way_anova
 from src.core.ancova import ancova
 from src.core.repeated_measures import repeated_measures_anova
-from src.core.cox_regression import cox_regression
 from src.core.probit import probit_regression
 from src.core.cmh import cmh_test
 from src.core.serial_measurements import serial_measurements_summary
