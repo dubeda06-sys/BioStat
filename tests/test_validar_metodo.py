@@ -254,3 +254,59 @@ def test_las_figuras_se_dibujan():
 def test_rechazos_con_motivo(args, opciones, motivo):
     res = validar_metodo(_hoja(), *args, opciones)
     assert not res.ok and motivo in res.error
+
+
+# ---------------- El panel y el diálogo ----------------
+
+@pytest.fixture(scope="module")
+def qt_app():
+    from PyQt6.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])
+
+
+def _panel(hoja):
+    from src.ui.analysis_panel import AnalysisPanel
+    panel = AnalysisPanel()
+    panel.set_data(hoja)
+    panel.combo_analysis.setCurrentText("Validar un método")
+    panel.combo_col1.setCurrentText("Viejo")
+    panel.combo_col2.setCurrentText("Nuevo")
+    return panel
+
+
+def test_el_panel_sin_dialogo_no_da_veredicto_ni_toma_corridas(qt_app):
+    panel = _panel(_hoja_con_corridas())
+    panel._run()
+    texto = panel.txt_results.toPlainText()
+    assert "Sin sesgo permitido no hay veredicto" in texto
+    assert "EP15-A3 —" not in texto          # ninguna columna se tomó como corrida
+    assert "De dónde sale" in texto
+
+
+def test_el_panel_con_lo_elegido_en_el_dialogo(qt_app):
+    panel = _panel(_hoja_con_corridas())
+    panel.columnas_elegidas = [f"Día {j}" for j in range(1, 6)]
+    panel.opciones_metodo = {"escala_permitido": "porcentaje", "declaracion": "cv"}
+    panel.parametros = {"sesgo_permitido": "5", "nivel_1": "50", "nivel_2": "100",
+                        "nivel_3": "150", "sigma_r": "2", "sigma_wl": "3,4"}
+    panel._run()
+    texto = panel.txt_results.toPlainText()
+    assert "El método CUMPLE" in texto
+    assert "Precisión y veracidad (CLSI EP15-A3)" in texto
+    assert "significativ" not in texto.lower()
+
+
+def test_el_dialogo_nombra_los_metodos_y_no_tilda_corridas(qt_app):
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QLabel
+    from src.ui.dialogs import DialogoAnalisis
+    d = DialogoAnalisis("Validar un método", ["Viejo", "Nuevo", "Día 1", "Día 2"])
+    rotulos = [w.text() for w in d.findChildren(QLabel)]
+    assert "Método en uso (comparativo):" in rotulos
+    assert "Método en prueba:" in rotulos
+    assert any(t.startswith("Opcional.") for t in rotulos)
+    lista = d.lista_columnas
+    assert all(lista.item(i).checkState() == Qt.CheckState.Unchecked
+               for i in range(lista.count()))
+    assert d.inputs_parametro["sesgo_permitido"].text() == ""
+    assert d.seleccion()["columnas"] == []

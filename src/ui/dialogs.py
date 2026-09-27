@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 
 from src.ui import previews
 from src.ui.analysis_specs import (
-    multi, opciones, parametros, sobre_toda_la_hoja, variables,
+    etiqueta, multi, opciones, parametros, sobre_toda_la_hoja, variables,
 )
 from src.ui.help_text import ANALYSIS_HELP
 
@@ -94,10 +94,10 @@ class DialogoAnalisis(QDialog):
 
         if "c1" in usa:
             self.combo_col1 = self._combo()
-            form.addRow("Variable 1:", self.combo_col1)
+            form.addRow(etiqueta(self.analisis, "c1", "Variable 1") + ":", self.combo_col1)
         if "c2" in usa:
             self.combo_col2 = self._combo(indice=1)
-            form.addRow("Variable 2:", self.combo_col2)
+            form.addRow(etiqueta(self.analisis, "c2", "Variable 2") + ":", self.combo_col2)
         if "c3" in usa:
             self.combo_col3 = self._combo(opcional=True)
             form.addRow("Variable 3:", self.combo_col3)
@@ -134,11 +134,13 @@ class DialogoAnalisis(QDialog):
             for col in self.columnas_numericas:
                 item = QListWidgetItem(col)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(Qt.CheckState.Unchecked if col == elegida
-                                   else Qt.CheckState.Checked)
+                item.setCheckState(Qt.CheckState.Checked
+                                   if spec_multi.tildadas and col != elegida
+                                   else Qt.CheckState.Unchecked)
                 self.lista_columnas.addItem(item)
             form.addRow(f"{spec_multi.etiqueta}:", self.lista_columnas)
-            texto = f"Mínimo {spec_multi.minimo}. " + spec_multi.ayuda
+            texto = ((f"Mínimo {spec_multi.minimo}. " if spec_multi.minimo else "Opcional. ")
+                     + spec_multi.ayuda)
             pie = QLabel(texto.strip())
             pie.setWordWrap(True)
             pie.setObjectName("ayudaOpcion")

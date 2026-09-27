@@ -87,7 +87,7 @@ from src.core.survival import kaplan_meier, log_rank_test
 from src.resultado.datos import filas_completas
 from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
-    passing_bablok as passing_bablok_resultado, precision_ep15,
+    passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
 )
 from src.resultado.lenguaje import texto_descartes
 from src.core.meta_analysis import meta_analysis
@@ -2397,6 +2397,25 @@ class AnalysisMethodsMixin:
                 "número de muestra, una edad), abrí el análisis desde el menú "
                 "Estadísticas y destildala.")
         return res
+
+    def _validar(self, c1, c2):
+        """El asistente B: Variable 1 = método en uso, Variable 2 = en prueba.
+
+        Las corridas de EP15 solo entran si se tildaron en el diálogo: sin
+        diálogo no hay forma de saber cuáles columnas son corridas, y tomarlas
+        todas metería los dos métodos como si fueran días.
+        """
+        corridas, del_dialogo = self._columnas_multi(excluir=(c1, c2))
+        opciones = dict(getattr(self, "opciones_metodo", None) or {})
+        try:
+            for clave in ("sesgo_permitido", "lambda", "sigma_r", "sigma_wl", "n_muestras"):
+                opciones[clave] = self._param("Validar un método", clave)
+            opciones["niveles"] = [v for v in (self._param("Validar un método", f"nivel_{i}")
+                                               for i in (1, 2, 3)) if v is not None]
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        opciones["corridas"] = corridas if del_dialogo else []
+        return validar_metodo(self.data, c1, c2, opciones)
 
     def _ep15(self):
         """EP15-A3: cada columna tildada es una corrida. Lo arma el constructor."""

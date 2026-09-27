@@ -80,6 +80,7 @@ MENU_ESTADISTICAS = [
         ("CV a partir de duplicados", "CV duplicatas"),
     ]),
     ("Comparacion de metodos", [
+        ("Validar un método (asistente EP09c + EP15)", "Validar un método"),
         ("Bland-Altman", "Bland-Altman"),
         ("Bland-Altman múltiple", "Bland-Altman múltiple"),
         ("Regresion de Passing-Bablok", "Passing-Bablok"),

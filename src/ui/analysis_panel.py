@@ -372,6 +372,10 @@ ANALYSIS_LEGENDS = {
         "legend": "Compara varios métodos contra uno de referencia, cada uno con su sesgo y sus límites de acuerdo, graficados contra la referencia (Krouwer). La Variable 1 es la referencia; los métodos se tildan en el diálogo.",
         "formula": "Para cada método: d = método − referencia;  sesgo ± 1,96·DE(d)"
     },
+    "Validar un método": {
+        "legend": "Asistente de verificación de un método nuevo contra el que está en uso (CLSI EP09c + EP15-A3). Corre Bland-Altman con el CCC, elige la recta según la forma de los datos, estima el sesgo en los niveles de decisión médica con su IC y lo compara con el sesgo permitido: un solo veredicto, con cada análisis debajo.",
+        "formula": "sesgo(Xc) = a + (b − 1)·Xc\nCumple: IC 95 % entero dentro de ±permitido; no cumple: entero afuera; no concluyente: lo cruza"
+    },
     "Precisión EP15": {
         "legend": "Verificación de precisión y estimación del sesgo del usuario (CLSI EP15-A3): 5 corridas de 5 réplicas. Estima repetibilidad e intralaboratorio, los compara con lo que declara el fabricante y, si el material tiene valor asignado, dice si el sesgo se distingue del azar.",
         "formula": "s_R = √MS dentro;  s_WL = √(MS dentro + (MS entre − MS dentro)/n0)\nUVL = σ declarada · √(χ²(1−α/nMuestras; gl)/gl)"
@@ -635,6 +639,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Mountain plot": lambda: self._run_mountain(c1, c2),
             "Bland-Altman múltiple": lambda: self._run_bland_multi(c1),
             "Precisión EP15": lambda: self._ep15(),
+            "Validar un método": lambda: self._validar(c1, c2),
         }
         fn = dispatch.get(at)
         if fn:

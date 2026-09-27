@@ -205,9 +205,13 @@ def opciones_por_defecto(analisis):
 # informe las nombra una por una.
 @dataclass(frozen=True)
 class Multi:
+    """`tildadas=False`: la lista arranca vacia. Para listas opcionales, donde
+    tildar todo de entrada meteria columnas que no corresponden (las corridas de
+    EP15 en el asistente de validacion)."""
     etiqueta: str
     minimo: int
     ayuda: str = ""
+    tildadas: bool = True
 
 
 MULTI = {
@@ -231,6 +235,16 @@ MULTI = {
 
 def multi(analisis):
     return MULTI.get(analisis)
+
+
+# Rotulos propios de las variables, cuando «Variable 1» no dice que va ahi.
+ETIQUETAS = {
+    "Validar un método": {"c1": "Método en uso (comparativo)", "c2": "Método en prueba"},
+}
+
+
+def etiqueta(analisis, variable, defecto):
+    return ETIQUETAS.get(analisis, {}).get(variable, defecto)
 
 
 # ============================================================
@@ -324,6 +338,35 @@ OPCIONES["Precisión EP15"] = (
             ("U", "Incertidumbre expandida U, con su k (A)"),
             ("pares", "Grupo de pares: DE y número de laboratorios (B, C)")),
            "Escenarios de EP15-A3 §3.3. Solo cuenta si hay valor asignado."),
+)
+
+# El asistente B: EP09c + EP15-A3 en un veredicto (src/resultado/constructores/
+# validacion.py). Sin sesgo permitido no hay veredicto; sin corridas, no hay
+# precision. Los niveles vacios se reemplazan por los cuartiles del comparativo.
+VARIABLES["Validar un método"] = ("c1", "c2")
+MULTI["Validar un método"] = Multi(
+    "Corridas de EP15 (opcional, una columna por día)", 0,
+    "Para verificar además la precisión: 5 columnas con 5 réplicas de un control cada una.",
+    tildadas=False)
+PARAMETROS["Validar un método"] = (
+    Parametro("sesgo_permitido", "Sesgo permitido (vacío = sin veredicto)", None, 0.0),
+    Parametro("nivel_1", "Nivel de decisión 1 (vacío = cuartiles)", None),
+    Parametro("nivel_2", "Nivel de decisión 2", None),
+    Parametro("nivel_3", "Nivel de decisión 3", None),
+    Parametro("lambda", "λ de Deming = var. del error del comparativo / del método en prueba",
+              1.0, 1e-6, 1e6),
+    Parametro("sigma_r", "Repetibilidad declarada (EP15; vacío = no hay)", None, 0.0),
+    Parametro("sigma_wl", "Intralaboratorio declarada (EP15; vacío = no hay)", None, 0.0),
+    Parametro("n_muestras", "Materiales en el estudio de precisión", 1, 1, 20, entero=True),
+)
+OPCIONES["Validar un método"] = (
+    Opcion("escala_permitido", "El sesgo permitido viene en",
+           (("porcentaje", "Porcentaje del nivel (p. ej., el deseable por variabilidad biológica)"),
+            ("unidades", "Unidades del analito, igual en todos los niveles")),
+           "En porcentaje, el permitido de cada nivel es ese % del nivel."),
+    Opcion("declaracion", "La precisión declarada viene como",
+           (("de", "DE, en unidades del analito"), ("cv", "CV %")),
+           "Solo cuenta si se tildaron corridas de EP15."),
 )
 
 OPCIONES["Poder estadistico"] = (
