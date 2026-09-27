@@ -6,11 +6,11 @@
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
 > Versión actual: **v1.0.0**.
-> Última puesta al día: **27 sep** — el paso 4 de la envoltura, diez familias
-> migradas a `Resultado` (lo que falta, abajo); antes, el asistente B
-> «Validar un método», con EP15-A3 y la prueba Cusum de Passing-Bablok. El
-> 26 sep, la auditoría completa y sus 42 arreglos (`docs/AUDITORIA-2026-09.md`,
-> sección «Estado»).
+> Última puesta al día: **27 sep** — el paso 4 de la envoltura, **terminado**:
+> los 78 análisis salen de `Resultado` y el mixin quedó en envoltorios finos.
+> Antes, el asistente B «Validar un método», con EP15-A3 y la prueba Cusum de
+> Passing-Bablok. El 26 sep, la auditoría completa y sus 42 arreglos
+> (`docs/AUDITORIA-2026-09.md`, sección «Estado»).
 
 ## El `.exe` del Escritorio ya está al día
 
@@ -40,16 +40,17 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 1326 verdes (27 sep)
+python -m pytest tests/ -q        # esperar 1470 verdes (27 sep)
 python scripts/smoke_ui.py        # esperar 78/78, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
 
-## 27 sep: paso 4, diez familias más en `Resultado`
+## 27 sep: paso 4, las dieciséis familias en `Resultado`
 
-En el orden de los menús, un commit por familia (`git log --oneline 84255a9..466e298`):
+En el orden de los menús, un commit por familia (`git log --oneline 84255a9..HEAD`).
+Las diez primeras:
 resumen y normalidad con atípicos, correlación, regresión (lineal, múltiple,
 logística, probit), medias, ANOVA (una y dos vías, ANCOVA, medidas repetidas),
 no paramétricas, tablas de contingencia, concordancia (kappa, ponderado,
@@ -78,14 +79,42 @@ de grupos (Levene → ANOVA+Tukey o Welch+Games-Howell) salen del mismo código.
 - La logística rechaza con motivo la separación completa, en vez de dar un OR
   enorme. El OR de Fisher es el condicional (el de scipy), no el muestral.
 
-**Falta**, en este orden: supervivencia (Kaplan-Meier, log-rank, Cox), valores
-de referencia, tamaño de muestra y poder, bootstrap, machine learning, y los
-sueltos (meta-análisis, mediciones seriales, pruebas diagnósticas, razones de
-verosimilitud). Dos defectos conocidos esperan a
-supervivencia: **Kaplan-Meier imprime una «supervivencia media» que es el
-promedio de los puntos de la curva** (no significa nada; va la mediana con su
-IC) y **Cox toma en silencio `columns[3:]` como covariables** (van por
-selección múltiple, con la prueba de Schoenfeld).
+**Las seis que siguieron el mismo día**, con lo que cambia a propósito:
+
+- **Supervivencia** (`b401880`, contra lifelines). Kaplan-Meier ya no imprime
+  una «supervivencia media» que era el promedio de los puntos de la curva: da
+  la mediana y los tiempos al 25 % y 75 % con IC de Brookmeyer-Crowley; el IC
+  de la curva es log-log. Log-rank acepta k grupos, da el HR por O/E y prueba
+  riesgos proporcionales. Cox usa las covariables tildadas (antes,
+  `columns[3:]` en silencio), la razón de verosimilitudes y Schoenfeld
+  (Grambsch-Therneau, escala 1 − KM(t⁻) de R). **Defecto encontrado**: Cox
+  avisaba «no convergió» en 19 de 20 ajustes sanos (BFGS da «precision loss»
+  con gradiente ~1e-5) y dejaba pasar la separación como convergida; ahora
+  mira el gradiente y detecta la separación por DE de la covariable.
+- **Valores de referencia** (`2c49f35`). EP28 con Dixon (Reed 1971) y
+  verificación de un intervalo publicado (20 sujetos, ≤ 2 afuera); su IC se
+  rotula 90 % (`Valor.nivel_ic`). Por edad, centiles por regresión (Altman
+  1993), cobertura simulada 5,6 %; por grupos, percentiles 2,5 y 97,5 de EP28
+  (antes 5 y 95 lineales).
+- **Tamaño de muestra y poder** (`d1c881d`, contra statsmodels, Fleiss y
+  Hulley). Cinco calculadoras con curva de poder. La de correlación pide la r
+  esperada: antes usaba la r de la hoja (poder post hoc).
+- **Bootstrap** (`adb7eb5`, contra `scipy.stats.bootstrap`). Remuestreo
+  vectorizado, IC BCa por defecto (percentil a elección), IC exacto por rangos
+  de la mediana como control, Spearman a elección.
+- **Machine learning** (`eba526f`, contra `cross_val_predict`). Desempeño fuera
+  de muestra contra no tener modelo, AUC con DeLong, importancia por
+  permutación (la de impureza premiaba al ruido continuo), observado contra
+  predicho fuera de muestra.
+- **Sueltos y pruebas diagnósticas** (contra statsmodels y a mano).
+  Meta-análisis con τ², intervalo de predicción, Egger desde 10 estudios y
+  funnel; mediciones seriales con trayectorias; la prueba diagnóstica recalcula
+  VPP y VPN para la prevalencia cargada; las razones de verosimilitud dan la
+  probabilidad post-test.
+
+Con la última familia se borraron `_run_core`, los armadores de tablas del
+mixin y más de cien imports muertos: `analysis_methods.py` pasó de ~2400 líneas a 590 de
+envoltorios que leen el diálogo y llaman al constructor.
 
 ## 26 sep: auditoría completa, 42 hallazgos arreglados
 
@@ -721,10 +750,10 @@ calidad. Ver su `LEEME.md`.
 
 ## Deudas conocidas
 
-1. **`src/ui/analysis_methods.py`.** La validación y diez familias más ya salen
-   de `Resultado`; lo que falta, en «27 sep: paso 4». Cuando el mixin quede
-   vacío se borra, con sus restos (`_tabla_2x2`, `_html_tabla_2x2`, las ramas de
-   `_run_core`).
+1. **`src/ui/analysis_methods.py`, cerrada el 27 sep.** Todo sale de
+   `Resultado`; el mixin son envoltorios que leen el diálogo. El paso 5 del plan
+   (borrarlo y que el dispatch llame a los constructores) es opcional: ya no
+   hay lógica ahí que pueda divergir.
 2. **Levey-Jennings y Westgard, eliminados el 22 ago.** Vivían en
    `src/ui/qc_panel.py` (`_lj`, `_wj`, `_wj_rules`), sin core ni tests: la parte
    que decide si un lote se acepta o rechaza era la única sin verificación de
@@ -750,7 +779,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 1326 verdes (27 sep); el número crece
+python -m pytest tests/ -q                       # 1470 verdes (27 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 78/78
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

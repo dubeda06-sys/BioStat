@@ -7,9 +7,9 @@
 > ponderar), imprecisión desde duplicados, ICC y Bland-Altman múltiple, en
 > `src/resultado/constructores/comparacion.py`. El asistente B quedó hecho el
 > 27 sep sobre esa base (`constructores/validacion.py`, ver `docs/HANDOFF.md`).
-> Paso 4 en curso: diez familias migradas el 27 sep, hasta curvas ROC; faltan
-> supervivencia, valores de referencia, tamaño de muestra, bootstrap, machine
-> learning y los sueltos (ver «27 sep: paso 4» en `docs/HANDOFF.md`).
+> Paso 4 terminado el 27 sep: las dieciséis familias, los 78 análisis (ver
+> «27 sep: paso 4» en `docs/HANDOFF.md`). El mixin quedó en envoltorios; el
+> paso 5 (borrarlo) es opcional.
 
 ## Qué hay hoy (leído del código, no del HANDOFF)
 
