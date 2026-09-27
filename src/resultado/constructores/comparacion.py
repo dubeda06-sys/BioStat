@@ -713,9 +713,13 @@ def deming(df, c1, c2, opciones=None) -> Resultado:
     b, a = res["slope"], res["intercept"]
     nombre = "Deming ponderado (CV constante)" if ponderar else "Deming"
 
+    nota_intercepto = (
+        f"IC con t de {res['gl_intercepto']:.1f} gl, el n efectivo de los pesos: el "
+        "intercepto lo deciden los pocos puntos bajos"
+        if ponderar and res["gl_intercepto"] < res["n"] - 2 else "")
     valores = [
         Valor("Pendiente", b, ic=res["ci_slope"]),
-        Valor("Intercepto", a, ic=res["ci_intercept"]),
+        Valor("Intercepto", a, ic=res["ci_intercept"], nota=nota_intercepto),
         Valor("λ (var. error X / var. error Y)", lam),
         Valor("R²", res["r2"]),
         *_sesgos_en_niveles(b, a, xf, c1),

@@ -218,7 +218,7 @@ def deming_regression(x, y, lambda_ratio=1.0):
             "x_mean": float(np.mean(x)), "y_mean": float(np.mean(y))}
 
 
-def _ic_jackknife(x, y, slope, intercept, ajustar):
+def _ic_jackknife(x, y, slope, intercept, ajustar, gl_intercepto=None):
     """IC 95% de pendiente e intercepto por jackknife (CLSI EP09c, apéndice K1).
 
     Se deja afuera una muestra por vez y se reajusta con `ajustar`. Con las
@@ -226,6 +226,9 @@ def _ic_jackknife(x, y, slope, intercept, ajustar):
     (K7, K8), y el intervalo es la estimación del conjunto completo ± t(N−2)·EE
     (K12). Antes se usaba t(N−1): el grado de libertad de más estrechaba el
     intervalo, poco, pero en contra de la norma.
+
+    `gl_intercepto` reemplaza N−2 solo para el intercepto: lo usa Deming
+    ponderado (ver `deming_ponderado`).
     """
     n = len(x)
     js, ji = [], []
@@ -242,10 +245,24 @@ def _ic_jackknife(x, y, slope, intercept, ajustar):
         return (np.nan, np.nan), (np.nan, np.nan)
     m = len(js)
     tcrit = stats.t.ppf(0.975, n - 2)
+    tcrit_i = stats.t.ppf(0.975, gl_intercepto) if gl_intercepto else tcrit
     se_slope = np.sqrt((m - 1) / m * np.sum((js - js.mean()) ** 2))
     se_int = np.sqrt((m - 1) / m * np.sum((ji - ji.mean()) ** 2))
     return ((slope - tcrit * se_slope, slope + tcrit * se_slope),
-            (intercept - tcrit * se_int, intercept + tcrit * se_int))
+            (intercept - tcrit_i * se_int, intercept + tcrit_i * se_int))
+
+
+def centro_ponderado(x, y, slope, intercept, lam=1.0):
+    """Centro y n efectivo de los pesos finales de Deming ponderado.
+
+    Los pesos 1/z² se concentran en las concentraciones bajas: con 40
+    muestras entre 10 y 200, el n efectivo de Kish, (Σw)²/Σw², ronda 8. El
+    centro es la media ponderada de X. Devuelve (centro, n_efectivo).
+    """
+    xh = x + (slope * lam) * (y - intercept - slope * x) / (1 + slope * slope * lam)
+    z = (xh + lam * (intercept + slope * xh)) / (1 + lam)
+    w = 1.0 / z ** 2
+    return float(np.sum(w * x) / np.sum(w)), float(np.sum(w) ** 2 / np.sum(w ** 2))
 
 
 def _deming_ponderado_fit(x, y, lam, max_iter=100, tol=1e-12):
@@ -299,6 +316,15 @@ def deming_ponderado(x, y, lambda_ratio=1.0):
     IC 95% de pendiente e intercepto por jackknife (apéndice K1), reajustando
     la iteración completa en cada submuestra.
 
+    El del intercepto va con t de n efectivo grados de libertad, no N−2. El
+    intercepto lo deciden los pocos puntos bajos que cargan el peso, y el EE
+    jackknife que sale de tan pocos puntos varía mucho de una muestra a otra:
+    con t(N−2) cubría 90,6-95,3 % (6 escenarios de CV constante, 1000
+    corridas cada uno; el sesgo del intercepto era despreciable y el EE
+    medio, correcto). Con t(n efectivo de Kish): 95,4-96,5 %. El bootstrap
+    percentil y el BCa no lo arreglaban (90-94 %). La pendiente sigue con
+    t(N−2): cubre 95-96 %.
+
     Devuelve las mismas claves que `deming_regression`.
     """
     x, y, motivo = finite_pair(x, y, min_n=3, need_variance="both",
@@ -317,8 +343,11 @@ def deming_ponderado(x, y, lambda_ratio=1.0):
         return {"error": "La iteración de Deming ponderado no convergió con estos "
                          "datos."}
     slope, intercept = fit
+    centro, n_efectivo = centro_ponderado(x, y, slope, intercept, lam)
+    gl_intercepto = min(n - 2, n_efectivo)
     ci_slope, ci_intercept = _ic_jackknife(
-        x, y, slope, intercept, lambda xs, ys: _deming_ponderado_fit(xs, ys, lam))
+        x, y, slope, intercept, lambda xs, ys: _deming_ponderado_fit(xs, ys, lam),
+        gl_intercepto=gl_intercepto)
 
     y_pred = slope * x + intercept
     ss_res = np.sum((y - y_pred) ** 2)
@@ -327,7 +356,9 @@ def deming_ponderado(x, y, lambda_ratio=1.0):
     return {"slope": slope, "intercept": intercept,
             "ci_slope": ci_slope, "ci_intercept": ci_intercept,
             "r2": r2, "n": n, "lambda": lam,
-            "x_mean": float(np.mean(x)), "y_mean": float(np.mean(y))}
+            "x_mean": float(np.mean(x)), "y_mean": float(np.mean(y)),
+            "centro_ponderado": centro, "n_efectivo": n_efectivo,
+            "gl_intercepto": gl_intercepto}
 
 
 def cv_duplicados(x1, x2):

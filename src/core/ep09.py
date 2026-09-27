@@ -16,7 +16,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 
-from src.core.agreement import _deming_fit, _deming_ponderado_fit
+from src.core.agreement import _deming_fit, _deming_ponderado_fit, centro_ponderado
 from src.core.bland_altman import CV_CONSTANTE, DE_CONSTANTE, variabilidad_diferencias
 from src.core.passing_bablok import _recta as _recta_pb
 from src.core.statistics import normality_test
@@ -79,7 +79,10 @@ def sesgo_en_niveles(x, y, metodo: str, niveles, lam: float = 1.0,
     sesgo(Xc) = a + (b − 1)·Xc. El IC:
     - Deming (con o sin ponderar): jackknife, como el de la pendiente y el
       intercepto (EP09c, apéndice K): pseudovalores dejando una muestra afuera,
-      estimación ± t(N−2)·EE.
+      estimación ± t(N−2)·EE. En Deming ponderado, los niveles por debajo del
+      centro ponderado van con t de n efectivo gl: ahí el sesgo lo deciden los
+      pocos puntos bajos, como el intercepto, y con t(N−2) cubría 90-94 %
+      (con n efectivo, 94-97 %; arriba del centro t(N−2) ya cubre 95-97 %).
     - Passing-Bablok: bootstrap percentil. El jackknife no sirve para
       estimadores de mediana: sus pseudovalores saltan de a escalones y el EE
       no converge (Efron y Tibshirani 1993, cap. 11).
@@ -122,9 +125,17 @@ def sesgo_en_niveles(x, y, metodo: str, niveles, lam: float = 1.0,
         dejando = np.asarray(dejando)
         m_ok = len(dejando)
         ee = np.sqrt((m_ok - 1) / m_ok * np.sum((dejando - dejando.mean(axis=0)) ** 2, axis=0))
-        t = stats.t.ppf(0.975, n - 2)
-        ic_inf, ic_sup = sesgo - t * ee, sesgo + t * ee
         metodo_ic = "jackknife, t(N−2) (EP09c, apéndice K)"
+        gl = np.full(len(niveles), n - 2.0)
+        if metodo == DEMING_PONDERADO:
+            centro, n_ef = centro_ponderado(x, y, pend, inter, lam)
+            abajo = niveles < centro
+            gl[abajo] = min(n - 2, n_ef)
+            if abajo.any():
+                metodo_ic += (f"; por debajo del centro ponderado (X = {centro:.4g}), "
+                              f"t de {min(n - 2, n_ef):.1f} gl, el n efectivo de los pesos")
+        t = stats.t.ppf(0.975, gl)
+        ic_inf, ic_sup = sesgo - t * ee, sesgo + t * ee
 
     return {"metodo": metodo, "pendiente": float(pend), "intercepto": float(inter),
             "niveles": niveles.tolist(), "sesgo": sesgo.tolist(),
