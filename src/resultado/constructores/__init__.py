@@ -30,6 +30,7 @@ from src.resultado.constructores.anova import (
 from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
+from src.resultado.constructores.concordancia import cronbach, kappa, kappa_ponderado
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
@@ -98,6 +99,10 @@ CONSTRUCTORES = {
     "odds_ratio": odds_ratio_tabla,
     "riesgo_relativo": riesgo_relativo,
     "cmh": cmh,
+    # Concordancia
+    "kappa": kappa,
+    "kappa_ponderado": kappa_ponderado,
+    "cronbach": cronbach,
     # Comparación de métodos
     "bland_altman": bland_altman,
     "passing_bablok": passing_bablok,
@@ -130,6 +135,8 @@ for _n in ("chi_cuadrado", "fisher", "mcnemar", "odds_ratio", "riesgo_relativo")
     FIRMAS[_n] = "binarias"
 FIRMAS["dos_proporciones"] = "calculadora"
 FIRMAS["cmh"] = "binarias_estrato"
+FIRMAS["kappa"] = FIRMAS["kappa_ponderado"] = "binarias"
+FIRMAS["cronbach"] = "lista_tres"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402

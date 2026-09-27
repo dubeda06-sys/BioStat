@@ -92,6 +92,7 @@ from src.resultado.constructores import (
 from src.resultado.constructores.anova import (
     ancova as ancova_resultado, anova_dos_vias, anova_una_via, medidas_repetidas,
 )
+from src.resultado.constructores.concordancia import cronbach, kappa, kappa_ponderado
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
@@ -1131,35 +1132,12 @@ class AnalysisMethodsMixin:
         return f_varianzas(self.data, c1, c2)
 
     # --- Kappa ---
+    # --- Concordancia: la arma src/resultado/constructores/concordancia.py ---
     def _kappa(self, c1, c2):
-        """Kappa de Cohen: Variable 1 y Variable 2 = las clasificaciones de dos
-        evaluadores o métodos, una fila por sujeto."""
-        for c in (c1, c2):
-            if c is None or c not in self.data.columns:
-                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
-        pares = self._filas_completas(c1, c2)
-        categorias = sorted(set(pares[c1]) | set(pares[c2]), key=str)
-        if len(categorias) > 20:
-            return (f"<b>Error:</b> hay {len(categorias)} categorías distintas: kappa es para "
-                    "clasificaciones categóricas.")
-        tabla = pd.crosstab(pares[c1], pares[c2]).reindex(index=categorias,
-                                                           columns=categorias, fill_value=0)
-        r = cohens_kappa(tabla.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Kappa de Cohen",
-                          "κ = (Po − Pe) / (1 − Pe)\n"
-                          "IC 95%: EE de Fleiss, Cohen y Everitt (1969)\n"
-                          "p: EE bajo H0 (κ = 0)",
-                          f"κ = {r['kappa']:.4f}\np = {r['p']:.6f}\nFuerza: {r['strength']}")
-        h = self._h(f" Kappa de Cohen — {escape(str(c1))} vs {escape(str(c2))}")
-        h += self._html_tabla_rxc(tabla)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n", r['n']), ("Kappa", f"{r['kappa']:.4f}"),
-                     ("IC 95%", f"{r['ci'][0]:.4f} a {r['ci'][1]:.4f}"),
-                     ("Fuerza (Altman 1991)", r['strength']), ("p", _p_html(r['p']))]:
-            h += self._r(l, v)
-        return h + "</table>"
+        return kappa(self.data, c1, c2)
+
+    def _kappa_ponderado(self, c1, c2):
+        return kappa_ponderado(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
     # --- ICC ---
     def _icc(self, c1, c2):
@@ -1168,24 +1146,9 @@ class AnalysisMethodsMixin:
 
     # --- Cronbach alpha ---
     def _cronbach(self):
-        """Alfa de Cronbach sobre los ítems elegidos (una columna por ítem)."""
         cols, del_dialogo = self._columnas_multi()
-        if len(cols) < 2:
-            return f"<b>Error:</b> hacen falta al menos 2 ítems (columnas numéricas); hay {len(cols)}."
-        data = self._filas_completas(*cols).values
-        r = cronbach_alpha(data)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Alfa de Cronbach",
-                          "α = (k/(k−1)) · (1 − Σ varᵢ / var_total)",
-                          f"α = {r['alpha']:.4f}\nk = {r['n_items']}")
-        h = self._h(f" Alfa de Cronbach")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("Alfa", f"{r['alpha']:.4f}")
-        h += self._r("Ítems", r['n_items'])
-        h += self._r("Sujetos completos", r['n_subjects'])
-        h += "</table>"
-        return h + self._nota_columnas(cols, del_dialogo)
+        return self._con_nota_columnas(cronbach(self.data, cols), cols, del_dialogo,
+                                       "ítems")
 
     # --- Regresion lineal ---
     # --- Regresion: la arma src/resultado/constructores/regresion.py ---
@@ -1328,36 +1291,7 @@ class AnalysisMethodsMixin:
     def _run_core(self, func_name, c1=None, c2=None):
         """Run a core module function and display results."""
         try:
-            if func_name == "weighted_kappa":
-                for c in (c1, c2):
-                    if c is None or c not in self.data.columns:
-                        return "<b>Error:</b> Elegí las dos clasificaciones ordinales en la Variable 1 y la Variable 2."
-                pares = self._filas_completas(c1, c2)
-                d1, d2 = pares[c1], pares[c2]
-                cats = sorted(set(d1) | set(d2))
-                if len(cats) > 20:
-                    return f"<b>Error:</b> hay {len(cats)} categorías: el kappa ponderado es para escalas ordinales."
-                n = len(cats)
-                matrix = np.zeros((n, n))
-                for a, b in zip(d1, d2):
-                    i, j = cats.index(a), cats.index(b)
-                    matrix[i][j] += 1
-                result = weighted_kappa(matrix)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo calcular.")
-                self._set_formula("Formula: Kappa Ponderado (pesos lineales)",
-                                  "κ_w = 1 − (Σ wᵢⱼ·Oᵢⱼ) / (Σ wᵢⱼ·Eᵢⱼ),  wᵢⱼ = |i − j| / (k − 1)\n"
-                                  "Las categorías se ordenan de menor a mayor")
-                h = self._h(f" Kappa Ponderado — {escape(str(c1))} vs {escape(str(c2))}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("n", result['n'])
-                h += self._r("Categorías (en orden)", escape(", ".join(str(c) for c in cats)))
-                h += self._r("Kappa ponderado", f"{result['kappa']:.4f}")
-                h += self._r("Acuerdo observado (po)", f"{result['po']:.4f}")
-                h += self._r("Acuerdo esperado (pe)", f"{result['pe']:.4f}")
-                return h + "</table>"
-
-            elif func_name == "likelihood_ratios":
+            if func_name == "likelihood_ratios":
                 t = self._tabla_2x2(c1, c2)
                 if isinstance(t, str):
                     return t

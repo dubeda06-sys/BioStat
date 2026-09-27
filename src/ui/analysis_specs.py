@@ -399,6 +399,13 @@ PARAMETROS["Comparar 2 proporciones"] = (
 )
 ETIQUETAS["CMH test"] = {"c1": "Exposición", "c2": "Evento", "c3": "Estrato"}
 
+OPCIONES["Kappa ponderado"] = (
+    Opcion("pesos", "Pesos de los desacuerdos",
+           (("linear", "Lineales — un salto de dos categorías pesa el doble"),
+            ("quadratic", "Cuadráticos — pesa cuatro veces; cercano al ICC")),
+           "Las categorías se ordenan de menor a mayor (numéricas) o alfabéticamente."),
+)
+
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",
            (("una", "Una muestra o datos pareados (t de una muestra)"),

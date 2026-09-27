@@ -613,7 +613,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "ANOVA una via (core)": lambda: self._anova(c1, c2, alpha),
             "Sign test": lambda: self._signos(c1, c2),
             "Cochran Q": lambda: self._cochran(),
-            "Kappa ponderado": lambda: self._run_core("weighted_kappa", c1, c2),
+            "Kappa ponderado": lambda: self._kappa_ponderado(c1, c2),
             "Deming regression": lambda: self._deming(c1, c2),
             "CV duplicatas": lambda: self._cv_dup(c1, c2),
             "Likelihood Ratios": lambda: self._run_core("likelihood_ratios", c1, c2),

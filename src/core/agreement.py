@@ -84,7 +84,17 @@ def weighted_kappa(matrix, weights="linear"):
     p_o = 1 - np.sum(w * m) / n
     p_e = 1 - np.sum(w * esperadas) / n
     kappa = (p_o - p_e) / (1 - p_e) if (1 - p_e) != 0 else 0
-    return {"kappa": kappa, "po": p_o, "pe": p_e, "weights": weights, "n": int(n)}
+    # EE, IC y p de Fleiss, Cohen y Everitt (1969), los de statsmodels, que
+    # admiten pesos. El p usa el EE bajo H0 (kappa = 0), como el kappa simple.
+    try:
+        from statsmodels.stats.inter_rater import cohens_kappa as _sm_kappa
+        r = _sm_kappa(m, wt=weights)
+        se, ci, p = float(r.std_kappa), (float(r.kappa_low), float(r.kappa_upp)), \
+            float(r.pvalue_two_sided)
+    except Exception:  # noqa: BLE001 - con tablas degeneradas no hay EE
+        se, ci, p = np.nan, (np.nan, np.nan), np.nan
+    return {"kappa": kappa, "po": p_o, "pe": p_e, "weights": weights, "n": int(n),
+            "se": se, "ci": ci, "p": p}
 
 
 def intraclass_correlation(data, model="one-way"):
@@ -143,8 +153,12 @@ def cronbach_alpha(data):
         return {"error": "La suma de los items es igual en todos los sujetos: la "
                          "varianza total es cero y el alfa no esta definido."}
     alpha = (n_items / (n_items - 1)) * (1 - sum_var / total_variance)
+    # IC de Feldt (1965): (1 - alfa) sigue una F con (n - 1, (n - 1)(k - 1)) gl.
+    gl1, gl2 = n_subjects - 1, (n_subjects - 1) * (n_items - 1)
+    ci = (float(1 - (1 - alpha) * stats.f.ppf(0.975, gl1, gl2)),
+          float(1 - (1 - alpha) * stats.f.ppf(0.025, gl1, gl2)))
     return {"alpha": alpha, "n_items": n_items, "n_subjects": n_subjects,
-            "item_variances": item_variances.tolist()}
+            "item_variances": item_variances.tolist(), "ci": ci}
 
 
 def _deming_fit(x, y, lam):

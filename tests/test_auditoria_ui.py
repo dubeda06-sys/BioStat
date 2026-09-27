@@ -164,7 +164,7 @@ def test_kappa_sobre_las_dos_clasificaciones(qt_app):
     a = rng.integers(1, 4, 60)
     b = np.where(rng.random(60) < 0.7, a, rng.integers(1, 4, 60))
     t = _texto(_panel(pd.DataFrame({"A": a, "B": b}))._kappa("A", "B"))
-    assert f"Kappa {cohen_kappa_score(a, b):.4f}" in t and "IC 95%" in t
+    assert f"Kappa {cohen_kappa_score(a, b):.4f}" in t and "IC 95 %" in t
 
 
 # ------------------------------------------------------------------ K6 / A10

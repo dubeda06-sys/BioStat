@@ -210,6 +210,20 @@ ROBINS_1986 = Cita("Robins J, Breslow N, Greenland S (1986). Estimators of the M
                    "Biometrics 42:311-323.")
 BRESLOW_1980 = Cita("Breslow NE, Day NE (1980). Statistical methods in cancer research, vol. I. "
                     "Lyon: IARC. Prueba de homogeneidad de los OR.")
+COHEN_1960 = Cita("Cohen J (1960). A coefficient of agreement for nominal scales. Educ Psychol "
+                  "Meas 20:37-46.")
+COHEN_1968 = Cita("Cohen J (1968). Weighted kappa: nominal scale agreement with provision for "
+                  "scaled disagreement or partial credit. Psychol Bull 70:213-220.")
+FLEISS_1969 = Cita("Fleiss JL, Cohen J, Everitt BS (1969). Large sample standard errors of kappa "
+                   "and weighted kappa. Psychol Bull 72:323-327.")
+FEINSTEIN_1990 = Cita("Feinstein AR, Cicchetti DV (1990). High agreement but low kappa: I. The "
+                      "problems of two paradoxes. J Clin Epidemiol 43:543-549.")
+CRONBACH_1951 = Cita("Cronbach LJ (1951). Coefficient alpha and the internal structure of tests. "
+                     "Psychometrika 16:297-334.")
+FELDT_1965 = Cita("Feldt LS (1965). The approximate sampling distribution of Kuder-Richardson "
+                  "reliability coefficient twenty. Psychometrika 30:357-370.")
+TAVAKOL_2011 = Cita("Tavakol M, Dennick R (2011). Making sense of Cronbach's alpha. Int J Med "
+                    "Educ 2:53-55.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -700,6 +714,33 @@ FICHAS: dict[str, Ficha] = {
             "Homogeneidad de los OR entre estratos: Breslow-Day"
         ),
         citas=(MANTEL_1959, ROBINS_1986, BRESLOW_1980),
+    ),
+
+    # ---------------- Concordancia: src/resultado/constructores/concordancia.py
+    "kappa": Ficha(
+        formula=(
+            "κ = (Po − Pe) / (1 − Pe);  Po = acuerdo observado, Pe = esperado por azar\n"
+            "IC 95 %: EE de Fleiss, Cohen y Everitt;  p con el EE bajo κ = 0\n"
+            "Escala de Altman (1991): < 0,2 pobre; 0,2-0,4 débil; 0,4-0,6 moderada;\n"
+            "    0,6-0,8 buena; > 0,8 muy buena"
+        ),
+        citas=(COHEN_1960, FLEISS_1969, ALTMAN_1991, FEINSTEIN_1990),
+    ),
+    "kappa_ponderado": Ficha(
+        formula=(
+            "κ_w = 1 − Σ wᵢⱼ·Oᵢⱼ / Σ wᵢⱼ·Eᵢⱼ\n"
+            "Pesos lineales wᵢⱼ = |i − j|/(k − 1);  cuadráticos (i − j)²/(k − 1)²\n"
+            "IC y p: Fleiss, Cohen y Everitt (statsmodels)"
+        ),
+        citas=(COHEN_1968, FLEISS_1969, ALTMAN_1991),
+    ),
+    "cronbach": Ficha(
+        formula=(
+            "α = (k/(k − 1))·(1 − Σ s²ᵢ / s²_total)\n"
+            "IC 95 % de Feldt: 1 − (1 − α)·F(0,975 y 0,025; n − 1, (n − 1)(k − 1))\n"
+            "Por ítem: correlación con la suma de los demás y α sin ese ítem"
+        ),
+        citas=(CRONBACH_1951, FELDT_1965, TAVAKOL_2011),
     ),
 }
 
