@@ -14,8 +14,11 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **27 sep** desde `develop` (`466e298`), con las diez familias del
-paso 4. El anterior (`84255a9`, también del 27) tenía los 42 arreglos de la
+Recompilado el **27 sep a la tarde** desde `develop` (`c789807`), con el paso 4
+entero: los 78 análisis en `Resultado`. El de la mañana (`466e298`) tenía las
+diez primeras familias: Kaplan-Meier con la «supervivencia media» sin sentido,
+Cox con `columns[3:]` y el falso «no convergió», el bootstrap percentil. El de
+antes (`84255a9`, también del 27) tenía los 42 arreglos de la
 auditoría, la familia de validación y el asistente «Validar un método», pero no
 los cambios a propósito del paso 4 (t de una muestra contra μ₀, calculadoras
 desde el diálogo, CMH con estrato, Youden interlaboratorio). El de antes de ese
