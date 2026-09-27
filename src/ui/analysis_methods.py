@@ -99,6 +99,10 @@ from src.resultado.constructores.medias import (
 from src.resultado.constructores.noparametricas import (
     cochran, friedman, kruskal, mann_whitney, signos, wilcoxon,
 )
+from src.resultado.constructores.tablas import (
+    chi_cuadrado, cmh, dos_proporciones, fisher, mcnemar, odds_ratio_tabla,
+    riesgo_relativo,
+)
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
@@ -1087,84 +1091,29 @@ class AnalysisMethodsMixin:
         return wilcoxon(self.data, c1, c2)
 
     # --- Chi-cuadrado ---
+    # --- Proporciones y tablas: las arma src/resultado/constructores/tablas.py ---
     def _chi2(self, c1, c2):
-        """Chi-cuadrado de independencia sobre las dos variables elegidas (datos crudos)."""
-        tabla = self._tabla_rxc(c1, c2)
-        if isinstance(tabla, str):
-            return tabla
-        r = chi_square_test(tabla.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        es_2x2 = tabla.shape == (2, 2)
-        esperadas = np.asarray(r["expected"])
-        formula = "X² = Σ (O − E)² / E,   E = total de fila × total de columna / n"
-        if es_2x2:
-            formula += "\nTabla 2×2: corrección de Yates, X² = Σ (|O − E| − 0,5)² / E"
-        self._set_formula("Formula: Chi-cuadrado", formula,
-                          f"X² = {r['chi2']:.4f}\np = {r['p']:.6f}\ngl = {r['df']}")
-        h = self._h(f" Chi-cuadrado — {escape(str(c1))} × {escape(str(c2))}")
-        h += self._html_tabla_rxc(tabla)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("X²" + (" (Yates)" if es_2x2 else ""), f"{r['chi2']:.4f}"),
-                     ("gl", r['df']), ("p", _p_html(r['p'])),
-                     ("Frecuencia esperada mínima", f"{esperadas.min():.2f}")]:
-            h += self._r(l, v)
-        h += "</table>"
-        if np.mean(esperadas < 5) > 0.2 or esperadas.min() < 1:
-            h += self._avisos_html([
-                "Más del 20 % de las celdas espera menos de 5 casos (o alguna menos de 1): "
-                "la aproximación chi-cuadrado no es confiable con estos datos."
-                + (" Con una tabla 2×2, usá la prueba exacta de Fisher." if es_2x2 else "")])
-        return h + self._ok(r['p'] < 0.05, "Se detectó asociación", "No se detectó asociación")
+        return chi_cuadrado(self.data, c1, c2)
+
+    def _dos_proporciones(self):
+        try:
+            opciones = {k: self._param("Comparar 2 proporciones", k)
+                        for k in ("x1", "n1", "x2", "n2")}
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        res = dos_proporciones(opciones)
+        if res.ok and not getattr(self, "parametros", None):
+            res.advertencias.append("Son los valores de ejemplo. Para calcular con los "
+                                    "tuyos, abrí el análisis desde el menú Estadísticas.")
+        return res
 
     # --- Fisher exact ---
     def _fisher(self, c1, c2):
-        """Prueba exacta de Fisher sobre la tabla 2×2 de las dos variables elegidas."""
-        t = self._tabla_2x2(c1, c2)
-        if isinstance(t, str):
-            return t
-        a, b, c, d, filas, columnas, lectura, avisos = t
-        r = fisher_exact_test(a, b, c, d)
-        self._set_formula("Formula: Fisher Exact",
-                          "p = suma de las probabilidades hipergeométricas de todas las tablas "
-                          "con los mismos totales\nque son tan o más extremas que la observada\n"
-                          "OR muestral = (a·d)/(b·c)",
-                          f"OR = {r['odds_ratio']:.4f}\np = {r['p']:.6f}")
-        h = self._h(" Fisher Exact")
-        h += f"<p style='font-size:11px;'>{lectura}</p>"
-        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("OR muestral", f"{r['odds_ratio']:.4f}"), ("p", _p_html(r['p']))]:
-            h += self._r(l, v)
-        h += "</table>" + self._avisos_html(avisos)
-        return h + self._ok(r['p'] < 0.05, "Se detectó asociación", "No se detectó asociación")
+        return fisher(self.data, c1, c2)
 
     # --- McNemar ---
     def _mcnemar(self, c1, c2):
-        """McNemar: la misma clasificación binaria en dos momentos o por dos métodos.
-
-        Variable 1 = antes (o método 1), Variable 2 = después (o método 2), una
-        fila por sujeto. Con menos de 25 pares discordantes usa la binomial exacta.
-        """
-        t = self._tabla_2x2(c1, c2)
-        if isinstance(t, str):
-            return t
-        a, b, c, d, filas, columnas, lectura, avisos = t
-        r = mcnemar_test(b, c)
-        self._set_formula("Formula: McNemar",
-                          "Pares discordantes b y c\n"
-                          "b + c < 25: p binomial exacta, B(b + c; 0,5)\n"
-                          "b + c ≥ 25: X² = (|b − c| − 1)² / (b + c), 1 gl",
-                          f"b={b}, c={c}\np = {r['p']:.6f} ({r['metodo']})")
-        h = self._h(" McNemar")
-        h += f"<p style='font-size:11px;'>{lectura}</p>"
-        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Discordantes b", b), ("Discordantes c", c),
-                     ("Método", r['metodo']), ("p", _p_html(r['p']))]:
-            h += self._r(l, v)
-        h += "</table>" + self._avisos_html(avisos)
-        return h + self._ok(r['p'] < 0.05, "Se detectó cambio", "No se detectó cambio")
+        return mcnemar(self.data, c1, c2)
 
     # --- Kruskal-Wallis ---
     def _kruskal(self, c1, c2):
@@ -1269,49 +1218,13 @@ class AnalysisMethodsMixin:
 
     # --- Odds Ratio ---
     def _odds_ratio(self, c1, c2):
-        """OR: Variable 1 = exposición, Variable 2 = evento (una fila por sujeto)."""
-        t = self._tabla_2x2(c1, c2)
-        if isinstance(t, str):
-            return t
-        a, b, c, d, filas, columnas, lectura, avisos = t
-        r = odds_ratio(a, b, c, d)
-        self._set_formula("Formula: Odds Ratio",
-                          "OR = (a·d)/(b·c)\nIC 95%: exp(ln OR ± 1,96·√(1/a+1/b+1/c+1/d))\n"
-                          "Con alguna celda en 0 se suma 0,5 a todas (Haldane)",
-                          f"OR = {r['or']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\np = {r['p']:.6f}")
-        h = self._h(" Odds Ratio")
-        h += f"<p style='font-size:11px;'>{lectura}</p>"
-        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("OR", f"{r['or']:.4f}"),
-                     ("IC 95%", f"{r['ci_lower']:.4f} a {r['ci_upper']:.4f}"),
-                     ("p", _p_html(r['p']))]:
-            h += self._r(l, v)
-        return h + "</table>" + self._avisos_html(avisos)
+        """Variable 1 = exposición, Variable 2 = evento."""
+        return odds_ratio_tabla(self.data, c1, c2)
 
     # --- Riesgo Relativo ---
     def _riesgo_relativo(self, c1, c2):
-        """RR: Variable 1 = exposición, Variable 2 = evento (una fila por sujeto)."""
-        t = self._tabla_2x2(c1, c2)
-        if isinstance(t, str):
-            return t
-        a, b, c, d, filas, columnas, lectura, avisos = t
-        r = relative_risk(a, b, c, d)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Riesgo Relativo",
-                          "RR = (a/(a+b)) / (c/(c+d))\n"
-                          "IC 95%: exp(ln RR ± 1,96·√(1/a − 1/(a+b) + 1/c − 1/(c+d)))\nNNT = 1/|ARR|",
-                          f"RR = {r['rr']:.4f}\nIC95% = [{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]\nNNT = {r['nnt']:.1f}")
-        h = self._h(" Riesgo Relativo")
-        h += f"<p style='font-size:11px;'>{lectura}</p>"
-        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("RR", f"{r['rr']:.4f}"),
-                     ("IC 95%", f"{r['ci_lower']:.4f} a {r['ci_upper']:.4f}"),
-                     (r['nnt_tipo'], "—" if not np.isfinite(r['nnt']) else f"{r['nnt']:.1f}")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._avisos_html(avisos)
+        """Variable 1 = exposición, Variable 2 = evento."""
+        return riesgo_relativo(self.data, c1, c2)
 
     # --- Diagnostic test ---
     def _diag_test(self, c1, c2):
@@ -1466,28 +1379,6 @@ class AnalysisMethodsMixin:
                     h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
                 return h + "</table>" + self._avisos_html(avisos)
 
-            elif func_name == "compare_props":
-                valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
-                if len(valores) != 4:
-                    return ("<b>Error:</b> esta calculadora lee exactamente 4 valores de la "
-                            "primera columna, en este orden: p1, n1, p2, n2. La columna tiene "
-                            f"{len(valores)}. Si tenés los datos de cada sujeto, usá la prueba "
-                            "correspondiente, que los toma de las columnas.")
-                p1, n1, p2, n2 = valores.iloc[:4]
-                n1, n2 = int(n1), int(n2)
-                result = compare_two_proportions(p1, n1, p2, n2)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo comparar las proporciones.")
-                self._set_formula("Formula: Comparar 2 Proporciones",
-                                  "z = (p1 − p2) / √(p̂(1−p̂)(1/n1 + 1/n2))  (prueba, con p agrupada)\n"
-                                  "IC 95% de p1 − p2: Newcombe (Wilson híbrido)")
-                h = self._h(" Comparar 2 Proporciones")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Diferencia", f"{result['diff']:.4f}")
-                h += self._r("IC 95% (Newcombe)", f"{result['ci95'][0]:.4f} a {result['ci95'][1]:.4f}")
-                h += self._r("z", f"{result['z']:.4f}")
-                h += self._r("p", _p_html(result['p']))
-                return h + "</table>" + self._ok(result['p'] < 0.05)
             elif func_name == "compare_auc":
                 valores = pd.to_numeric(self.data.iloc[:, 0], errors="coerce").dropna()
                 if len(valores) != 6:
@@ -1639,24 +1530,12 @@ class AnalysisMethodsMixin:
         """Variable 1 = dosis, Variable 2 = respuesta 0/1."""
         return probit(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
-    def _run_cmh(self):
-        """Run CMH Test."""
-        if self.data.shape[0] < 2 or self.data.shape[1] < 4:
-            return "<b>Error:</b> Se necesitan al menos 2 filas y 4 columnas (2x2xK tablas)."
-        try:
-            tables = self.data.values.reshape(-1, 2, 2)
-            result = cmh_test(tables)
-            self._set_formula("Formula: CMH", "CMH = (Σ(a - n1m1/n))² / Σ(var)")
-            h = self._h(f" Cochran-Mantel-Haenszel")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("CMH", f"{result['cmh_statistic']:.4f}")
-            h += self._r("p", f"{result['p_value']:.6f}")
-            h += self._r("OR común", f"{result['common_odds_ratio']:.4f}")
-            h += self._r("95% CI OR", f"[{result['or_ci_low']:.4f}, {result['or_ci_high']:.4f}]")
-            h += self._r("K tablas", result['K'])
-            return h + "</table>" + self._ok(result['p_value'] < 0.05, "Se detectó asociación", "No se detectó asociación")
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+    def _run_cmh(self, c1, c2, c3):
+        """Exposición (V1), evento (V2) y estrato (V3), una fila por sujeto."""
+        if c3 is None or c3 not in self.data.columns:
+            return Resultado.rechazo("cmh", "Cochran-Mantel-Haenszel",
+                                     "Elegí el estrato en la Variable 3.")
+        return cmh(self.data, c1, c2, c3)
 
     def _run_serial(self):
         """Mediciones seriadas: una columna por tiempo (en orden), una fila por sujeto."""

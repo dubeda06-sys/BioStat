@@ -104,8 +104,10 @@ def _tabla(df):
 def test_fisher_tabula_los_datos_crudos(qt_app, crudos):
     t = _texto(_panel(crudos)._fisher("Prueba", "Oro"))
     tabla = _tabla(crudos)
-    or_ok, p_ok = stats.fisher_exact(tabla)
-    assert f"{or_ok:.4f}" in t
+    _, p_ok = stats.fisher_exact(tabla)
+    # Desde el paso 4, junto a Fisher va el OR condicional con su IC exacto.
+    from scipy.stats.contingency import odds_ratio
+    assert f"{odds_ratio(tabla, kind='conditional').statistic:.4f}" in t
     assert "p<0.0001" in t.replace(" ", "") if p_ok < 1e-4 else f"{p_ok:.4f}" in t
     assert "Tabla armada con 80 filas" in t
 
@@ -114,7 +116,8 @@ def test_una_tabla_de_conteos_ya_armada_se_reconoce_y_se_dice(qt_app):
     df = pd.DataFrame({"Enfermos": [34, 9], "Sanos": [3, 34]})
     t = _texto(_panel(df)._fisher("Enfermos", "Sanos"))
     assert "tabla de conteos ya armada" in t
-    assert f"{stats.fisher_exact([[34, 3], [9, 34]])[0]:.4f}" in t
+    from scipy.stats.contingency import odds_ratio
+    assert f"{odds_ratio([[34, 3], [9, 34]], kind='conditional').statistic:.4f}" in t
 
 
 def test_la_prueba_diagnostica_cuenta_vp_fp_fn_vn(qt_app, crudos):
@@ -129,7 +132,7 @@ def test_mcnemar_usa_los_pares_discordantes(qt_app, crudos):
     t = _texto(_panel(crudos)._mcnemar("Prueba", "Oro"))
     tabla = _tabla(crudos)
     b, c = tabla[0, 1], tabla[1, 0]
-    assert f"Discordantes b {b}" in t and f"Discordantes c {c}" in t
+    assert f"b = {b}, c = {c}" in t
     esperado = mcnemar(tabla, exact=(b + c < 25)).pvalue
     assert _p_mostrado(t) == pytest.approx(esperado, abs=5e-5)
 

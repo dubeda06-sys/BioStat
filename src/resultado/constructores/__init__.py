@@ -21,6 +21,8 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
     "respuesta_grupo_covariable": f(df, respuesta, grupo, covariable)
     "lista_tres":    f(df, [3 columnas o más])
     "lista_binaria": f(df, [columnas 0/1])
+    "binarias":      f(df, binaria1, binaria2)
+    "binarias_estrato": f(df, exposicion, evento, estrato)
 """
 from src.resultado.constructores.anova import (
     ancova, anova_dos_vias, anova_una_via, medidas_repetidas,
@@ -42,6 +44,10 @@ from src.resultado.constructores.regresion import (
 from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
+)
+from src.resultado.constructores.tablas import (
+    chi_cuadrado, cmh, dos_proporciones, fisher, mcnemar, odds_ratio_tabla,
+    riesgo_relativo,
 )
 from src.resultado.constructores.validacion import validar_metodo
 
@@ -84,6 +90,14 @@ CONSTRUCTORES = {
     "friedman": friedman,
     "signos": signos,
     "cochran": cochran,
+    # Proporciones y tablas
+    "chi_cuadrado": chi_cuadrado,
+    "fisher": fisher,
+    "mcnemar": mcnemar,
+    "dos_proporciones": dos_proporciones,
+    "odds_ratio": odds_ratio_tabla,
+    "riesgo_relativo": riesgo_relativo,
+    "cmh": cmh,
     # Comparación de métodos
     "bland_altman": bland_altman,
     "passing_bablok": passing_bablok,
@@ -112,7 +126,14 @@ FIRMAS["medidas_repetidas"] = "lista"
 FIRMAS["kruskal"] = "respuesta_grupo"
 FIRMAS["friedman"] = "lista_tres"
 FIRMAS["cochran"] = "lista_binaria"
+for _n in ("chi_cuadrado", "fisher", "mcnemar", "odds_ratio", "riesgo_relativo"):
+    FIRMAS[_n] = "binarias"
+FIRMAS["dos_proporciones"] = "calculadora"
+FIRMAS["cmh"] = "binarias_estrato"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
+from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402
+
+EJEMPLOS = {**EJEMPLOS, **_EJ_TABLAS}
 
 __all__ = ["CONSTRUCTORES", "EJEMPLOS", "FIRMAS", *sorted(CONSTRUCTORES)]

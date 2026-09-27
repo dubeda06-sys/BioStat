@@ -227,7 +227,17 @@ _LLAMADAS = {"una": lambda f, df: f(df, "A"),
              "lista_tres": lambda f, df: f(df.assign(C=df["A"] + 1), ["A", "B", "C"]),
              "lista_binaria": lambda f, df: f(df.assign(U=(df["A"] > df["A"].median()) * 1.0,
                                                         V=(df["B"] > df["B"].median()) * 1.0),
-                                              ["U", "V"])}
+                                              ["U", "V"]),
+             "binarias": lambda f, df: f(_binarias(df), "U", "V"),
+             "binarias_estrato": lambda f, df: f(_binarias(df), "U", "V", "E")}
+
+
+def _binarias(df):
+    """Dos binarias asociadas y un estrato, con todas las celdas pobladas."""
+    rng = np.random.default_rng(8)
+    u = (rng.uniform(0, 1, len(df)) < 0.5) * 1.0
+    return df.assign(U=u, V=((0.6 * u + rng.uniform(0, 1, len(df))) > 0.7) * 1.0,
+                     E=np.arange(len(df)) % 2)
 
 
 def _con_grupos(df):

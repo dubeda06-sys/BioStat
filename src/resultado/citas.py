@@ -176,6 +176,40 @@ DIXON_1946 = Cita("Dixon WJ, Mood AM (1946). The statistical sign test. J Am Sta
                   "41:557-566.")
 COCHRAN_1950 = Cita("Cochran WG (1950). The comparison of percentages in matched samples. "
                     "Biometrika 37:256-266.")
+PEARSON_1900 = Cita("Pearson K (1900). On the criterion that a given system of deviations from "
+                    "the probable in the case of a correlated system of variables is such that "
+                    "it can be reasonably supposed to have arisen from random sampling. Philos "
+                    "Mag 50:157-175.")
+YATES_1934 = Cita("Yates F (1934). Contingency tables involving small numbers and the χ² test. "
+                  "J R Stat Soc Suppl 1:217-235.")
+FISHER_1922 = Cita("Fisher RA (1922). On the interpretation of χ² from contingency tables, and "
+                   "the calculation of P. J R Stat Soc 85:87-94.")
+HOPE_1968 = Cita("Hope ACA (1968). A simplified Monte Carlo significance test procedure. J R "
+                 "Stat Soc B 30:582-598.")
+CRAMER_1946 = Cita("Cramér H (1946). Mathematical methods of statistics. Princeton University "
+                   "Press.")
+AGRESTI_2002 = Cita("Agresti A (2002). Categorical data analysis, 2.ª ed. Hoboken: Wiley.")
+MCNEMAR_1947 = Cita("McNemar Q (1947). Note on the sampling error of the difference between "
+                    "correlated proportions or percentages. Psychometrika 12:153-157.")
+EDWARDS_1948 = Cita("Edwards AL (1948). Note on the «correction for continuity» in testing the "
+                    "significance of the difference between correlated proportions. "
+                    "Psychometrika 13:185-187.")
+NEWCOMBE_1998 = Cita("Newcombe RG (1998). Interval estimation for the difference between "
+                     "independent proportions: comparison of eleven methods. Stat Med "
+                     "17:873-890.")
+WOOLF_1955 = Cita("Woolf B (1955). On estimating the relation between blood group and disease. "
+                  "Ann Hum Genet 19:251-253.")
+HALDANE_1956 = Cita("Haldane JBS (1956). The estimation and significance of the logarithm of a "
+                    "ratio of frequencies. Ann Hum Genet 20:309-311.")
+KATZ_1978 = Cita("Katz D, Baptista J, Azen SP, Pike MC (1978). Obtaining confidence intervals "
+                 "for the risk ratio in cohort studies. Biometrics 34:469-474.")
+MANTEL_1959 = Cita("Mantel N, Haenszel W (1959). Statistical aspects of the analysis of data "
+                   "from retrospective studies of disease. J Natl Cancer Inst 22:719-748.")
+ROBINS_1986 = Cita("Robins J, Breslow N, Greenland S (1986). Estimators of the Mantel-Haenszel "
+                   "variance consistent in both sparse data and large-strata limiting models. "
+                   "Biometrics 42:311-323.")
+BRESLOW_1980 = Cita("Breslow NE, Day NE (1980). Statistical methods in cancer research, vol. I. "
+                    "Lyon: IARC. Prueba de homogeneidad de los OR.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -608,6 +642,64 @@ FICHAS: dict[str, Ficha] = {
             "Cⱼ = éxitos por tratamiento, Rᵢ = éxitos por sujeto, T = total"
         ),
         citas=(COCHRAN_1950,),
+    ),
+
+    # ---------------- Proporciones y tablas: src/resultado/constructores/tablas.py
+    "chi_cuadrado": Ficha(
+        formula=(
+            "χ² = Σ (O − E)²/E,  E = total de fila × total de columna / n;  (r−1)(c−1) gl\n"
+            "2×2: corrección de Yates, Σ (|O − E| − 0,5)²/E\n"
+            "Esperada mínima < 5: Fisher en 2×2; en r×c, p por permutación (9999 tablas con\n"
+            "    los mismos totales, semilla fija)\n"
+            "V de Cramér = √(χ² / (n·(mín(r, c) − 1)))"
+        ),
+        citas=(PEARSON_1900, YATES_1934, FISHER_1922, HOPE_1968, CRAMER_1946),
+    ),
+    "fisher": Ficha(
+        formula=(
+            "p = suma de las probabilidades hipergeométricas de las tablas con los mismos\n"
+            "    totales tan o más extremas que la observada\n"
+            "OR condicional (máxima verosimilitud) con su IC exacto"
+        ),
+        citas=(FISHER_1922, AGRESTI_2002),
+    ),
+    "mcnemar": Ficha(
+        formula=(
+            "b, c = pares discordantes\n"
+            "b + c < 25: p binomial exacta, B(b + c; 0,5)\n"
+            "b + c ≥ 25: χ² = (|b − c| − 1)²/(b + c), 1 gl (Edwards)"
+        ),
+        citas=(MCNEMAR_1947, EDWARDS_1948),
+    ),
+    "dos_proporciones": Ficha(
+        formula=(
+            "z = (p₁ − p₂) / √(p̂(1 − p̂)(1/n₁ + 1/n₂)),  p̂ agrupada\n"
+            "IC 95 % de p₁ − p₂: Newcombe (método 10, Wilson híbrido)"
+        ),
+        citas=(NEWCOMBE_1998, ALTMAN_1991),
+    ),
+    "odds_ratio": Ficha(
+        formula=(
+            "OR = (a·d)/(b·c);  IC 95 % = exp(ln OR ± 1,96·√(1/a + 1/b + 1/c + 1/d))\n"
+            "Con alguna celda en 0 se suma 0,5 a todas (Haldane)"
+        ),
+        citas=(WOOLF_1955, HALDANE_1956),
+    ),
+    "riesgo_relativo": Ficha(
+        formula=(
+            "RR = (a/(a + b)) / (c/(c + d))\n"
+            "IC 95 % = exp(ln RR ± 1,96·√(1/a − 1/(a + b) + 1/c − 1/(c + d)))\n"
+            "NNT (o NNH) = 1/|riesgo₀ − riesgo₁|"
+        ),
+        citas=(KATZ_1978, ALTMAN_1991),
+    ),
+    "cmh": Ficha(
+        formula=(
+            "χ²_CMH = (Σ(aₖ − E[aₖ]))² / Σ Var(aₖ), 1 gl\n"
+            "OR_MH = Σ(aₖdₖ/nₖ) / Σ(bₖcₖ/nₖ);  IC por la varianza de Robins-Breslow-Greenland\n"
+            "Homogeneidad de los OR entre estratos: Breslow-Day"
+        ),
+        citas=(MANTEL_1959, ROBINS_1986, BRESLOW_1980),
     ),
 }
 

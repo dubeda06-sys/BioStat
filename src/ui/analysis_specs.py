@@ -93,7 +93,7 @@ VARIABLES = {
     'Medidas repetidas': (),
     'Cox regression': ('c1', 'c2'),
     'Probit regression': ('c1', 'c2'),
-    'CMH test': (),
+    'CMH test': ('c1', 'c2', 'c3'),
     'Mediciones seriales': (),
     'Youden plot': ('c1', 'c3'),
     'Polar plot': (),
@@ -390,6 +390,14 @@ PARAMETROS["Comparar 2 medias"] = (
     Parametro("de2", "DE del grupo 2", 1.3, 0.0),
     Parametro("n2", "n del grupo 2", 28, 2, 10_000_000, entero=True),
 )
+
+PARAMETROS["Comparar 2 proporciones"] = (
+    Parametro("x1", "Eventos del grupo 1", 24, 0, 10_000_000, entero=True),
+    Parametro("n1", "Total del grupo 1", 80, 1, 10_000_000, entero=True),
+    Parametro("x2", "Eventos del grupo 2", 12, 0, 10_000_000, entero=True),
+    Parametro("n2", "Total del grupo 2", 75, 1, 10_000_000, entero=True),
+)
+ETIQUETAS["CMH test"] = {"c1": "Exposición", "c2": "Evento", "c3": "Estrato"}
 
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",

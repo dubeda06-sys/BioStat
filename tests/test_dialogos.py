@@ -44,11 +44,10 @@ def test_una_sola_variable(app):
     assert d.input_alpha is None
 
 
-def test_analisis_sobre_toda_la_hoja_no_pide_columnas(app):
-    # CMH lee la hoja como tablas 2x2 apiladas (una fila por estrato). Chi-cuadrado
-    # dejo de estar aca: ahora usa las dos variables elegidas (auditoria K3).
+def test_cmh_pide_exposicion_evento_y_estrato(app):
+    # Hasta el paso 4, CMH partía la hoja entera en tablas 2x2 y no pedía columnas.
     d = DialogoAnalisis("CMH test", COLUMNAS)
-    assert d.combo_col1 is None and d.combo_col2 is None and d.combo_col3 is None
+    assert d.combo_col1 is not None and d.combo_col2 is not None and d.combo_col3 is not None
 
 
 def test_chi_cuadrado_pide_las_dos_variables(app):

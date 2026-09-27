@@ -58,7 +58,8 @@ def test_sobre_toda_la_hoja_ignora_el_alfa():
     assert variables("ANOVA una via") == ("c1", "c2", "alpha")
     assert not sobre_toda_la_hoja("ANOVA una via")
     assert not sobre_toda_la_hoja("Bland-Altman")
-    assert sobre_toda_la_hoja("CMH test")
+    # CMH dejo de leer la hoja entera como tablas 2x2: exposicion, evento y estrato.
+    assert variables("CMH test") == ("c1", "c2", "c3")
 
 
 def test_las_listas_y_los_parametros_son_de_analisis_que_existen():
