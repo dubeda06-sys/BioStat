@@ -46,7 +46,6 @@ from src.core.diagnostic_tests import (
     likelihood_ratios, compare_two_means, compare_two_proportions, compare_two_auc
 )
 from src.core.outliers import grubbs_test, tukey_outliers, generalized_esd
-from src.core.reference import reference_interval, percentile_table, age_related_reference
 from src.core.two_way_anova import two_way_anova
 from src.core.ancova import ancova
 from src.core.repeated_measures import repeated_measures_anova
@@ -303,8 +302,8 @@ ANALYSIS_LEGENDS = {
         "formula": "Pₖ = valor en la posición k·(n+1)/100, interpolado\nIC por bootstrap"
     },
     "Edad-relacionada": {
-        "legend": "Permite segmentar y calcular intervalos de referencia específicos para distintos grupos etarios o factores continuos. Clave en analitos como hormonas pediátricas.",
-        "formula": "Intervalos por grupo de edad usando percentiles"
+        "legend": "Intervalos de referencia que cambian con la edad: centiles por regresión (Altman 1993) o percentiles de EP28 por grupos de edad.",
+        "formula": "Media(edad) y DE(edad) por regresión; centiles = media ± 1,96·DE (Altman 1993)"
     },
     "Outliers (ESD)": {
         "legend": "Prueba de Desviación Estudentizada Extrema Generalizada (Rosner). Detecta progresivamente múltiples outliers simultáneos en una serie, superando el límite de Grubbs.",
@@ -619,7 +618,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Comparar 2 proporciones": lambda: self._dos_proporciones(),
             "Comparar 2 AUC": lambda: self._comparar_auc(),
             "Tabla de percentiles": lambda: self._percentiles(c1),
-            "Edad-relacionada": lambda: self._run_core("age_related", c1, c2),
+            "Edad-relacionada": lambda: self._edad(c1, c2),
             "Outliers (ESD)": lambda: self._esd(c1),
             "Bootstrap (mediana)": lambda: self._run_core("bootstrap_median", c1),
             "Bootstrap (regresion)": lambda: self._run_core("bootstrap_regression", c1, c2),

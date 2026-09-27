@@ -148,7 +148,7 @@ CASOS = [
     ("chi-cuadrado", _hoja_categorica, ["X", "Y"], lambda p: p._chi2("X", "Y")),
     ("kappa ponderado", _hoja_categorica, ["X", "Y"], lambda p: p._kappa_ponderado("X", "Y")),
     ("Friedman", _hoja_tres_condiciones, ["C1", "C2", "C3"], lambda p: p._friedman()),
-    ("intervalos por edad", _hoja_edad, ["Edad", "Valor"], lambda p: p._run_core("age_related", "Edad", "Valor")),
+    ("intervalos por edad", _hoja_edad, ["Edad", "Valor"], lambda p: p._edad("Edad", "Valor")),
     ("Cox", _hoja_cox, ["T", "E", "Z"], lambda p: p._run_cox("T", "E")),
 ]
 

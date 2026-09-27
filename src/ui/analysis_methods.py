@@ -107,6 +107,7 @@ from src.resultado.constructores.tablas import (
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
+from src.resultado.constructores.referencia import intervalo_referencia, intervalos_por_edad
 from src.resultado.constructores.roc import comparar_auc, curva_roc
 from src.resultado.constructores.supervivencia import kaplan_meier, log_rank, regresion_cox
 from src.resultado.constructores.resumen import (
@@ -139,7 +140,6 @@ from src.core.diagnostic_tests import (
     odds_ratio, relative_risk, diagnostic_test,
     likelihood_ratios, compare_two_means, compare_two_proportions, compare_two_auc
 )
-from src.core.reference import reference_interval, age_related_reference
 from src.core.two_way_anova import two_way_anova
 from src.core.ancova import ancova
 from src.core.repeated_measures import repeated_measures_anova
@@ -1080,40 +1080,25 @@ class AnalysisMethodsMixin:
     def _outliers_tukey(self, col):
         return tukey(self.data, col)
 
-    # --- Intervalos de referencia ---
+    # --- Valores de referencia: src/resultado/constructores/referencia.py ---
     def _ref_interval(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        if len(d) < 20:
-            return "<b>Error:</b> Minimo 20 datos."
-        ri = reference_interval(d.values)
-        if ri is None:
-            return "<b>Error:</b> No se pudo calcular."
-        self._set_formula(
-            "Formula: Intervalo de Referencia (CLSI EP28-A3c)",
-            "Limite inferior = dato de rango 0,025·(n+1), interpolado (§9.4.1)\n"
-            "Limite superior = dato de rango 0,975·(n+1), interpolado\n"
-            "IC 90% de cada limite: rangos de orden de la tabla 8 (§9.5.1), n ≥ 119",
-            f"Limite inf (2.5%): {ri['lower']:.4f}\nLimite sup (97.5%): {ri['upper']:.4f}")
-        h = self._h(f" Intervalos de Referencia — {col}")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("n", ri['n'])
-        h += self._r("Limite inferior (2.5%)", f"{ri['lower']:.4f}")
-        h += self._r("Limite superior (97.5%)", f"{ri['upper']:.4f}")
-        if ri["rangos_ic"] is not None:
-            a, b = ri["rangos_ic"]
-            h += self._r("IC 90% del limite inferior",
-                         f"{ri['ci_lower_low']:.4f} a {ri['ci_lower_high']:.4f} (rangos {a} y {b})")
-            h += self._r("IC 90% del limite superior",
-                         f"{ri['ci_upper_low']:.4f} a {ri['ci_upper_high']:.4f} "
-                         f"(rangos {ri['n'] + 1 - b} y {ri['n'] + 1 - a})")
-        else:
-            h += self._r("IC de los limites", "sin IC normativo (EP28 lo da desde n = 119)")
-        h += "</table>"
-        for aviso in ri.get("avisos", []):
-            h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
-        return h
+        """Una columna; los límites publicados, opcionales, para verificarlos."""
+        try:
+            opciones = {k: self._param("Intervalos de referencia", k)
+                        for k in ("inferior", "superior")}
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        return intervalo_referencia(self.data, col, opciones)
+
+    def _edad(self, c1, c2):
+        """Variable 1 = edad, Variable 2 = valor."""
+        for c in (c1, c2):
+            if c is None or c not in self.data.columns:
+                return Resultado.rechazo("intervalos_edad", "Intervalos por edad",
+                                         "Elegí la edad en la Variable 1 y el valor en la "
+                                         "Variable 2.")
+        return intervalos_por_edad(self.data, c1, c2,
+                                   getattr(self, "opciones_metodo", None))
 
     # --- Asimetria y curtosis ---
     def _skew_kurt(self, col):
@@ -1156,34 +1141,6 @@ class AnalysisMethodsMixin:
                 if result.get('ci_nlr'):
                     h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
                 return h + "</table>" + self._avisos_html(avisos)
-
-            elif func_name == "age_related":
-                for c in (c1, c2):
-                    if c is None or c not in self.data.columns:
-                        return "<b>Error:</b> Elegí la edad en la Variable 1 y el valor en la Variable 2."
-                pares = self._filas_completas(c1, c2)
-                ages, values = pares[c1].values, pares[c2].values
-                result = age_related_reference(ages, values)
-                self._set_formula("Formula: Intervalos por Edad",
-                                  "Grupos de edad de ancho fijo [desde, hasta); en cada uno, "
-                                  "percentiles 5, 50 y 95 del valor")
-                h = self._h(f" Intervalos por Edad — {escape(str(c2))} según {escape(str(c1))}")
-                h += "<table style='font-size:12px;'>"
-                if not result['groups']:
-                    h += "<tr><td>Sin datos.</td></tr>"
-                else:
-                    def _v(x):
-                        return "—" if not np.isfinite(x) else f"{x:.2f}"
-                    h += "<tr><th>Grupo</th><th>n</th><th>Media</th><th>P5</th><th>Mediana</th><th>P95</th></tr>"
-                    for g in result['groups']:
-                        h += (f"<tr><td>{g['age_group']}</td><td>{g['n']}</td><td>{g['mean']:.2f}</td>"
-                              f"<td>{_v(g['p5'])}</td><td>{_v(g['median'])}</td><td>{_v(g['p95'])}</td></tr>")
-                h += "</table>"
-                if any(g.get("nota") for g in result['groups']):
-                    h += self._avisos_html(["Los grupos con menos de 5 sujetos se muestran sin "
-                                            "percentiles: con tan pocos datos no hay percentil 5 "
-                                            "ni 95 que estimar."])
-                return h
 
             elif func_name == "bootstrap_median":
                 if c1 is None or c1 not in self.data.columns:

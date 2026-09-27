@@ -270,6 +270,15 @@ COX_1972 = Cita("Cox DR (1972). Regression models and life-tables. J R Stat Soc 
                 "34:187-220.")
 EFRON_1977 = Cita("Efron B (1977). The efficiency of Cox's likelihood function for censored "
                   "data. J Am Stat Assoc 72:557-565.")
+REED_1971 = Cita("Reed AH, Henry RJ, Mason WB (1971). Influence of statistical method used on "
+                 "the resulting estimate of normal range. Clin Chem 17:275-284. Regla D/R > 1/3.")
+SOLBERG_1987 = Cita("Solberg HE (1987). Approved recommendation (1987) on the theory of "
+                    "reference values. Part 5. Statistical treatment of collected reference "
+                    "values. J Clin Chem Clin Biochem 25:645-656.")
+ALTMAN_1993 = Cita("Altman DG (1993). Construction of age-related reference centiles using "
+                   "absolute residuals. Stat Med 12:917-924.")
+ALTMAN_CHITTY_1994 = Cita("Altman DG, Chitty LS (1994). Charts of fetal size: 1. Methodology. "
+                          "Br J Obstet Gynaecol 101:29-34.")
 PEDUZZI_1995 = Cita("Peduzzi P, Concato J, Feinstein AR, Holford TR (1995). Importance of "
                     "events per independent variable in proportional hazards regression "
                     "analysis. II. Accuracy and precision of regression estimates. J Clin "
@@ -865,6 +874,26 @@ FICHAS: dict[str, Ficha] = {
             "y global (p gl), aproximación de Grambsch y Therneau"
         ),
         citas=(COX_1972, EFRON_1977, GRAMBSCH_1994, PEDUZZI_1995),
+    ),
+
+    # ---------------- Valores de referencia: src/resultado/constructores/referencia.py
+    "intervalo_referencia": Ficha(
+        formula=(
+            "Límites = datos de rango 0,025·(n + 1) y 0,975·(n + 1), interpolados (EP28 §9.4.1)\n"
+            "IC 90 % de cada límite: rangos de orden de la tabla 8 (§9.5.1), desde n = 119\n"
+            "Dixon: un extremo es sospechoso si D/R > 1/3 (D, distancia al vecino; R, rango)\n"
+            "Verificación de uno publicado: 20 sujetos, se adopta con 2 o menos afuera"
+        ),
+        citas=(CLSI_EP28, SOLBERG_1987, REED_1971),
+    ),
+    "intervalos_edad": Ficha(
+        formula=(
+            "Media(edad) = polinomio de grado 1 a 3 (se baja mientras el más alto dé p ≥ 0,05)\n"
+            "DE(edad) = √(π/2) · (a + b·edad), recta de los residuos absolutos (constante si\n"
+            "la pendiente no aporta); centiles = media ± 1,96·DE a cada edad\n"
+            "Por grupos: percentiles 2,5 y 97,5 con el rango p(n + 1) de EP28 en cada grupo"
+        ),
+        citas=(ALTMAN_1993, ALTMAN_CHITTY_1994, CLSI_EP28),
     ),
 }
 

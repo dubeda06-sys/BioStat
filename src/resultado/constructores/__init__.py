@@ -43,6 +43,7 @@ from src.resultado.constructores.noparametricas import (
     cochran, friedman, kruskal, mann_whitney, signos, wilcoxon,
 )
 from src.resultado.constructores.precision import precision_ep15
+from src.resultado.constructores.referencia import intervalo_referencia, intervalos_por_edad
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
@@ -129,6 +130,9 @@ CONSTRUCTORES = {
     "kaplan_meier": kaplan_meier,
     "log_rank": log_rank,
     "regresion_cox": regresion_cox,
+    # Valores de referencia
+    "intervalo_referencia": intervalo_referencia,
+    "intervalos_edad": intervalos_por_edad,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -161,6 +165,7 @@ FIRMAS["comparar_auc"] = "calculadora"
 FIRMAS["kaplan_meier"] = "tiempo_evento"
 FIRMAS["log_rank"] = "tiempo_evento_grupo"
 FIRMAS["regresion_cox"] = "tiempo_evento_covariables"
+FIRMAS["intervalo_referencia"] = "una"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402

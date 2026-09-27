@@ -67,7 +67,8 @@ def _valores(res: Resultado) -> str:
         celda = escape(v.texto())
         ic = v.texto_ic()
         if ic:
-            celda += f" <span style='font-weight:400;color:{_GRIS};'>(IC 95 %: {escape(ic)})</span>"
+            celda += (f" <span style='font-weight:400;color:{_GRIS};'>"
+                      f"(IC {escape(v.nivel_ic)}: {escape(ic)})</span>")
         if v.nota:
             celda += f" <span style='font-weight:400;font-style:italic;'>{escape(v.nota)}</span>"
         h += _fila(escape(v.nombre), celda)

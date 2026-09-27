@@ -147,8 +147,145 @@ def percentile_table(data, percentiles=None):
     return {"percentiles": result, "n": n}
 
 
+def dixon_reed(data):
+    """Regla de Dixon en la forma de Reed et al. (1971), la que cita EP28-A3c.
+
+    Un extremo es sospechoso si la distancia al dato vecino (D) supera un
+    tercio del rango (R). Se mira el mas bajo y el mas alto. Con dos atipicos
+    del mismo lado el segundo tapa al primero: la regla no lo ve.
+    """
+    x = np.sort(np.asarray(data, dtype=float)[np.isfinite(data)])
+    if len(x) < 3 or x[-1] == x[0]:
+        return {"bajo": None, "alto": None}
+    R = x[-1] - x[0]
+    bajo, alto = (x[1] - x[0]) / R, (x[-1] - x[-2]) / R
+    return {"bajo": {"valor": float(x[0]), "d_r": float(bajo), "sospechoso": bool(bajo > 1 / 3)},
+            "alto": {"valor": float(x[-1]), "d_r": float(alto), "sospechoso": bool(alto > 1 / 3)}}
+
+
+def verificar_intervalo(data, inferior=None, superior=None):
+    """Verificacion de un intervalo publicado (EP28-A3c, transferencia).
+
+    La norma mide 20 sujetos sanos: si 2 o menos caen fuera del intervalo, se
+    adopta; con 3 o mas se miden otros 20, y si vuelve a pasar, se revisa. Con
+    otro n se aplica la misma proporcion: hasta el 10 % afuera. `p` es la
+    probabilidad de ver tantos afuera o mas si el intervalo fuera el correcto
+    (5 % afuera con los dos limites, 2,5 % con uno solo).
+    """
+    x = np.asarray(data, dtype=float)
+    x = x[np.isfinite(x)]
+    if inferior is None and superior is None:
+        return {"error": "No se declaro ningun limite para verificar."}
+    if inferior is not None and superior is not None and inferior >= superior:
+        return {"error": "El limite inferior tiene que ser menor que el superior."}
+    debajo = int(np.sum(x < inferior)) if inferior is not None else 0
+    encima = int(np.sum(x > superior)) if superior is not None else 0
+    n, fuera = len(x), debajo + encima
+    permitidos = int(np.floor(0.10 * n + 1e-9))
+    esperado = 0.05 if (inferior is not None and superior is not None) else 0.025
+    return {"n": n, "debajo": debajo, "encima": encima, "fuera": fuera,
+            "permitidos": permitidos, "verificado": fuera <= permitidos,
+            "p": float(stats.binom.sf(fuera - 1, n, esperado)) if fuera else 1.0,
+            "n_norma": 20}
+
+
+def _polinomio(x, y, grado):
+    """(coeficientes, residuos, p del termino de mayor grado) por minimos cuadrados."""
+    X = np.vander(x, grado + 1, increasing=True)
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    res = y - X @ coef
+    gl = len(y) - (grado + 1)
+    s2 = res @ res / gl
+    cov = s2 * np.linalg.inv(X.T @ X)
+    t = coef[-1] / np.sqrt(cov[-1, -1])
+    return coef, res, float(2 * stats.t.sf(abs(t), gl))
+
+
+def centiles_por_edad(ages, values, z=1.959963984540054, escala="lineal", grado_max=3):
+    """Centiles de referencia por edad con residuos absolutos (Altman 1993).
+
+    1. La media es un polinomio de la edad: se ajusta el de grado `grado_max` y
+       se baja de grado mientras el termino mas alto no aporte (p >= 0,05).
+    2. La DE sale de los residuos absolutos: si |e| tiene pendiente con la edad
+       (p < 0,05), DE(edad) = sqrt(pi/2)·(a + b·edad); si no, sqrt(pi/2)·media|e|.
+       Para una normal E|e| = DE·sqrt(2/pi).
+    3. Centiles = media(edad) ± z·DE(edad); en escala log se vuelve con exp.
+
+    Los z = e/DE(edad) tienen que ser normales estandar: si no, los centiles
+    extremos no cubren lo que dicen (se prueba y se cuenta cuantos quedan
+    fuera). La edad se centra para que el polinomio no quede mal condicionado.
+    """
+    ages = np.asarray(ages, dtype=float)
+    values = np.asarray(values, dtype=float)
+    valid = np.isfinite(ages) & np.isfinite(values)
+    ages, values = ages[valid], values[valid]
+    n = len(values)
+    if n < 20:
+        return {"error": f"Hacen falta al menos 20 sujetos; hay {n}."}
+    if np.ptp(ages) == 0:
+        return {"error": "Todos los sujetos tienen la misma edad."}
+    if escala == "log":
+        if np.any(values <= 0):
+            return {"error": "En escala log los valores tienen que ser positivos."}
+        y = np.log(values)
+    else:
+        y = values
+    centro = ages.mean()
+    x = ages - centro
+
+    grado, p_grado = grado_max, None
+    while True:
+        coef, res, p = _polinomio(x, y, grado)
+        if p < 0.05 or grado == 1:
+            p_grado = p
+            break
+        grado -= 1
+
+    abs_res = np.abs(res)
+    coef_sd, _, p_sd = _polinomio(x, abs_res, 1)
+    factor = np.sqrt(np.pi / 2)
+    sd_lineal = p_sd < 0.05
+    if sd_lineal:
+        extremos = factor * (coef_sd[0] + coef_sd[1] * np.array([x.min(), x.max()]))
+        if np.any(extremos <= 0):
+            sd_lineal = False      # la recta cruzaria cero dentro del rango de edades
+
+    def media(edad):
+        return np.polyval(coef[::-1], np.asarray(edad, dtype=float) - centro)
+
+    def de(edad):
+        e = np.asarray(edad, dtype=float) - centro
+        if sd_lineal:
+            return factor * (coef_sd[0] + coef_sd[1] * e)
+        return np.full_like(e, factor * abs_res.mean(), dtype=float)
+
+    def volver(v):
+        return np.exp(v) if escala == "log" else v
+
+    def centiles(edad):
+        m, s = media(edad), de(edad)
+        return volver(m - z * s), volver(m), volver(m + z * s)
+
+    zs = res / de(ages)
+    shapiro_p = float(stats.shapiro(zs).pvalue) if n <= 5000 else float("nan")
+    return {
+        "n": n, "grado": grado, "p_grado": p_grado, "coeficientes": coef, "centro": centro,
+        "sd_lineal": sd_lineal, "p_sd": p_sd, "coef_sd": coef_sd,
+        "z": zs, "shapiro_p": shapiro_p, "fuera": float(np.mean(np.abs(zs) > z)),
+        "z_critico": z, "escala": escala, "centiles": centiles,
+        "edad_min": float(ages.min()), "edad_max": float(ages.max()),
+    }
+
+
 def age_related_reference(ages, values, age_min=None, age_max=None):
-    """Intervalo de referencia relacionado con la edad (percentiles por grupo)."""
+    """Intervalo de referencia por grupos de edad de ancho fijo.
+
+    En cada grupo, los percentiles 2,5, 50 y 97,5 con el rango de EP28
+    (p(n+1), interpolado: el mismo que `reference_interval`). Antes eran los
+    percentiles 5 y 95 lineales: un intervalo del 90 % con otra regla de
+    rangos que el intervalo de referencia de la misma app. El percentil 2,5
+    solo existe desde n = 39 en el grupo (rango 0,025·40 = 1).
+    """
     ages = np.asarray(ages, dtype=float)
     values = np.asarray(values, dtype=float)
     valid = np.isfinite(ages) & np.isfinite(values)
@@ -173,20 +310,15 @@ def age_related_reference(ages, values, age_min=None, age_max=None):
         group_vals = values[mask]
         if len(group_vals) == 0:
             continue
-        grupo = {"age_group": f"[{bordes[i]:g}, {bordes[i+1]:g})", "n": len(group_vals),
-                 "mean": np.mean(group_vals)}
-        if len(group_vals) >= 5:
-            grupo.update({
-                "p5": np.percentile(group_vals, 5),
-                "p25": np.percentile(group_vals, 25),
-                "median": np.percentile(group_vals, 50),
-                "p75": np.percentile(group_vals, 75),
-                "p95": np.percentile(group_vals, 95),
-            })
-        else:
-            # Se informa igual: sacarlo en silencio hacia desaparecer sujetos.
-            grupo.update({k: np.nan for k in ("p5", "p25", "median", "p75", "p95")})
-            grupo["nota"] = "menos de 5 sujetos: sin percentiles"
+        m = len(group_vals)
+        grupo = {"age_group": f"[{bordes[i]:g}, {bordes[i+1]:g})", "desde": float(bordes[i]),
+                 "hasta": float(bordes[i + 1]), "n": m, "mean": np.mean(group_vals)}
+        # Se informa aunque no alcance: sacarlo en silencio hacia desaparecer sujetos.
+        for clave, p in (("p2_5", 2.5), ("median", 50), ("p97_5", 97.5)):
+            grupo[clave] = (np.percentile(group_vals, p, method="weibull")
+                            if 1 <= p / 100 * (m + 1) <= m else np.nan)
+        if not np.isfinite(grupo["p2_5"]):
+            grupo["nota"] = "menos de 39 sujetos: sin percentiles 2,5 y 97,5"
         result.append(grupo)
 
     return {"groups": result, "n_total": len(values)}

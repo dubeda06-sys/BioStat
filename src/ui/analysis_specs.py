@@ -376,6 +376,22 @@ OPCIONES["Validar un método"] = (
            "Solo cuenta si se tildaron corridas de EP15."),
 )
 
+PARAMETROS["Intervalos de referencia"] = (
+    Parametro("inferior", "Límite inferior publicado, para verificarlo (vacío = no hay)", None),
+    Parametro("superior", "Límite superior publicado, para verificarlo (vacío = no hay)", None),
+)
+OPCIONES["Edad-relacionada"] = (
+    Opcion("metodo", "Método",
+           (("regresion", "Centiles por regresión — Altman 1993, con todos los sujetos juntos"),
+            ("grupos", "Por grupos de edad — percentiles de EP28 en cada grupo")),
+           "Por grupos hacen falta muchos sujetos en cada uno; por regresión, no."),
+    Opcion("escala", "Escala del valor",
+           (("lineal", "Lineal — el valor tal como está"),
+            ("log", "Logarítmica — para analitos con cola a la derecha")),
+           "Solo para la regresión: los centiles se informan en la escala original."),
+)
+ETIQUETAS["Edad-relacionada"] = {"c1": "Edad", "c2": "Valor medido"}
+
 OPCIONES["Probit regression"] = (
     Opcion("escala", "Escala de la dosis (Variable 1)",
            (("lineal", "Lineal — la dosis tal como está"),

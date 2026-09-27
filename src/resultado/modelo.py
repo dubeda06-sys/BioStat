@@ -41,6 +41,7 @@ class Valor:
     decimales: int = 4
     nota: str = ""
     unidad: str = ""        # "%" se pega al número: 12.34%
+    nivel_ic: str = "95 %"  # EP28 da los límites de referencia con IC 90 %
 
     def texto(self) -> str:
         texto = _formatear(self.valor, self.decimales)
