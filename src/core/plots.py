@@ -142,3 +142,43 @@ def mountain_plot_data(method1, method2):
         'p75': float(np.percentile(d, 75, method="weibull")),
         'n': n,
     }
+
+
+def youden_interlaboratorio(muestra1, muestra2):
+    """Grafico de Youden (1959) para datos interlaboratorio, como MedCalc.
+
+    Cada laboratorio es un punto: su resultado de la muestra 1 (x) y de la 2
+    (y). Las lineas de mediana se cruzan en la mediana de Manhattan; los
+    valores muy lejanos (mas alla de 3 RIC del cuartil) no entran en las
+    medianas. La distancia de un punto a la recta de 45 grados que pasa por la
+    mediana de Manhattan es error aleatorio; lo que queda sobre la recta pero
+    lejos del centro es error sistematico del laboratorio.
+
+    Circulo de cobertura del 95 %: con error aleatorio s en cada eje (normal
+    circular), radio = s * sqrt(-2 ln 0,05) = 2,448 s, con s la DE de las
+    distancias perpendiculares (x - y)/sqrt(2).
+    """
+    x = np.asarray(muestra1, dtype=float)
+    y = np.asarray(muestra2, dtype=float)
+    ok = np.isfinite(x) & np.isfinite(y)
+    x, y = x[ok], y[ok]
+    n = len(x)
+    if n < 5:
+        return {"error": f"Hacen falta al menos 5 laboratorios con las dos muestras; hay {n}."}
+
+    def lejanos(v):
+        q1, q3 = np.percentile(v, [25, 75])
+        ric = q3 - q1
+        return (v < q1 - 3 * ric) | (v > q3 + 3 * ric)
+
+    lejos = lejanos(x) | lejanos(y)
+    mx, my = float(np.median(x[~lejos])), float(np.median(y[~lejos]))
+    perp = ((x - mx) - (y - my)) / np.sqrt(2)
+    s = float(np.std(perp[~lejos], ddof=1))
+    radio = s * np.sqrt(-2 * np.log(0.05))
+    fuera = np.hypot(x - mx, y - my) > radio
+    return {"x": x, "y": y, "n": n, "mediana_x": mx, "mediana_y": my,
+            "lejanos": lejos, "s_aleatorio": s, "radio_95": float(radio),
+            "fuera_del_circulo": fuera, "perpendicular": perp,
+            "a_lo_largo": ((x - mx) + (y - my)) / np.sqrt(2)}
+

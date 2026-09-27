@@ -353,16 +353,16 @@ ANALYSIS_LEGENDS = {
         "formula": "Pendiente de cada sujeto contra el tiempo\nTendencia: t de una muestra sobre las pendientes (Matthews et al. 1990)"
     },
     "Youden plot": {
-        "legend": "Representación gráfica avanzada de la sensibilidad frente a la especificidad. Ayuda a seleccionar visualmente el punto de corte óptimo que maximiza el Índice de Youden.",
-        "formula": "J = Sensibilidad + Especificidad - 1\nUmbral óptimo = argmax(J)"
+        "legend": "Gráfico de Youden interlaboratorio: cada laboratorio midió dos muestras y es un punto. Lejos de la recta de 45°, error aleatorio; sobre la recta y lejos del centro, error sistemático del laboratorio.",
+        "formula": "Centro = mediana de Manhattan; círculo del 95 %: radio = 2,448·s"
     },
     "Polar plot": {
         "legend": "Gráfico de radar utilizado para visualizar y comparar simultáneamente múltiples parámetros (ej. panel de citocinas) entre grupos o estados de la enfermedad.",
         "formula": "Ángulos = 2π × i/k\nejes = cada variable normalizada"
     },
     "Waterfall chart": {
-        "legend": "Visualiza los cambios secuenciales positivos y negativos frente a un valor basal. Frecuentemente usado en oncología para mostrar la reducción o progresión del tamaño tumoral en pacientes.",
-        "formula": "Acumulado = Σ(valores parciales)\nTotal = suma final"
+        "legend": "Una barra por sujeto con su cambio (por ejemplo, % respecto del basal), ordenadas de mayor a menor.",
+        "formula": "Barras ordenadas de mayor a menor; color según el signo"
     },
     "Mountain plot": {
         "legend": "También conocido como gráfico de distribución plegada (folded empirical CDF). Muestra de forma muy sensible las diferencias de distribución o sesgos entre dos métodos clínicos.",
@@ -633,7 +633,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Probit regression": lambda: self._run_probit(c1, c2),
             "CMH test": lambda: self._run_cmh(c1, c2, c3),
             "Mediciones seriales": lambda: self._run_serial(),
-            "Youden plot": lambda: self._run_youden(c1, c3),
+            "Youden plot": lambda: self._run_youden(c1, c2),
             "Polar plot": lambda: self._run_polar(),
             "Waterfall chart": lambda: self._run_waterfall(c1),
             "Mountain plot": lambda: self._run_mountain(c1, c2),

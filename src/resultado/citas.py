@@ -224,6 +224,19 @@ FELDT_1965 = Cita("Feldt LS (1965). The approximate sampling distribution of Kud
                   "reliability coefficient twenty. Psychometrika 30:357-370.")
 TAVAKOL_2011 = Cita("Tavakol M, Dennick R (2011). Making sense of Cronbach's alpha. Int J Med "
                     "Educ 2:53-55.")
+KROUWER_1995 = Cita("Krouwer JS, Monti KL (1995). A simple, graphical method to evaluate "
+                     "laboratory assays. Eur J Clin Chem Clin Biochem 33:525-527.")
+YOUDEN_1959 = Cita("Youden WJ (1959). Graphical diagnosis of interlaboratory test results. Ind "
+                   "Qual Control 15:24-28.")
+MEDCALC_YOUDEN = Cita("MedCalc, manual: Youden plot.",
+                      "https://www.medcalc.org/en/manual/youdenplot.php")
+SAARY_2008 = Cita("Saary MJ (2008). Radar plots: a useful way for presenting multivariate "
+                  "health care data. J Clin Epidemiol 61:311-317.")
+GILLESPIE_2012 = Cita("Gillespie TW (2012). Understanding waterfall plots. J Adv Pract Oncol "
+                      "3:106-111.")
+EISENHAUER_2009 = Cita("Eisenhauer EA et al. (2009). New response evaluation criteria in solid "
+                       "tumours: revised RECIST guideline (version 1.1). Eur J Cancer "
+                       "45:228-247.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -741,6 +754,32 @@ FICHAS: dict[str, Ficha] = {
             "Por ítem: correlación con la suma de los demás y α sin ese ítem"
         ),
         citas=(CRONBACH_1951, FELDT_1965, TAVAKOL_2011),
+    ),
+
+    # ---------------- Gráficos de comparación: src/resultado/constructores/graficos.py
+    "mountain": Ficha(
+        formula=(
+            "d = método 1 − método 2, ordenadas;  percentil = 100·rango/(n + 1)\n"
+            "Plegado: si pasa de 50, 100 − percentil;  el pico cae en la mediana"
+        ),
+        citas=(KROUWER_1995, CLSI_EP09),
+    ),
+    "youden": Ficha(
+        formula=(
+            "Mediana de Manhattan = (mediana de x, mediana de y), sin los valores a más de\n"
+            "    3 RIC de los cuartiles\n"
+            "Distancia a la recta de 45°: (x − Mx − (y − My))/√2;  s = su DE\n"
+            "Círculo del 95 %: radio = s·√(−2 ln 0,05) = 2,448·s (normal circular)"
+        ),
+        citas=(YOUDEN_1959, MEDCALC_YOUDEN),
+    ),
+    "polar": Ficha(
+        formula="Un eje por variable, a ángulos iguales; el radio es la media de la variable",
+        citas=(SAARY_2008,),
+    ),
+    "cascada": Ficha(
+        formula="Una barra por sujeto con su valor (el cambio), ordenadas de mayor a menor",
+        citas=(GILLESPIE_2012, EISENHAUER_2009),
     ),
 }
 

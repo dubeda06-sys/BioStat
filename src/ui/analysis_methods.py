@@ -94,6 +94,7 @@ from src.resultado.constructores.anova import (
 )
 from src.resultado.constructores.concordancia import cronbach, kappa, kappa_ponderado
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
+from src.resultado.constructores.graficos import cascada, mountain, polar, youden
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
 )
@@ -1503,155 +1504,21 @@ class AnalysisMethodsMixin:
         except Exception as e:
             return f"<p style='color:red'>Error: {escape(str(e))}</p>"
 
-    def _run_youden(self, score_col, label_col):
-        """Run Youden Plot."""
-        if label_col is None or label_col == "(ninguna)" or label_col not in self.data.columns:
-            return "<b>Error:</b> Selecciona Variable 3 (etiquetas 0/1)."
-        if score_col is None or score_col not in self.data.columns:
-            return "<b>Error:</b> Selecciona Variable 1 (scores)."
-        try:
-            pares = self._filas_completas(score_col, label_col)
-            y_true = pares[label_col].values
-            y_score = pares[score_col].values
-            n = len(pares)
-            result = youden_data(y_true, y_score)
-            if _sin_resultado(result):
-                return _msg_error(result, "No se pudo calcular.")
-            
-            self._set_formula("Formula: Youden's J", "J = Sensibilidad + Especificidad - 1")
-            
-            h = self._h(f" Youden Plot — {score_col}")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("Umbral óptimo", f"{result['optimal_threshold']:.4f}")
-            h += self._r("J máximo", f"{result['optimal_j']:.4f}")
-            h += self._r("Sensibilidad", f"{result['sensitivity'][result['optimal_idx']]:.4f}")
-            h += self._r("Especificidad", f"{result['specificity'][result['optimal_idx']]:.4f}")
-            h += "</table>"
-            
-            fig, ax = plt.subplots(figsize=(7, 5))
-            ax.plot(result['thresholds'], result['sensitivity'], label='Sensibilidad', color='#4f6ef7', lw=2)
-            ax.plot(result['thresholds'], result['specificity'], label='Especificidad', color='#22c55e', lw=2)
-            ax.plot(result['thresholds'], result['j_statistic'], label="Youden's J", color='#f59e0b', lw=2, ls='--')
-            ax.axvline(result['optimal_threshold'], color='#ef4444', ls=':', alpha=0.7, label=f'Óptimo ({result["optimal_threshold"]:.2f})')
-            ax.set_xlabel('Umbral')
-            ax.set_ylabel('Valor')
-            ax.set_title("Gráfico de Youden", fontweight='bold')
-            ax.legend(loc='lower left', framealpha=0.9)
-            ax.set_xlim([result['thresholds'][-1], result['thresholds'][0]])
-            ax.set_ylim([0, 1.1])
-            fig.tight_layout()
-            self._show_fig(fig)
-            
-            return h
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+    # --- Graficos de comparacion: src/resultado/constructores/graficos.py ---
+    def _run_youden(self, c1, c2):
+        """Muestra 1 (V1) y muestra 2 (V2), una fila por laboratorio."""
+        return youden(self.data, c1, c2)
 
     def _run_polar(self):
-        """Run Polar Plot."""
-        if self.data.shape[1] < 3:
-            return "<b>Error:</b> Se necesitan al menos 3 columnas."
-        try:
-            categories = self.data.columns.tolist()[:min(8, self.data.shape[1])]
-            values = [self.data[c].mean() for c in categories]
-            result = polar_plot_data(categories, values)
-            
-            self._set_formula("Formula: Polar Plot", "Cada eje representa una variable")
-            
-            h = self._h(f" Polar Plot")
-            h += "<table style='font-size:12px;'>"
-            for cat, val in zip(categories, values):
-                h += self._r(cat, f"{val:.4f}")
-            h += "</table>"
-            
-            fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
-            ax.plot(result['angles'], result['values'], 'o-', linewidth=2, color='#4f6ef7')
-            ax.fill(result['angles'], result['values'], alpha=0.25, color='#4f6ef7')
-            ax.set_xticks(result['angles'][:-1])
-            ax.set_xticklabels(categories)
-            ax.set_title("Gráfico Polar", fontweight='bold', pad=20)
-            fig.tight_layout()
-            self._show_fig(fig)
-            
-            return h
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+        cols, del_dialogo = self._columnas_multi()
+        return self._con_nota_columnas(polar(self.data, cols), cols, del_dialogo,
+                                       "ejes")
 
     def _run_waterfall(self, col):
-        """Run Waterfall Chart."""
-        if col is None or col not in self.data.columns:
-            return "<b>Error:</b> Selecciona una columna."
-        try:
-            values = self.data[col].dropna().values
-            if len(values) < 2:
-                return "<b>Error:</b> Se necesitan al menos 2 valores."
-            
-            result = waterfall_data(values)
-            
-            self._set_formula("Formula: Waterfall", "Muestra contribución acumulada de cada valor")
-            
-            h = self._h(f" Waterfall Chart — {col}")
-            h += "<table style='font-size:12px;'>"
-            for label, val, cum in zip(result['labels'][:-1], result['values'][:-1], result['ends'][:-1]):
-                h += self._r(label, f"{val:.4f} (acum: {cum:.4f})")
-            h += self._r("Total", f"{result['values'][-1]:.4f}")
-            h += "</table>"
-            
-            fig, ax = plt.subplots(figsize=(10, 5))
-            x = range(len(result['labels']))
-            colors = ['#22c55e' if p else '#ef4444' for p in result['is_positive']]
-            
-            for i, (start, end, color) in enumerate(zip(result['starts'], result['ends'], colors)):
-                ax.bar(i, abs(end - start), bottom=min(start, end), color=color, edgecolor='white', width=0.6)
-            
-            ax.set_xticks(x)
-            ax.set_xticklabels(result['labels'], rotation=45, ha='right')
-            ax.set_ylabel('Valor')
-            ax.set_title('Gráfico de Cascada', fontweight='bold')
-            ax.axhline(y=0, color='black', linewidth=0.5)
-            fig.tight_layout()
-            self._show_fig(fig)
-            
-            return h
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+        return cascada(self.data, col)
 
     def _run_mountain(self, c1, c2):
-        """Mountain plot: acumulada plegada de las diferencias Variable 1 − Variable 2."""
-        for c in (c1, c2):
-            if c is None or c not in self.data.columns:
-                return "<b>Error:</b> Elegí los dos métodos en la Variable 1 y la Variable 2."
-        pares = self._filas_completas(c1, c2)
-        result = mountain_plot_data(pares[c1].values, pares[c2].values)
-        if _sin_resultado(result):
-            return _msg_error(result, "Se necesitan al menos 5 pares.")
-        self._set_formula("Formula: Mountain Plot (Krouwer y Monti, 1995)",
-                          "d = método 1 − método 2, ordenadas\n"
-                          "percentil = 100·rango / (n + 1); si pasa de 50, se pliega: 100 − percentil")
-        h = self._h(f" Mountain Plot — {escape(str(c1))} − {escape(str(c2))}")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("n", result['n'])
-        h += self._r("Mediana de las diferencias (pico)", f"{result['mediana']:.4f}")
-        h += self._r("Percentiles 25 a 75", f"{result['p25']:.4f} a {result['p75']:.4f}")
-        if np.isfinite(result['p2_5']):
-            h += self._r("Percentiles 2,5 a 97,5", f"{result['p2_5']:.4f} a {result['p97_5']:.4f}")
-        h += "</table>"
-        h += ("<p style='font-size:11px;color:#555;'>Dos métodos intercambiables dan una "
-              "montaña angosta con el pico en 0. El pico corrido es sesgo; la montaña ancha, "
-              "desacuerdo.</p>")
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(result['diferencias'], result['percentil_plegado'], color='#4f6ef7', lw=1.8)
-        ax.fill_between(result['diferencias'], result['percentil_plegado'], color='#4f6ef7', alpha=0.12)
-        ax.axvline(0, color='#9ca3af', ls=':', lw=1.2, label='Diferencia 0')
-        ax.axvline(result['mediana'], color='#ef4444', ls='--', lw=1.2,
-                   label=f"Mediana: {result['mediana']:.3f}")
-        ax.set_xlabel(f'Diferencia ({c1} − {c2})')
-        ax.set_ylabel('Percentil plegado')
-        ax.set_ylim(0, 52)
-        ax.set_title('Mountain Plot', fontweight='bold')
-        ax.legend(loc='upper right', framealpha=0.9)
-        fig.tight_layout()
-        self._show_fig(fig)
-        return h
+        return mountain(self.data, c1, c2)
 
     def _run_bland_multi(self, c1):
         """Varios métodos contra UNO de referencia (Variable 1): lo arma el constructor."""

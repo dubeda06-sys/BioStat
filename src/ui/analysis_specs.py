@@ -95,7 +95,7 @@ VARIABLES = {
     'Probit regression': ('c1', 'c2'),
     'CMH test': ('c1', 'c2', 'c3'),
     'Mediciones seriales': (),
-    'Youden plot': ('c1', 'c3'),
+    'Youden plot': ('c1', 'c2'),
     'Polar plot': (),
     'Waterfall chart': ('c1',),
     'Mountain plot': ('c1', 'c2'),
@@ -405,6 +405,9 @@ OPCIONES["Kappa ponderado"] = (
             ("quadratic", "Cuadráticos — pesa cuatro veces; cercano al ICC")),
            "Las categorías se ordenan de menor a mayor (numéricas) o alfabéticamente."),
 )
+
+MULTI["Polar plot"] = Multi("Variables (un eje cada una)", 3)
+ETIQUETAS["Youden plot"] = {"c1": "Muestra 1", "c2": "Muestra 2"}
 
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",

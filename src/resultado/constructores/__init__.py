@@ -32,6 +32,7 @@ from src.resultado.constructores.comparacion import (
 )
 from src.resultado.constructores.concordancia import cronbach, kappa, kappa_ponderado
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
+from src.resultado.constructores.graficos import cascada, mountain, polar, youden
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
 )
@@ -112,6 +113,10 @@ CONSTRUCTORES = {
     "bland_altman_multiple": bland_altman_multiple,
     "precision_ep15": precision_ep15,
     "validar_metodo": validar_metodo,
+    "mountain": mountain,
+    "youden": youden,
+    "polar": polar,
+    "cascada": cascada,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -137,6 +142,8 @@ FIRMAS["dos_proporciones"] = "calculadora"
 FIRMAS["cmh"] = "binarias_estrato"
 FIRMAS["kappa"] = FIRMAS["kappa_ponderado"] = "binarias"
 FIRMAS["cronbach"] = "lista_tres"
+FIRMAS["polar"] = "lista_tres"
+FIRMAS["cascada"] = "una"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402
