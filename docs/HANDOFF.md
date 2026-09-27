@@ -11,8 +11,8 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **26 sep** desde `develop` (`eb2c341`), con los 42 arreglos de la
-auditoría. El anterior (`34d106a`) tenía todos los errores del informe: ANOVA y
+Recompilado el **26 sep** desde `develop` (`3c18149`), con los 42 arreglos de la
+auditoría y la familia de validación ya en `Resultado`. El anterior (`34d106a`) tenía todos los errores del informe: ANOVA y
 tablas 2×2 con las columnas equivocadas, ANCOVA, probit, y el Omnianálisis con
 referencia. **La pantalla de carga dice qué build es**: `v1.0.0 · fecha · rama ·
 commit`, dibujado en `assets/splash.png` por `build_exe.py` en cada compilación.
