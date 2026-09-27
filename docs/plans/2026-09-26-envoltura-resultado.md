@@ -8,8 +8,8 @@
 > `src/resultado/constructores/comparacion.py`. El asistente B quedó hecho el
 > 27 sep sobre esa base (`constructores/validacion.py`, ver `docs/HANDOFF.md`).
 > Paso 4 terminado el 27 sep: las dieciséis familias, los 78 análisis (ver
-> «27 sep: paso 4» en `docs/HANDOFF.md`). El mixin quedó en envoltorios; el
-> paso 5 (borrarlo) es opcional.
+> «27 sep: paso 4» en `docs/HANDOFF.md`). Paso 5 hecho esa noche: el mixin
+> se borró y sus envoltorios son la tabla de `src/ui/entradas.py`.
 
 ## Qué hay hoy (leído del código, no del HANDOFF)
 

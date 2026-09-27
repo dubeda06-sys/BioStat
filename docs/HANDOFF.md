@@ -6,9 +6,11 @@
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
 > Versión actual: **v1.0.0**.
-> Última puesta al día: **27 sep** — el paso 4 de la envoltura, **terminado**:
-> los 78 análisis salen de `Resultado` y el mixin quedó en envoltorios finos.
-> Antes, el asistente B «Validar un método», con EP15-A3 y la prueba Cusum de
+> Última puesta al día: **27 sep, noche** — las deudas que quedaban, cerradas:
+> sin control de calidad, K10 y Deming ponderado arreglados, score calibrado,
+> series temporales, TEa en el asistente y **el mixin borrado** (paso 5).
+> Antes, el mismo día, el paso 4 (los 78 análisis en `Resultado`) y el
+> asistente B «Validar un método», con EP15-A3 y la prueba Cusum de
 > Passing-Bablok. El 26 sep, la auditoría completa y sus 42 arreglos
 > (`docs/AUDITORIA-2026-09.md`, sección «Estado»).
 
@@ -43,12 +45,59 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 1470 verdes (27 sep)
+python -m pytest tests/ -q        # esperar 1614 verdes (27 sep)
 python scripts/smoke_ui.py        # esperar 78/78, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## 27 sep (noche): las deudas que quedaban, cerradas
+
+Pedido del usuario: «dale con todo excepto con el QC, eliminalo». Un commit por
+ítem (`git log --oneline e475582..HEAD`):
+
+- **Control de calidad, fuera** (`b52a22d`). La pestaña, el menú, el panel y el
+  `src/core/qc/` vacío. Cuatro pestañas; la navegación va por panel y no por
+  índice, así que sacar una no manda «Herramientas › Omnianálisis» al vacío.
+  «Acerca de» dejaba un `v0.1.0` fijo: ahora dice el build, como el splash.
+- **K10, el 7,7 % de falsos positivos** (`d2a47b8`). Medido en el camino que
+  quedaba (4000 corridas): Kruskal-Wallis 23 %, Welch sobre medias recortadas
+  13 %, Welch 6,5 %. **Con dispersiones distintas manda Levene y el camino es
+  Welch, normales o no** (t o ANOVA); los rangos quedan para dispersión pareja.
+  Con asimetría Welch da 6–10 % contra 33–37 % de los rangos.
+- **Deming ponderado, IC del intercepto** (`3c50d2f`). No era sesgo ni EE mal
+  estimado en promedio: lo deciden los pocos puntos bajos que cargan el peso
+  1/z², y el EE jackknife varía mucho. Bootstrap percentil y BCa no lo
+  arreglaban. **t con el n efectivo de Kish como gl**: 95,4–96,5 % (antes
+  90,6–95,3). Lo mismo el sesgo en niveles por debajo del centro ponderado.
+- **Score de comparación** (`9806504`). `PESO_UNIDAD` y `PESO_PAREADO`
+  cableados (la unidad se lee del nombre). **Calibrado contra un banco
+  sintético** (`tests/test_omni_score_banco.py`, 7 comparaciones y 9 pares que
+  no lo son): la unidad compartida casi no discrimina en una hoja de
+  laboratorio (bajó a 0,5), la distinta resta 2, umbral 3,5. Colesterol total
+  contra LDL y AST contra ALT siguen como candidatos: sin semántica no se
+  separan de dos métodos, y para eso se pregunta. La auditoría muestra el
+  puntaje de **cada** par. Falta calibrar con datos reales: no hay en el repo.
+- **Series temporales** (`183e41c`). Fecha × numérica: Mann-Kendall, pendiente
+  de Sen con IC, Ljung-Box sobre los residuos (avisa si hay rachas), caso
+  narrado y gráfico. Reconoce fechas escritas como texto (CSV). Probado con el
+  registro real de Ct de calibradores (77 corridas, 248 días).
+- **Cusum en el caso narrado** (`ffe221f`), con el texto del panel.
+- **Asistente B** (`afbdb26`): **error total contra el TEa** (|sesgo| +
+  1,65·s_WL, Westgard 1974; alcanza solo, sin sesgo permitido) y **el sesgo de
+  EP15 contra el valor asignado** del material, juzgado con el permitido si es
+  real (EP15-A3 §3.6).
+- **Regresión encontrada** (`10f18b2`): al migrar, el histograma del
+  bootstrap volvió a `bins=60` fijo y reventaba con una distribución casi
+  constante. `src/utils/histograma.py` lo usan los tres histogramas.
+- **Paso 5: el mixin, borrado** (`b911e39`). `analysis_methods.py` era 78
+  envoltorios; ahora `src/ui/entradas.py` es una tabla (nombre del combo →
+  constructor y cómo armar los argumentos) y una función, sin Qt. Un parámetro
+  mal escrito es un `Resultado.rechazo`, no HTML. Los tests que llamaban
+  `panel._xxx()` usan `panel.correr("Nombre", ...)`.
+
+Suite: **1614** verdes; smoke 78/78.
 
 ## 27 sep: paso 4, las dieciséis familias en `Resultado`
 
@@ -117,7 +166,8 @@ de grupos (Levene → ANOVA+Tukey o Welch+Games-Howell) salen del mismo código.
 
 Con la última familia se borraron `_run_core`, los armadores de tablas del
 mixin y más de cien imports muertos: `analysis_methods.py` pasó de ~2400 líneas a 590 de
-envoltorios que leen el diálogo y llaman al constructor.
+envoltorios que leen el diálogo y llaman al constructor. Esa misma noche se
+borró entero (paso 5, arriba).
 
 ## 26 sep: auditoría completa, 42 hallazgos arreglados
 
@@ -728,10 +778,11 @@ Decidido el 21 de agosto. Tres definiciones que acotan el resto:
 **A — Envoltura `Resultado` (sustrato).** El core devuelve lo suyo; encima, un
 objeto con **valores, método, supuestos verificados, fórmula, cita e
 interpretación redactada**. La UI y el informe lo consumen; nadie arma texto a
-mano. Beneficio lateral: hoy **`src/ui/analysis_methods.py` tiene 2329 líneas**
-porque cada análisis arma su HTML a mano, unas 40 ramas escritas de a una. Con la
-envoltura hay **un solo renderizador**. La capa de guía y el arreglo del archivo
-grande son la misma obra.
+mano. Beneficio lateral: **`src/ui/analysis_methods.py` llegó a tener 2329
+líneas** porque cada análisis armaba su HTML a mano, unas 40 ramas escritas de a
+una. Con la envoltura hay **un solo renderizador**, y el archivo ya no existe
+(27 sep: los envoltorios pasaron a la tabla de `src/ui/entradas.py`). La capa
+de guía y el arreglo del archivo grande fueron la misma obra.
 
 **B — Asistente «Validar un método».** Corre Bland-Altman + Passing-Bablok +
 Deming + CCC + repetibilidad juntos, chequea supuestos, emite un veredicto único
@@ -753,10 +804,8 @@ calidad. Ver su `LEEME.md`.
 
 ## Deudas conocidas
 
-1. **`src/ui/analysis_methods.py`, cerrada el 27 sep.** Todo sale de
-   `Resultado`; el mixin son envoltorios que leen el diálogo. El paso 5 del plan
-   (borrarlo y que el dispatch llame a los constructores) es opcional: ya no
-   hay lógica ahí que pueda divergir.
+1. **`src/ui/analysis_methods.py`, borrado el 27 sep.** Todo sale de
+   `Resultado`, y lo que leía el diálogo es la tabla de `src/ui/entradas.py`.
 2. **Control de calidad, eliminado entero el 27 sep.** Levey-Jennings y
    Westgard se habían sacado el 22 ago (vivían en el panel, sin core ni tests).
    Lo que quedaba —**Estadísticas** y **Tendencias**, también sin core ni
@@ -764,26 +813,23 @@ calidad. Ver su `LEEME.md`.
    el `src/core/qc/` vacío. Las pestañas pasaron a ser cuatro y la navegación
    va por panel, no por índice (`tests/test_menus.py`). Si el QC vuelve, entra
    por el core con tests contra un caso publicado, no dentro de un panel.
-3. **Asistente B, hecho el 27 sep.** Lo que podría seguir: error total contra
-   TEa como criterio alternativo; el sesgo de EP15 contra valor asignado dentro
-   del asistente; que el caso narrado del Omnianálisis cuente la Cusum. Y
-   KaizenHub tiene su propio EP15 (`stats-engine/core/ep15_anova.py`) con dos
+3. **Asistente B, hecho el 27 sep, con TEa, veracidad de EP15 y la Cusum en
+   el caso narrado del Omnianálisis.** Queda afuera del repo: KaizenHub tiene
+   su propio EP15 (`stats-engine/core/ep15_anova.py`) con dos
    diferencias con la norma: el UVL no corrige por el número de muestras y los
    gl de s_WL salen de lo observado, no de la ρ declarada.
-4. Omnianálisis, de la auditoría del 26 sep: el pre-test de normalidad por
-   grupo manda ~15 % de los grupos normales heterocedásticos a Kruskal-Wallis
-   (falsos positivos 7,7 % en vez de 5 %); el IC jackknife del intercepto de
-   Deming ponderado cubre ~91 %. Ver «Estado» en el informe.
-5. Omnianálisis (de julio, vigentes): calibrar los pesos del score de comparación
-   con datos reales; `PESO_UNIDAD` y `PESO_PAREADO` sin cablear; series temporales
-   detectadas pero no analizadas. **El score no se marca ensayo por ensayo**: la
-   auditoría dice cuántos pares se puntuaron, no el puntaje de cada uno.
+4. Omnianálisis, de la auditoría del 26 sep: **cerradas el 27 sep** (K10 y el
+   IC del intercepto de Deming ponderado; ver «Estado» en el informe).
+5. Omnianálisis, de julio: **cerradas el 27 sep** salvo una. Queda calibrar
+   los pesos del score **con datos reales etiquetados**: el banco de
+   `tests/test_omni_score_banco.py` es sintético. Cuando haya hojas reales,
+   se agregan como casos ahí y se recalibra con el mismo test.
 
 ## Cómo correr
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 1470 verdes (27 sep); el número crece
+python -m pytest tests/ -q                       # 1614 verdes (27 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 78/78
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

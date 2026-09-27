@@ -27,7 +27,7 @@ git tag -n                                                          # versiones 
 Antes de compilar, correr las pruebas:
 
 ```bash
-python -m pytest tests/ -q     # 1470 (27 sep); el número crece
+python -m pytest tests/ -q     # 1614 (27 sep); el número crece
 python scripts/smoke_ui.py     # 78/78
 ```
 
@@ -129,48 +129,30 @@ El ejecutable `BioStat.exe` se copiará automáticamente al Escritorio.
 ```
 BioStat/
 ├── main.py                  # Punto de entrada
-├── build_exe.py             # Script de compilación
-├── requirements.txt         # Dependencias
-├── biostat.spec             # Spec de PyInstaller
+├── build_exe.py             # Compila el .exe (usa biostat.spec)
 ├── src/
-│   ├── app.py               # Aplicación principal
-│   ├── core/                # Módulos de cálculo
-│   │   ├── statistics.py    # Tests paramétricos y no paramétricos
-│   │   ├── roc.py           # Curva ROC
-│   │   ├── bland_altman.py  # Bland-Altman
-│   │   ├── passing_bablok.py
-│   │   ├── survival.py      # Kaplan-Meier, Log-rank
-│   │   ├── meta_analysis.py
-│   │   ├── regression.py    # Regresión lineal, múltiple, logística
-│   │   ├── agreement.py     # Kappa, ICC, Cronbach
-│   │   ├── diagnostic_tests.py
-│   │   ├── outliers.py      # Grubbs, Tukey, ESD
-│   │   ├── reference.py     # Intervalos de referencia
-│   │   ├── sample_size.py
-│   │   ├── bootstrap.py
-│   │   ├── random_forest.py
-│   │   ├── validation.py    # Validación de datos
-│   │   ├── export.py        # Exportación HTML
-│   │   ├── two_way_anova.py
-│   │   ├── ancova.py
-│   │   ├── repeated_measures.py
-│   │   ├── cox_regression.py
-│   │   ├── probit.py
-│   │   ├── cmh.py
-│   │   ├── serial_measurements.py
-│   │   └── plots.py         # Youden, Polar, Waterfall, Mountain
-│   ├── io/                  # Lectura/escritura de archivos
-│   └── ui/                  # Interfaz gráfica
-│       ├── main_window.py   # Ventana principal
-│       ├── analysis_panel.py # Panel de análisis
-│       ├── data_panel.py    # Panel de datos
-│       ├── graphs_panel.py  # Panel de gráficos
-│       ├── styles.py        # Tema visual (Clean Clinical)
-│       └── icons.py         # Iconos (qtawesome)
-└── tests/
-    ├── test_statistics.py
-    └── test_new_features.py
+│   ├── core/                # Cálculo puro: estadística verificada contra oráculos
+│   ├── resultado/           # La envoltura Resultado
+│   │   ├── modelo.py        # Resultado, Valor, Supuesto, Figura
+│   │   ├── citas.py         # Fórmula y citas de cada análisis
+│   │   ├── render_html.py   # El único renderizador del informe
+│   │   └── constructores/   # Un constructor por análisis (78), por familia
+│   ├── analysis/            # Omnianálisis: árbol de decisión, auditoría, casos
+│   ├── ui/                  # Interfaz (PyQt6)
+│   │   ├── main_window.py   # Ventana, menús y pestañas
+│   │   ├── entradas.py      # Del diálogo a cada constructor (sin Qt)
+│   │   ├── analysis_panel.py
+│   │   ├── dialogs.py       # El diálogo de cada análisis
+│   │   ├── omni_panel.py    # Omnianálisis
+│   │   └── graphs_panel.py
+│   └── utils/
+└── tests/                   # Un archivo por familia, contra oráculos externos
 ```
+
+Todo análisis devuelve un `Resultado`: valores con IC, el método y por qué,
+los supuestos verificados, fórmula, citas, lectura y matiz. Un análisis nuevo
+entra en `CONSTRUCTORES`, `FIRMAS` y `citas.py`, y en `ENTRADAS` para el panel;
+el test de contrato lo recorre solo. Leé `docs/HANDOFF.md` antes de tocar nada.
 
 ## Requisitos
 
