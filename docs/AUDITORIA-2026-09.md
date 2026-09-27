@@ -45,12 +45,12 @@ Los arreglos del Omnianálisis, medidos:
 | A2: CV constante sin sesgo (200 corridas) | «homocedástico» 190/200 | CV constante 192/200 → Deming ponderado |
 | A2: sesgo proporcional con DE constante | Deming descartado 200/200 | DE constante 190/200 → Deming 163/200 (el resto, diferencias no normales → Passing-Bablok) |
 | A2: variabilidad mixta (EP09c §5.4.3) | no se distinguía | mixta 99/100 → Passing-Bablok |
-| K10: medias iguales, DE 2/6/14 | 16,7 % de falsos positivos | 7,7 % |
+| K10: medias iguales, DE 2/6/14 | 16,7 % de falsos positivos | 7,7 % el 26 sep; ~5 % desde el 27 (ver abajo) |
 | K7: 8 columnas de ruido | el bloque y la matriz decidían con p distintos | una sola familia BH; bloque, matriz y caso leen el mismo p |
 
 Lo que quedó abierto, a propósito:
 
-- **K10, el 7,7 %.** El motor elige Welch 850 de 1000 veces. El 15 % restante lo desvía el pre-test de normalidad (Shapiro al 5 % en cada uno de los 3 grupos) hacia Kruskal-Wallis, que con dispersiones distintas sigue inflando. Ese camino sale con un aviso: si detecta algo, no alcanza para decir que un grupo tiene valores más altos. Cambiar la regla de normalidad es otra decisión de diseño.
+- **K10, el 7,7 %: cerrado el 27 sep.** El motor elegía Welch 850 de 1000 veces; el 15 % restante lo desviaba el pre-test de normalidad (Shapiro al 5 % en cada uno de los 3 grupos) hacia Kruskal-Wallis. Medido en ese camino (4000 corridas): Kruskal-Wallis 23 % de falsos positivos, Welch sobre medias recortadas al 20 % (Wilcox) 13 %, Welch 6,5 %. Con asimetría y medias iguales (chi² y exponencial centradas, DE distintas) Welch da 6-10 % contra 33-37 % de los rangos. **Regla nueva: con dispersiones distintas manda Levene y el camino es Welch, normales o no**; los rangos quedan para dispersión pareja. Vale igual para 2 grupos (t de Welch en vez de Mann-Whitney). El aviso dice que sin normalidad el p de Welch es aproximado con grupos chicos y muy asimétricos. Tests `test_k10_*` en `test_auditoria_omni.py`.
 - **Deming ponderado, IC del intercepto.** El jackknife del apéndice K1 cubre la pendiente en 95,5–96 %, pero el intercepto en 91–92 % (simulación con CV constante). Es el método de la norma; queda anotado.
 - **Encontrado al arreglar:** el IC jackknife de Deming usaba t(N−1) y EP09c (K12) pide t(N−2). Corregido para las dos variantes.
 - **Encontrado al arreglar:** el «Sesgo %» del core se calculaba sobre el método 1 aunque la referencia fuera el 2. Ahora va sobre la referencia, o sobre el promedio si no se declaró.

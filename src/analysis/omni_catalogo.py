@@ -147,12 +147,14 @@ ENSAYOS: tuple[Ensayo, ...] = (
            "Compara dos medias asumiendo varianzas iguales.",
            alternativa="t_welch"),
     Ensayo("t_welch", "t de Welch (varianzas distintas)", BIVARIADO,
-           "2 grupos, ambos normales, Levene rechazó.",
+           "2 grupos, Levene rechazó (normales o no).",
            "Misma comparación sin asumir varianzas iguales: corrige los grados "
-           "de libertad. Es lo correcto cuando los grupos dispersan distinto.",
+           "de libertad. Es lo correcto cuando los grupos dispersan distinto, "
+           "aunque no sean normales: ahí la prueba por rangos rechaza por la "
+           "dispersión, y Welch tolera la falta de normalidad.",
            alternativa="t_student"),
     Ensayo("mann_whitney", "U de Mann-Whitney", BIVARIADO,
-           "2 grupos donde al menos uno no es normal.",
+           "2 grupos, al menos uno no normal, y Levene no rechazó.",
            "Compara distribuciones por rangos. No compara medias: compara la "
            "probabilidad de que un valor de un grupo supere al del otro. Si los "
            "grupos dispersan distinto, también reacciona a eso.",
@@ -162,13 +164,15 @@ ENSAYOS: tuple[Ensayo, ...] = (
            "Prueba global: dice si al menos un grupo difiere, no cuál.",
            alternativa="anova_welch"),
     Ensayo("anova_welch", "ANOVA de Welch", BIVARIADO,
-           "3 o más grupos, todos normales, y Levene rechazó.",
+           "3 o más grupos y Levene rechazó (normales o no).",
            "Compara medias sin suponer varianzas iguales: pondera cada grupo por "
            "su varianza. Kruskal-Wallis no sirve para este caso: con dispersiones "
-           "distintas rechaza por la dispersión, no por la posición.",
+           "distintas rechaza por la dispersión, no por la posición. Sin "
+           "normalidad, Welch sigue siendo el que menos infla los falsos "
+           "positivos (auditoría 2026-09, K10).",
            alternativa="kruskal", norma="Welch 1951"),
     Ensayo("kruskal", "Kruskal-Wallis", BIVARIADO,
-           "3 o más grupos, alguno no normal.",
+           "3 o más grupos, alguno no normal, y Levene no rechazó.",
            "El equivalente por rangos del ANOVA. Supone la misma forma de "
            "distribución en todos los grupos: si dispersan distinto, también "
            "reacciona a eso.",

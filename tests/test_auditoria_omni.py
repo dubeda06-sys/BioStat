@@ -364,13 +364,14 @@ def test_k10_welch_coincide_con_pingouin():
     assert r["p"] == pytest.approx(float(ref["p_unc"].iloc[0]))
 
 
-def test_k10_el_error_tipo_i_baja():
+def test_k10_el_error_tipo_i_queda_en_el_nominal():
     """K10: medias iguales, DE 2/6/14, n 40/20/10. El motor iba a Kruskal-Wallis
     1000/1000 veces y detectaba diferencia en el 16,7 %.
 
-    Queda algo por encima del 5 %: el pre-test de normalidad (Shapiro al 5 % en
-    cada grupo) manda ~15 % de las corridas a Kruskal-Wallis, y ahí la
-    dispersión distinta sigue inflando. Ese camino sale con aviso.
+    El 26 sep quedó en 7,7 %: el pre-test de normalidad (Shapiro al 5 % en cada
+    grupo) todavía mandaba ~15 % de las corridas a Kruskal-Wallis. Desde el
+    27 sep, con dispersiones distintas manda Levene y el camino es Welch
+    aunque algún grupo no pase Shapiro.
     """
     rng = np.random.default_rng(1)
     detecta = 0
@@ -381,7 +382,8 @@ def test_k10_el_error_tipo_i_baja():
                         CFG, block)
         _decidir(block, block["_p"], 1, CFG)
         detecta += block["pruebas"][0]["detectado"]
-    assert detecta / 400 < 0.10
+        assert block["pruebas"][0]["prueba"] == "ANOVA de Welch"
+    assert detecta / 400 < 0.075
 
 
 def test_k10_welch_abre_games_howell():
@@ -397,13 +399,44 @@ def test_k10_welch_abre_games_howell():
     assert aud["estado"]["tukey_hsd"] == DESCARTADO
 
 
-def test_k10_rangos_con_dispersion_distinta_llevan_aviso():
+def test_k10_no_normales_con_dispersion_distinta_ya_no_van_por_rangos():
+    """Antes del 27 sep este caso iba a Kruskal-Wallis con un aviso. Cambió a
+    propósito: con dispersiones distintas los rangos rechazan por la dispersión
+    (33-37 % de falsos positivos con asimetría y medias iguales, contra 6-10 %
+    de Welch; ver el comentario en `_compare_groups`)."""
     rng = np.random.default_rng(9)
     y = np.concatenate([rng.exponential(1, 40), rng.exponential(4, 40), rng.exponential(9, 40)])
     df = pd.DataFrame({"y": y, "g": np.repeat(["A", "B", "C"], 40)})
+    rep = run_omnianalysis(df, ["y", "g"])
+    b = _bloque(rep, "comparación de grupos")
+    assert b["pruebas"][0]["prueba"] == "ANOVA de Welch"
+    assert any("La prueba por rangos no sirve acá" in a for a in b["advertencias"])
+    aud = auditar(rep)
+    assert aud["estado"]["kruskal"] == DESCARTADO
+    assert aud["estado"]["anova_welch"] == EJECUTADO
+
+
+def test_k10_dos_grupos_no_normales_con_dispersion_distinta_van_a_welch():
+    rng = np.random.default_rng(12)
+    y = np.concatenate([rng.exponential(1, 40) - 1, (rng.exponential(1, 12) - 1) * 5])
+    df = pd.DataFrame({"y": y, "g": np.repeat(["A", "B"], [40, 12])})
     b = _bloque(run_omnianalysis(df, ["y", "g"]), "comparación de grupos")
+    assert b["pruebas"][0]["prueba"] == "t de Welch"
+    assert b["resultados"]["supuestos"]["todas_normales"] is False
+    assert b["pruebas"][0]["p"] == pytest.approx(
+        stats.ttest_ind(y[:40], y[40:], equal_var=False).pvalue, abs=1e-4)
+
+
+def test_k10_no_normales_con_dispersion_pareja_siguen_por_rangos():
+    """Con la misma forma y la misma dispersión, Kruskal-Wallis es válido y
+    sigue siendo el camino."""
+    rng = np.random.default_rng(2)
+    y = np.concatenate([rng.lognormal(0, 0.8, 40) for _ in range(3)])
+    df = pd.DataFrame({"y": y, "g": np.repeat(["A", "B", "C"], 40)})
+    b = _bloque(run_omnianalysis(df, ["y", "g"]), "comparación de grupos")
+    assert b["resultados"]["supuestos"]["todas_normales"] is False
+    assert b["resultados"]["supuestos"]["levene"]["equal_var"] is True
     assert b["pruebas"][0]["prueba"] == "Kruskal-Wallis"
-    assert any("reacciona a la diferencia de dispersión" in a for a in b["advertencias"])
 
 
 # ------------------------------------------------------------------ M8

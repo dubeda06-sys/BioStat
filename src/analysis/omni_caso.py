@@ -337,8 +337,8 @@ def _caso_grupos(b: dict) -> Caso:
         consecuencia=(
             "Habilita las pruebas que comparan promedios."
             if todas_normales else
-            "Se usa una prueba que compara por orden de los valores, no por "
-            "promedio: no exige campana."
+            "Si además dispersan parejo, se compara por orden de los valores, "
+            "que no exige campana. Si no, decide el paso siguiente."
         ),
         ok=todas_normales,
     ))
@@ -352,9 +352,10 @@ def _caso_grupos(b: dict) -> Caso:
             consecuencia = ("Se usa la versión de Welch, que no supone dispersión pareja: "
                             "así la dispersión distinta no falsea el resultado.")
         else:
-            consecuencia = ("Ojo: la prueba por orden también reacciona cuando un grupo es "
-                            "más disperso que otro, no solo cuando está corrido. Si detecta "
-                            "algo, no alcanza para decir que un grupo tiene valores más altos.")
+            consecuencia = ("Se usa la versión de Welch aunque no haya campana: la prueba "
+                            "por orden reacciona cuando un grupo es más disperso que otro, "
+                            "no solo cuando está corrido. Welch tolera la falta de campana; "
+                            "con grupos chicos y muy asimétricos, el p es aproximado.")
         caso.pasos.append(Paso(
             pregunta="¿Los grupos son igual de dispersos entre sí?",
             medicion=f"Prueba de Levene: {_p(lev['p'])}",

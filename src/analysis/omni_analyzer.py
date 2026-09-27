@@ -488,24 +488,33 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         "todas_normales": all_normal,
         "levene": lev,
     }
-    if not all_normal and not lev["equal_var"]:
-        # La prueba por rangos supone la misma forma de distribución bajo H0:
-        # si un grupo es más disperso, rechaza por eso aunque ninguno esté
-        # corrido. No hay prueba simple que lo resuelva sin normalidad; se dice.
+    # Con dispersiones distintas manda Levene, no la normalidad: la prueba por
+    # rangos supone la misma forma bajo H0 y rechaza por la dispersión. Medido
+    # (auditoría 2026-09, K10, 4000 corridas con medias iguales, DE 2/6/14):
+    # cuando algún grupo normal no pasaba Shapiro, Kruskal-Wallis daba 23 % de
+    # falsos positivos, Welch sobre medias recortadas al 20 % 13 %, y Welch
+    # 6,5 %. Con asimetría (chi², exponencial) Welch sigue siendo el que menos
+    # infla: 6-10 % contra 33-37 % de los rangos.
+    welch_sin_normalidad = not all_normal and not lev["equal_var"]
+    if welch_sin_normalidad:
         block["advertencias"].append(
             "Los grupos no son normales y además dispersan distinto (Levene "
-            f"{_p(lev['p'])}). La prueba por rangos también reacciona a la diferencia "
-            "de dispersión, no solo a la de posición: si detecta algo, no alcanza para "
-            "afirmar que un grupo tiene valores más altos que otro."
+            f"{_p(lev['p'])}). La prueba por rangos no sirve acá: reacciona a la "
+            "diferencia de dispersión, no solo a la de posición. Se usa Welch, que "
+            "compara promedios sin suponer dispersión pareja y tolera la falta de "
+            "normalidad; con grupos chicos y muy asimétricos el p es aproximado, y "
+            "conviene mirar los datos en escala logarítmica."
         )
 
     if k == 2:
         # Los de 3+ grupos no compiten aca: no aplican, no fueron descartados.
-        if all_normal:
+        if all_normal or welch_sin_normalidad:
             equal_var = lev["equal_var"]
             t_stat, t_p = stats.ttest_ind(groups[0], groups[1], equal_var=equal_var)
             name = "t de Student" if equal_var else "t de Welch"
-            block["traza"].append(f"2 grupos normales, varianzas {'iguales' if equal_var else 'distintas'} → {name}.")
+            block["traza"].append(
+                f"2 grupos {'normales' if all_normal else 'no normales'}, varianzas "
+                f"{'iguales' if equal_var else 'distintas'} → {name}.")
             block["pruebas"].append({"prueba": name, "estadístico": round(float(t_stat), 4),
                                      "p": round(float(t_p), 4)})
             elegido = "t_student" if equal_var else "t_welch"
@@ -514,16 +523,21 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
             _descartar(block, rival,
                        f"Levene {_p(lev['p'])}: varianzas "
                        f"{'iguales' if equal_var else 'distintas'}")
-            _descartar(block, "mann_whitney", "los dos grupos pasaron la prueba de normalidad")
+            _descartar(block, "mann_whitney",
+                       "los dos grupos pasaron la prueba de normalidad" if all_normal else
+                       f"Levene {_p(lev['p'])}: con dispersiones distintas la prueba por "
+                       "rangos reacciona a la dispersión, no solo a la posición")
             _dejar_p(block, float(t_p))
         else:
             u_stat, u_p = stats.mannwhitneyu(groups[0], groups[1], alternative="two-sided")
-            block["traza"].append("2 grupos no normales → Mann-Whitney U.")
+            block["traza"].append("2 grupos, alguno no normal, varianzas iguales → Mann-Whitney U.")
             block["pruebas"].append({"prueba": "Mann-Whitney U", "estadístico": round(float(u_stat), 4),
                                      "p": round(float(u_p), 4)})
             _marcar(block, "mann_whitney", f"U={round(float(u_stat), 4)}, {_p(u_p)}")
             _descartar(block, "t_student", "normalidad incumplida en al menos un grupo")
-            _descartar(block, "t_welch", "normalidad incumplida en al menos un grupo")
+            _descartar(block, "t_welch",
+                       f"Levene {_p(lev['p'])}: dispersión pareja, y con algún grupo no "
+                       "normal la comparación va por rangos")
             _dejar_p(block, float(u_p))
         return block
 
@@ -542,8 +556,8 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
                              "y": df["y"].to_numpy(dtype=float),
                              "g": df["g"].astype(str).to_numpy()}
         _dejar_p(block, float(av["p"]))
-    elif all_normal:
-        # Normales con varianzas distintas: ANOVA de Welch. Kruskal-Wallis NO es
+    elif not lev["equal_var"]:
+        # Varianzas distintas, normales o no: ANOVA de Welch. Kruskal-Wallis NO es
         # la salida: supone la misma forma bajo H0 y rechaza por la dispersión.
         # Con medias iguales y DE 2/6/14 el motor daba 16,7 % de falsos
         # positivos por ese camino; Welch, 5,6 % (auditoría 2026-09, K10).
@@ -554,7 +568,9 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
             _descartar(block, "anova_welch", motivo)
             block["conclusion"] = f"No se pudo comparar los grupos: {motivo}"
             return block
-        block["traza"].append(f"{k} grupos normales con varianzas distintas → ANOVA de Welch.")
+        block["traza"].append(
+            f"{k} grupos {'normales' if all_normal else 'no normales'} con varianzas "
+            "distintas → ANOVA de Welch.")
         block["pruebas"].append({"prueba": "ANOVA de Welch", "estadístico": round(float(wa["f"]), 4),
                                  "gl": (round(float(wa["df1"]), 2), round(float(wa["df2"]), 2)),
                                  "p": round(float(wa["p"]), 4)})
@@ -563,18 +579,21 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
                    f"Levene {_p(lev['p'])}: varianzas distintas, y el ANOVA clásico las "
                    "supone iguales")
         _descartar(block, "kruskal",
-                   "los grupos son normales; con dispersiones distintas Kruskal-Wallis "
-                   "reacciona a la dispersión, no solo a la posición")
+                   ("los grupos son normales; " if all_normal else "")
+                   + "con dispersiones distintas Kruskal-Wallis reacciona a la "
+                   "dispersión, no solo a la posición")
         block["_posthoc"] = {"camino": "welch", "grupos": groups, "etiquetas": labels}
         _dejar_p(block, wa["p"])
     else:
         kw = kruskal_wallis(groups)
-        block["traza"].append(f"{k} grupos, alguno no normal → Kruskal-Wallis.")
+        block["traza"].append(f"{k} grupos, alguno no normal, varianzas iguales → Kruskal-Wallis.")
         block["pruebas"].append({"prueba": "Kruskal-Wallis", "estadístico": round(float(kw["h"]), 4),
                                  "p": round(float(kw["p"]), 4)})
         _marcar(block, "kruskal", f"H={round(float(kw['h']), 4)}, {_p(kw['p'])}")
         _descartar(block, "anova", "normalidad incumplida en al menos un grupo")
-        _descartar(block, "anova_welch", "normalidad incumplida en al menos un grupo")
+        _descartar(block, "anova_welch",
+                   f"Levene {_p(lev['p'])}: dispersión pareja, y con algún grupo no "
+                   "normal la comparación va por rangos")
         block["_posthoc"] = {"camino": "kruskal", "grupos": groups, "etiquetas": labels}
         _dejar_p(block, float(kw["p"]))
     return block
