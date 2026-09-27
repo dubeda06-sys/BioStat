@@ -136,7 +136,7 @@ CASOS = [
     ("Wilcoxon", _hoja_general, ["A", "B"], lambda p: p._wilcoxon("A", "B")),
     ("ICC", _hoja_general, ["A", "B"], lambda p: p._icc("A", "B")),
     ("regresión lineal", _hoja_general, ["A", "B"], lambda p: p._reg_lineal("A", "B")),
-    ("sign test", _hoja_general, ["A", "B"], lambda p: p._run_core("sign_test", "A", "B")),
+    ("sign test", _hoja_general, ["A", "B"], lambda p: p._signos("A", "B")),
     ("Deming", _hoja_general, ["A", "B"], lambda p: p._deming("A", "B")),
     ("CV de duplicados", _hoja_general, ["A", "B"], lambda p: p._cv_dup("A", "B")),
     ("bootstrap de regresión", _hoja_general, ["A", "B"],

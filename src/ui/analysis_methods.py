@@ -96,6 +96,9 @@ from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
 )
+from src.resultado.constructores.noparametricas import (
+    cochran, friedman, kruskal, mann_whitney, signos, wilcoxon,
+)
 from src.resultado.constructores.regresion import (
     probit, regresion_lineal, regresion_logistica, regresion_multiple,
 )
@@ -1067,40 +1070,21 @@ class AnalysisMethodsMixin:
         return h
 
     # --- Mann-Whitney U ---
+    # --- No parametricas: las arma src/resultado/constructores/noparametricas.py ---
     def _mannwhitney(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        d1, d2 = self.data[c1].dropna(), self.data[c2].dropna()
-        if len(d1) < 2 or len(d2) < 2:
-            return "<b>Error:</b> Minimo 2 obs por grupo."
-        r = mannwhitneyu(d1.values, d2.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Mann-Whitney U", "U = R1 − n1(n1+1)/2,  R1 = suma de rangos del grupo 1", f"U = {r['u']:.1f}\np = {r['p']:.6f}\nn1={r['n1']}, n2={r['n2']}")
-        h = self._h(f" Mann-Whitney U — {c1} vs {c2}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Grupo 1", f"{c1} (n={r['n1']}, mediana={r['median1']:.2f})"),
-                      ("Grupo 2", f"{c2} (n={r['n2']}, mediana={r['median2']:.2f})"),
-                      ("U", f"{r['u']:.1f}"), ("p", f"{r['p']:.6f}")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05)
+        return mann_whitney(self.data, c1, c2)
+
+    def _signos(self, c1, c2):
+        return signos(self.data, c1, c2)
+
+    def _cochran(self):
+        cols, del_dialogo = self._columnas_multi()
+        return self._con_nota_columnas(cochran(self.data, cols), cols, del_dialogo,
+                                       "tratamientos")
 
     # --- Wilcoxon pareado ---
     def _wilcoxon(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        d1, d2 = pares[c1], pares[c2]
-        n = len(pares)
-        r = wilcoxon_signed_rank(d1.values, d2.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "Minimo 5 pares con diferencias != 0.")
-        self._set_formula("Formula: Wilcoxon Signed-Rank", "W = suma de rangos de |diferencias| con signo", f"W = {r['w']:.1f}\np = {r['p']:.6f}\nn = {r['n']}")
-        h = self._h(f" Wilcoxon — {c1} vs {c2}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Pares (n)", r['n']), ("W", f"{r['w']:.1f}"), ("p", f"{r['p']:.6f}")]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05)
+        return wilcoxon(self.data, c1, c2)
 
     # --- Chi-cuadrado ---
     def _chi2(self, c1, c2):
@@ -1184,46 +1168,14 @@ class AnalysisMethodsMixin:
 
     # --- Kruskal-Wallis ---
     def _kruskal(self, c1, c2):
-        """Kruskal-Wallis en formato largo: Variable 1 = respuesta, Variable 2 = grupo."""
-        grupos = self._grupos_largo(c1, c2)
-        if isinstance(grupos, str):
-            return grupos
-        etiquetas, datos = grupos
-        r = kruskal_wallis(datos)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Kruskal-Wallis",
-                          "H = (12 / (N(N+1))) · Σ Rᵢ²/nᵢ − 3(N+1), corregido por empates",
-                          f"H = {r['h']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" Kruskal-Wallis — {escape(str(c1))} por {escape(str(c2))}")
-        h += self._html_grupos(etiquetas, datos)
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("H", f"{r['h']:.4f}"), ("gl", r['k'] - 1), ("p", _p_html(r['p']))]:
-            h += self._r(l, v)
-        return h + "</table>" + self._ok(r['p'] < 0.05)
+        """Variable 1 = respuesta, Variable 2 = grupo (formato largo)."""
+        return kruskal(self.data, c1, c2)
 
     # --- Friedman ---
     def _friedman(self):
-        """Friedman: una columna por condicion, una fila por sujeto."""
         cols, del_dialogo = self._columnas_multi()
-        if len(cols) < 3:
-            return ("<b>Error:</b> Friedman necesita al menos 3 condiciones (columnas "
-                    "numéricas); hay " + str(len(cols)) + ".")
-        sujetos = self._filas_completas(*cols)
-        groups = [sujetos[c].values for c in cols]
-        r = friedman_test(*groups)
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula("Formula: Friedman",
-                          "χ²r = (12 / (n·k·(k+1))) · Σ Rⱼ² − 3n(k+1), corregido por empates",
-                          f"χ² = {r['chi2']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" Friedman")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Sujetos completos", len(sujetos)), ("Condiciones (k)", r['k']),
-                     ("χ²", f"{r['chi2']:.4f}"), ("p", _p_html(r['p']))]:
-            h += self._r(l, v)
-        h += "</table>" + self._nota_columnas(cols, del_dialogo)
-        return h + self._ok(r['p'] < 0.05)
+        return self._con_nota_columnas(friedman(self.data, cols), cols, del_dialogo,
+                                       "condiciones")
 
     # --- F-test ---
     def _ftest(self, c1, c2):
@@ -1463,43 +1415,7 @@ class AnalysisMethodsMixin:
     def _run_core(self, func_name, c1=None, c2=None):
         """Run a core module function and display results."""
         try:
-            if func_name == "sign_test":
-                if c1 is None or c2 is None:
-                    return "<b>Error:</b> Selecciona 2 columnas."
-                if c1 not in self.data.columns or c2 not in self.data.columns:
-                    return "<b>Error:</b> Columnas no encontradas."
-                pares = self._filas_completas(c1, c2)
-                result = sign_test(pares[c1], pares[c2])
-                self._set_formula("Formula: Sign Test", "p = Σ C(n,k) × 0.5^n para k ≤ observados")
-                h = self._h(f" Sign Test — {c1} vs {c2}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Estadístico", f"{result['statistic']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
-                return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó diferencia", "No se detectó diferencia")
-
-            elif func_name == "cochran_q":
-                cols, del_dialogo = self._columnas_multi()
-                if len(cols) < 2:
-                    return f"<b>Error:</b> hacen falta al menos 2 tratamientos (columnas 0/1); hay {len(cols)}."
-                datos = self._filas_completas(*cols).values
-                if not np.all(np.isin(datos, (0, 1))):
-                    return "<b>Error:</b> Cochran Q necesita columnas 0/1 (fracaso/éxito)."
-                result = cochran_q(datos)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo calcular.")
-                self._set_formula("Formula: Cochran Q",
-                                  "Q = (k−1)·[k·ΣCⱼ² − T²] / [k·T − ΣRᵢ²]\n"
-                                  "Cⱼ = éxitos por tratamiento, Rᵢ = éxitos por sujeto, T = total")
-                h = self._h(" Cochran Q")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Sujetos completos", result['n'])
-                h += self._r("Q", f"{result['Q']:.4f}")
-                h += self._r("gl", result['df'])
-                h += self._r("p", _p_html(result['p']))
-                h += "</table>" + self._nota_columnas(cols, del_dialogo)
-                return h + self._ok(result['p'] < 0.05)
-
-            elif func_name == "weighted_kappa":
+            if func_name == "weighted_kappa":
                 for c in (c1, c2):
                     if c is None or c not in self.data.columns:
                         return "<b>Error:</b> Elegí las dos clasificaciones ordinales en la Variable 1 y la Variable 2."

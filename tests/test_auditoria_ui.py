@@ -288,7 +288,8 @@ def test_friedman_usa_las_columnas_tildadas(qt_app):
     p.columnas_elegidas = ["C1", "C2", "C3"]
     t = _texto(p._friedman())
     assert f"{stats.friedmanchisquare(df['C1'], df['C2'], df['C3']).statistic:.4f}" in t
-    assert "Columnas usadas: C1, C2, C3" in t
+    # Migrado a Resultado: las columnas que entraron van en la línea de entrada.
+    assert "n = 30 · C1, C2, C3" in t and "Edad" not in t
 
 
 def test_sin_dialogo_el_informe_nombra_todas_las_columnas_que_entraron(qt_app):
@@ -296,7 +297,7 @@ def test_sin_dialogo_el_informe_nombra_todas_las_columnas_que_entraron(qt_app):
     df = pd.DataFrame({"C1": rng.normal(0, 1, 20), "C2": rng.normal(0, 1, 20),
                        "C3": rng.normal(0, 1, 20), "Edad": rng.integers(20, 80, 20)})
     t = _texto(_panel(df)._friedman())
-    assert "todas las columnas numéricas de la hoja: C1, C2, C3, Edad" in t
+    assert "todas las columnas numéricas de la hoja como condiciones: C1, C2, C3, Edad" in t
 
 
 def test_cambiar_de_analisis_limpia_lo_que_dejo_el_dialogo(qt_app):

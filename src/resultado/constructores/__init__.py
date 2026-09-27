@@ -19,6 +19,8 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
     "respuesta_grupo":   f(df, respuesta, grupo)  (formato largo)
     "respuesta_dos_factores":     f(df, respuesta, factor_a, factor_b)
     "respuesta_grupo_covariable": f(df, respuesta, grupo, covariable)
+    "lista_tres":    f(df, [3 columnas o más])
+    "lista_binaria": f(df, [columnas 0/1])
 """
 from src.resultado.constructores.anova import (
     ancova, anova_dos_vias, anova_una_via, medidas_repetidas,
@@ -29,6 +31,9 @@ from src.resultado.constructores.comparacion import (
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
+)
+from src.resultado.constructores.noparametricas import (
+    cochran, friedman, kruskal, mann_whitney, signos, wilcoxon,
 )
 from src.resultado.constructores.precision import precision_ep15
 from src.resultado.constructores.regresion import (
@@ -72,6 +77,13 @@ CONSTRUCTORES = {
     "anova_dos_vias": anova_dos_vias,
     "ancova": ancova,
     "medidas_repetidas": medidas_repetidas,
+    # No paramétricas
+    "mann_whitney": mann_whitney,
+    "wilcoxon": wilcoxon,
+    "kruskal": kruskal,
+    "friedman": friedman,
+    "signos": signos,
+    "cochran": cochran,
     # Comparación de métodos
     "bland_altman": bland_altman,
     "passing_bablok": passing_bablok,
@@ -97,6 +109,9 @@ FIRMAS["anova_una_via"] = "respuesta_grupo"
 FIRMAS["anova_dos_vias"] = "respuesta_dos_factores"
 FIRMAS["ancova"] = "respuesta_grupo_covariable"
 FIRMAS["medidas_repetidas"] = "lista"
+FIRMAS["kruskal"] = "respuesta_grupo"
+FIRMAS["friedman"] = "lista_tres"
+FIRMAS["cochran"] = "lista_binaria"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 

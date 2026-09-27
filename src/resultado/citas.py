@@ -156,6 +156,26 @@ HUITEMA_2011 = Cita("Huitema BE (2011). The analysis of covariance and alternati
                     "Hoboken: Wiley.")
 GREENHOUSE_1959 = Cita("Greenhouse SW, Geisser S (1959). On methods in the analysis of profile "
                        "data. Psychometrika 24:95-112.")
+MANN_1947 = Cita("Mann HB, Whitney DR (1947). On a test of whether one of two random variables "
+                 "is stochastically larger than the other. Ann Math Stat 18:50-60.")
+WILCOXON_1945 = Cita("Wilcoxon F (1945). Individual comparisons by ranking methods. Biometrics "
+                     "Bull 1:80-83.")
+HODGES_1963 = Cita("Hodges JL, Lehmann EL (1963). Estimates of location based on rank tests. "
+                   "Ann Math Stat 34:598-611.")
+CONOVER_1999 = Cita("Conover WJ (1999). Practical nonparametric statistics, 3.ª ed. New York: "
+                    "Wiley. IC de Hodges-Lehmann por el método de Moses.")
+KRUSKAL_1952 = Cita("Kruskal WH, Wallis WA (1952). Use of ranks in one-criterion variance "
+                    "analysis. J Am Stat Assoc 47:583-621.")
+DUNN_1964 = Cita("Dunn OJ (1964). Multiple comparisons using rank sums. Technometrics "
+                 "6:241-252.")
+FRIEDMAN_1937 = Cita("Friedman M (1937). The use of ranks to avoid the assumption of normality "
+                     "implicit in the analysis of variance. J Am Stat Assoc 32:675-701.")
+KENDALL_1939 = Cita("Kendall MG, Babington Smith B (1939). The problem of m rankings. Ann Math "
+                    "Stat 10:275-287. W de Kendall.")
+DIXON_1946 = Cita("Dixon WJ, Mood AM (1946). The statistical sign test. J Am Stat Assoc "
+                  "41:557-566.")
+COCHRAN_1950 = Cita("Cochran WG (1950). The comparison of percentages in matched samples. "
+                    "Biometrika 37:256-266.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -539,6 +559,55 @@ FICHAS: dict[str, Ficha] = {
             "    centrada;  p corregido con gl·ε"
         ),
         citas=(GREENHOUSE_1959, SNEDECOR_1989),
+    ),
+
+    # ---------------- No paramétricas: src/resultado/constructores/noparametricas.py
+    # core: src/core/statistics.py (scipy, statsmodels)
+    "mann_whitney": Ficha(
+        formula=(
+            "U = R₁ − n₁(n₁ + 1)/2,  R₁ = suma de rangos del grupo 1 (empates: rango medio)\n"
+            "Hodges-Lehmann: mediana de todas las diferencias xᵢ − yⱼ\n"
+            "IC 95 % (Moses): estadísticos de orden k y n₁n₂ − k + 1 de esas diferencias,\n"
+            "    k = ⌊n₁n₂/2 − 1,96·√(n₁n₂(n₁ + n₂ + 1)/12)⌋"
+        ),
+        citas=(MANN_1947, HODGES_1963, CONOVER_1999),
+    ),
+    "wilcoxon": Ficha(
+        formula=(
+            "dᵢ = x₁ᵢ − x₂ᵢ (los ceros no entran);  W = suma de rangos de |d| con signo\n"
+            "Pseudomediana: mediana de los promedios de Walsh (dᵢ + dⱼ)/2, i ≤ j\n"
+            "IC 95 %: órdenes k y M − k + 1,  k = ⌊M/2 − 1,96·√(n(n + 1)(2n + 1)/24)⌋"
+        ),
+        citas=(WILCOXON_1945, HODGES_1963, CONOVER_1999),
+    ),
+    "kruskal": Ficha(
+        formula=(
+            "H = (12/(N(N + 1)))·Σ Rᵢ²/nᵢ − 3(N + 1), corregido por empates;  k − 1 gl\n"
+            "Dunn: z = (R̄ᵢ − R̄ⱼ)/√((N(N + 1)/12 − Σ(t³ − t)/(12(N − 1)))(1/nᵢ + 1/nⱼ)),\n"
+            "    con Bonferroni"
+        ),
+        citas=(KRUSKAL_1952, DUNN_1964),
+    ),
+    "friedman": Ficha(
+        formula=(
+            "χ²_r = (12/(n·k(k + 1)))·Σ Rⱼ² − 3n(k + 1), corregido por empates;  k − 1 gl\n"
+            "W de Kendall = χ²_r / (n(k − 1))"
+        ),
+        citas=(FRIEDMAN_1937, KENDALL_1939),
+    ),
+    "signos": Ficha(
+        formula=(
+            "n₊ = pares con x₁ > x₂, n₋ = con x₁ < x₂ (empates afuera)\n"
+            "p = prueba binomial exacta de n₊ en n₊ + n₋ con probabilidad 1/2"
+        ),
+        citas=(DIXON_1946,),
+    ),
+    "cochran": Ficha(
+        formula=(
+            "Q = (k − 1)·[k·ΣCⱼ² − T²] / [k·T − ΣRᵢ²],  k − 1 gl\n"
+            "Cⱼ = éxitos por tratamiento, Rᵢ = éxitos por sujeto, T = total"
+        ),
+        citas=(COCHRAN_1950,),
     ),
 }
 

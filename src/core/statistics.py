@@ -324,6 +324,47 @@ def sign_test(d1, d2):
             "statistic": float(min(n_pos, n_neg))}
 
 
+def hodges_lehmann(x, y=None, alpha=0.05):
+    """Estimador de Hodges y Lehmann (1963) con su IC sin supuestos de forma.
+
+    Con dos muestras: la mediana de todas las diferencias x_i - y_j, el
+    corrimiento que acompana a Mann-Whitney. Con una (o con las diferencias de
+    un pareado): la pseudomediana, mediana de los promedios de Walsh
+    (d_i + d_j)/2 con i <= j, la que acompana a Wilcoxon.
+
+    IC por el metodo de Moses: los estadisticos de orden k y M - k + 1 de esas
+    diferencias (o promedios), con k de la aproximacion normal del estadistico
+    de rangos (Conover 1999; Bauer 1972).
+    """
+    from scipy import stats as _st
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    z = _st.norm.ppf(1 - alpha / 2)
+    if y is None:
+        n = len(x)
+        if n < 2:
+            return None
+        i, j = np.triu_indices(n)
+        valores = np.sort((x[i] + x[j]) / 2)
+        m = len(valores)
+        c = m / 2 - z * np.sqrt(n * (n + 1) * (2 * n + 1) / 24)
+    else:
+        y = np.asarray(y, dtype=float)
+        y = y[np.isfinite(y)]
+        n1, n2 = len(x), len(y)
+        if n1 < 1 or n2 < 1:
+            return None
+        valores = np.sort(np.subtract.outer(x, y).ravel())
+        m = len(valores)
+        c = m / 2 - z * np.sqrt(n1 * n2 * (n1 + n2 + 1) / 12)
+    k = int(np.floor(c))
+    if k < 1:
+        ic = (np.nan, np.nan)
+    else:
+        ic = (float(valores[k - 1]), float(valores[m - k]))
+    return {"estimacion": float(np.median(valores)), "ic95": ic, "m": m}
+
+
 def kruskal_wallis(groups):
     """Kruskal-Wallis."""
     groups = [np.asarray(g, dtype=float) for g in groups]

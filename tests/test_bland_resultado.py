@@ -223,7 +223,11 @@ _LLAMADAS = {"una": lambda f, df: f(df, "A"),
              "calculadora": lambda f, df: f(EJEMPLOS[f.__name__]),
              "respuesta_grupo": lambda f, df: f(_con_grupos(df), "A", "G"),
              "respuesta_dos_factores": lambda f, df: f(_con_grupos(df), "A", "G", "H"),
-             "respuesta_grupo_covariable": lambda f, df: f(_con_grupos(df), "A", "G", "B")}
+             "respuesta_grupo_covariable": lambda f, df: f(_con_grupos(df), "A", "G", "B"),
+             "lista_tres": lambda f, df: f(df.assign(C=df["A"] + 1), ["A", "B", "C"]),
+             "lista_binaria": lambda f, df: f(df.assign(U=(df["A"] > df["A"].median()) * 1.0,
+                                                        V=(df["B"] > df["B"].median()) * 1.0),
+                                              ["U", "V"])}
 
 
 def _con_grupos(df):
