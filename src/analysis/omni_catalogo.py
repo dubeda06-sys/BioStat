@@ -220,9 +220,10 @@ ENSAYOS: tuple[Ensayo, ...] = (
     # ---------------- Deteccion de comparacion de metodos ----------------
     Ensayo("score_comparacion", "Puntaje de sospecha de comparación", CONCORDANCIA,
            "Todos los pares numéricos, siempre que haya 2 o más.",
-           "Reglas duras (rango, escala, correlación, nombres) que PROPONEN "
-           "pares que podrían ser dos mediciones de lo mismo. Nunca deciden "
-           "solas: el usuario confirma."),
+           "Reglas duras (unidad declarada, rango, escala, correlación, nombres, "
+           "faltantes en las mismas filas) que PROPONEN pares que podrían ser dos "
+           "mediciones de lo mismo. Nunca deciden solas: el usuario confirma. La "
+           "auditoría muestra el puntaje de cada par con sus motivos."),
 
     # ---------------- Subarbol de concordancia ----------------
     Ensayo("variabilidad_diferencias", "Variabilidad de las diferencias (DE, CV o mixta)",

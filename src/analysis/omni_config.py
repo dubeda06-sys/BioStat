@@ -27,10 +27,20 @@ class OmniConfig:
 
     # --- Detección de comparación de métodos ---
     CORR_MIN_COMPARACION: float = 0.80   # correlación mínima para sospechar comparación
-    SCORE_UMBRAL_COMPARACION: float = 3.0  # puntaje total para gatillar ventana
+    # Calibrado el 27 sep contra un banco sintético de pares de laboratorio
+    # (`tests/test_omni_score_banco.py`): 7 comparaciones de métodos y 9 pares
+    # que no lo son. No hay datos reales etiquetados todavía; cuando los haya,
+    # se recalibra con el mismo test. Ver el docstring del test.
+    SCORE_UMBRAL_COMPARACION: float = 3.5  # puntaje total para gatillar ventana
 
     # Pesos reglas fuertes
-    PESO_UNIDAD: float = 2.0
+    # La unidad compartida casi no discrimina: en una hoja de laboratorio la
+    # mayoría de los analitos están en mg/dL o U/L. Con el 2,0 del spec,
+    # glucosa contra colesterol y dos calibradores en Ct pasaban a candidatos.
+    # Lo que sí discrimina es la unidad DISTINTA: dos métodos del mismo
+    # analito se comparan en la misma unidad.
+    PESO_UNIDAD: float = 0.5
+    PESO_UNIDAD_DISTINTA: float = 2.0  # se RESTA si las dos declaran unidad y difieren
     PESO_RANGO: float = 1.5
     PESO_ESCALA: float = 1.0
     PESO_CORR: float = 2.0

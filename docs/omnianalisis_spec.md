@@ -260,9 +260,12 @@ else
 | `FISHER_MIN_FREQ` | 5 | Frecuencia esperada mínima antes de saltar de Chi² a Fisher |
 | `CARDINALITY_THRESHOLD` | 10 | Corte para distinguir discreta/continua y nominal/ordinal |
 | `CORR_MIN_COMPARACION` | 0.80 | Correlación mínima para sospechar comparación de métodos |
-| `SCORE_UMBRAL_COMPARACION` | (a calibrar) | Puntaje total para gatillar la ventana |
-| `PESO_UNIDAD` / `PESO_RANGO` / `PESO_ESCALA` / `PESO_CORR` | (a calibrar) | Pesos de las reglas fuertes |
-| `PESO_NOMBRE` / `PESO_PAREADO` / `PESO_DIF_CHICA` | (a calibrar) | Pesos de las reglas de apoyo |
+| `SCORE_UMBRAL_COMPARACION` | 3,5 (calibrado 27 sep) | Puntaje total para gatillar la ventana |
+| `PESO_UNIDAD` / `PESO_RANGO` / `PESO_ESCALA` / `PESO_CORR` | 0,5 / 1,5 / 1,0 / 2,0 | Pesos de las reglas fuertes. La unidad compartida casi no discrimina en una hoja de laboratorio: bajó de 2,0 a 0,5 |
+| `PESO_UNIDAD_DISTINTA` | 2,0 (se resta) | Agregado al calibrar: dos métodos del mismo analito se comparan en la misma unidad |
+| `PESO_NOMBRE` / `PESO_PAREADO` / `PESO_DIF_CHICA` | 1,0 / 0,5 / 1,0 | Pesos de las reglas de apoyo |
+
+La calibración es contra un banco sintético (`tests/test_omni_score_banco.py`, 7 comparaciones de métodos y 9 pares que no lo son), porque todavía no hay datos reales etiquetados. Con datos reales se recalibra con el mismo test.
 | `FDR_METHOD` | Benjamini-Hochberg | Método de corrección por multiplicidad |
 
 ---

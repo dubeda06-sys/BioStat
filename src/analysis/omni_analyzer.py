@@ -794,12 +794,65 @@ def _decidir(block: dict, p_adj, n_familia: int, cfg: OmniConfig) -> None:
 # ============================================================
 #  Detección de comparación de métodos (reglas duras + score)
 # ============================================================
+# Unidades que se reconocen escritas al final del nombre de columna, ya
+# normalizadas (minúsculas, µ → u, IU → UI). Entre paréntesis o corchetes
+# vale cualquier texto: «Glucosa (mg/dL)», «Hb [g/dL]».
+_UNIDADES = (
+    "mg/dl", "g/dl", "g/l", "mg/l", "ug/l", "ug/dl", "ng/ml", "ng/dl", "pg/ml",
+    "mmol/l", "umol/l", "nmol/l", "pmol/l", "meq/l", "u/l", "ui/l", "mui/ml",
+    "mui/l", "uui/ml", "ui/ml", "copias/ml", "fl", "pg", "ct", "%",
+)
+
+
+def _unidad_declarada(nombre: str) -> str | None:
+    """La unidad escrita en el nombre de la columna, normalizada, o None.
+
+    Primero lo que esté entre paréntesis o corchetes al final; si no, una
+    unidad conocida como última palabra («glucosa mg/dl», «glu_mg_dl»).
+    """
+    import re
+    s = str(nombre).strip().lower().replace("µ", "u").replace("μ", "u")
+    s = s.replace("iu/", "ui/").replace("miu/", "mui/")
+    m = re.search(r"[\(\[]\s*([^\)\]]+?)\s*[\)\]]\s*$", s)
+    if m:
+        return re.sub(r"\s+", "", m.group(1))
+    plano = re.sub(r"[\s_\-]+", " ", s).strip()
+    for u in _UNIDADES:
+        for forma in {u, u.replace("/", " ")}:
+            if plano.endswith(" " + forma):  # «Ct» solo es el nombre, no una unidad
+                return u
+    return None
+
+
+def _sin_unidad(nombre: str) -> str:
+    """El nombre sin la unidad: si no, «AST (U/L)» y «ALT (U/L)» se parecen
+    por el paréntesis y no por el analito."""
+    import re
+    s = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]\s*$", "", str(nombre).strip())
+    u = _unidad_declarada(s)
+    if u:
+        plano = re.sub(r"[\s_\-]+", " ", s.lower().replace("µ", "u")).strip()
+        for forma in (u, u.replace("/", " ")):
+            if plano.endswith(" " + forma):
+                return plano[: -len(forma) - 1]
+    return s
+
+
 def _comparison_score(c1, s1, c2, s2, cfg: OmniConfig) -> dict:
     a, b = _align(s1, s2)
     if len(a) < 3:
         return {"score": 0, "reasons": [], "corr": None}
     score = 0.0
     reasons = []
+
+    # misma unidad declarada en el nombre (regla fuerte del spec, §6.1)
+    u1, u2 = _unidad_declarada(c1), _unidad_declarada(c2)
+    if u1 and u1 == u2:
+        score += cfg.PESO_UNIDAD
+        reasons.append(f"misma unidad declarada ({u1})")
+    elif u1 and u2:
+        score -= cfg.PESO_UNIDAD_DISTINTA
+        reasons.append(f"unidades declaradas distintas ({u1} y {u2}): resta")
 
     # corrcoef divide por la desviacion: con una columna constante da NaN, y
     # todas las comparaciones contra NaN son False, asi que el puntaje quedaba
@@ -828,8 +881,8 @@ def _comparison_score(c1, s1, c2, s2, cfg: OmniConfig) -> dict:
         score += cfg.PESO_CORR
         reasons.append(f"correlación alta (r={round(r,3)})")
 
-    # nombres similares
-    if _similar_names(c1, c2):
+    # nombres similares (sin la unidad, que ya contó aparte)
+    if _similar_names(_sin_unidad(c1), _sin_unidad(c2)):
         score += cfg.PESO_NOMBRE
         reasons.append("nombres de columna parecidos")
 
@@ -838,6 +891,13 @@ def _comparison_score(c1, s1, c2, s2, cfg: OmniConfig) -> dict:
     if span > 0 and mean_diff < cfg.DIF_CHICA_FRAC * span:
         score += cfg.PESO_DIF_CHICA
         reasons.append("media de diferencias pequeña")
+
+    # mismo n y faltantes en las mismas filas: las dos columnas se midieron
+    # sobre las mismas muestras (regla de apoyo del spec, §6.1)
+    falta1, falta2 = s1.isna().to_numpy(), s2.isna().to_numpy()
+    if len(falta1) == len(falta2) and np.array_equal(falta1, falta2):
+        score += cfg.PESO_PAREADO
+        reasons.append("mismo n y faltantes en las mismas filas")
 
     return {"score": round(score, 2), "reasons": reasons, "corr": round(r, 4)}
 
@@ -850,16 +910,24 @@ def _similar_names(c1: str, c2: str) -> bool:
     return ratio >= 0.6
 
 
-def detect_comparison_candidates(df: pd.DataFrame, num_cols: list[str], cfg: OmniConfig) -> list[dict]:
-    """Corre reglas duras sobre todos los pares numéricos. Devuelve candidatos sobre umbral."""
-    candidates = []
+def puntuar_pares(df: pd.DataFrame, num_cols: list[str], cfg: OmniConfig) -> list[dict]:
+    """El puntaje de TODOS los pares numéricos, con sus motivos, supere o no
+    el umbral. La auditoría lo muestra par por par: antes decía cuántos
+    pares se puntuaron, no cuánto sacó cada uno."""
+    pares = []
     for i in range(len(num_cols)):
         for j in range(i + 1, len(num_cols)):
             c1, c2 = num_cols[i], num_cols[j]
             sc = _comparison_score(c1, df[c1], c2, df[c2], cfg)
-            if sc["score"] >= cfg.SCORE_UMBRAL_COMPARACION:
-                candidates.append({"col1": c1, "col2": c2, **sc})
-    return candidates
+            pares.append({"col1": c1, "col2": c2, **sc,
+                          "supera": bool(sc["score"] >= cfg.SCORE_UMBRAL_COMPARACION)})
+    return pares
+
+
+def detect_comparison_candidates(df: pd.DataFrame, num_cols: list[str], cfg: OmniConfig) -> list[dict]:
+    """Corre reglas duras sobre todos los pares numéricos. Devuelve candidatos sobre umbral."""
+    return [{k: v for k, v in p.items() if k != "supera"}
+            for p in puntuar_pares(df, num_cols, cfg) if p["supera"]]
 
 
 # ============================================================
@@ -1552,12 +1620,17 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
         _decidir(b, float(p_adj), n_familia, cfg)
 
     # --- Detección de comparación de métodos (pares numéricos) ---
-    n_pares_num = len(num_cols) * (len(num_cols) - 1) // 2
-    if n_pares_num:
-        _marcar(report, "score_comparacion", f"{n_pares_num} par(es) numérico(s) puntuado(s)")
-    else:
+    puntajes = puntuar_pares(df, num_cols, cfg)
+    report["comparison_scores"] = puntajes
+    for p in puntajes:
+        motivos = "; ".join(p["reasons"]) or "ninguna regla"
+        _marcar(report, "score_comparacion",
+                f"{p['col1']} × {p['col2']}: {p['score']} "
+                f"({'≥' if p['supera'] else '<'} {cfg.SCORE_UMBRAL_COMPARACION}) — {motivos}")
+    if not puntajes:
         _descartar(report, "score_comparacion", "menos de 2 columnas numéricas")
-    candidates = detect_comparison_candidates(df, num_cols, cfg)
+    candidates = [{k: v for k, v in p.items() if k != "supera"}
+                  for p in puntajes if p["supera"]]
     for cand in candidates:
         key = tuple(sorted((cand["col1"], cand["col2"])))
         if key in confirmed:
