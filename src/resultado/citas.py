@@ -302,6 +302,32 @@ STROBL_2007 = Cita("Strobl C, Boulesteix AL, Zeileis A, Hothorn T (2007). Bias i
                    "Bioinformatics 8:25.")
 HASTIE_2009 = Cita("Hastie T, Tibshirani R, Friedman J (2009). The elements of statistical "
                    "learning, 2.ª ed. New York: Springer. Cap. 7.10: validación cruzada.")
+DERSIMONIAN_1986 = Cita("DerSimonian R, Laird N (1986). Meta-analysis in clinical trials. "
+                        "Control Clin Trials 7:177-188.")
+HIGGINS_2003 = Cita("Higgins JPT, Thompson SG, Deeks JJ, Altman DG (2003). Measuring "
+                    "inconsistency in meta-analyses. BMJ 327:557-560.")
+HIGGINS_2009 = Cita("Higgins JPT, Thompson SG, Spiegelhalter DJ (2009). A re-evaluation of "
+                    "random-effects meta-analysis. J R Stat Soc A 172:137-159. Intervalo de "
+                    "predicción.")
+EGGER_1997 = Cita("Egger M, Davey Smith G, Schneider M, Minder C (1997). Bias in meta-analysis "
+                  "detected by a simple, graphical test. BMJ 315:629-634.")
+STERNE_2011 = Cita("Sterne JAC, Sutton AJ, Ioannidis JPA et al. (2011). Recommendations for "
+                   "examining and interpreting funnel plot asymmetry in meta-analyses of "
+                   "randomised controlled trials. BMJ 343:d4002.")
+MATTHEWS_1990 = Cita("Matthews JNS, Altman DG, Campbell MJ, Royston P (1990). Analysis of serial "
+                     "measurements in medical research. BMJ 300:230-235.")
+CLSI_EP12 = Cita("CLSI (2023). EP12: Evaluation of qualitative, binary output examination "
+                 "performance, 3.ª ed. IC de Wilson para sensibilidad y especificidad.")
+BOSSUYT_2015 = Cita("Bossuyt PM, Reitsma JB, Bruns DE et al. (2015). STARD 2015: an updated "
+                    "list of essential items for reporting diagnostic accuracy studies. BMJ "
+                    "351:h5527.")
+SIMEL_1991 = Cita("Simel DL, Samsa GP, Matchar DB (1991). Likelihood ratios with confidence: "
+                  "sample size estimation for diagnostic test studies. J Clin Epidemiol "
+                  "44:763-770.")
+JAESCHKE_1994 = Cita("Jaeschke R, Guyatt GH, Sackett DL (1994). Users' guides to the medical "
+                     "literature. III. How to use an article about a diagnostic test. B. What "
+                     "are the results and will they help me in caring for my patients? JAMA "
+                     "271:703-707.")
 PEDUZZI_1995 = Cita("Peduzzi P, Concato J, Feinstein AR, Holford TR (1995). Importance of "
                     "events per independent variable in proportional hazards regression "
                     "analysis. II. Accuracy and precision of regression estimates. J Clin "
@@ -995,6 +1021,41 @@ FICHAS: dict[str, Ficha] = {
             "Importancia: caída del R² al desordenar la predictora en la partición de prueba"
         ),
         citas=(BREIMAN_2001, HASTIE_2009, STROBL_2007),
+    ),
+
+    # ---------------- Sueltos: src/resultado/constructores/sueltos.py
+    "meta_analisis": Ficha(
+        formula=(
+            "Fijos: θ = Σwᵢθᵢ / Σwᵢ, wᵢ = 1/EEᵢ²;  EE(θ) = 1/√Σwᵢ\n"
+            "Q = Σwᵢ(θᵢ − θ)², gl = k − 1;  I² = máx(0, (Q − gl)/Q)\n"
+            "Aleatorios (DerSimonian-Laird): τ² = máx(0, (Q − gl)/(Σw − Σw²/Σw)), wᵢ* = 1/(EEᵢ² + τ²)\n"
+            "Predicción: θ ± t(0,975; k − 2)·√(τ² + EE(θ)²);  Egger: (θᵢ/EEᵢ) contra 1/EEᵢ, intercepto"
+        ),
+        citas=(DERSIMONIAN_1986, HIGGINS_2003, HIGGINS_2009, EGGER_1997, STERNE_2011),
+    ),
+    "mediciones_seriales": Ficha(
+        formula=(
+            "Pendiente de cada sujeto contra el tiempo (0, 1, …, k − 1), por mínimos cuadrados\n"
+            "Tendencia: t de una muestra sobre las pendientes (H₀: media = 0), gl = sujetos − 1"
+        ),
+        citas=(MATTHEWS_1990,),
+    ),
+    "prueba_diagnostica": Ficha(
+        formula=(
+            "a = VP, b = FP, c = FN, d = VN\n"
+            "Sensibilidad = a/(a + c), especificidad = d/(b + d), VPP = a/(a + b), VPN = d/(c + d)\n"
+            "IC 95 %: Wilson (CLSI EP12)\n"
+            "VPP para una prevalencia π = S·π / (S·π + (1 − E)(1 − π)); VPN, análogo"
+        ),
+        citas=(CLSI_EP12, BOSSUYT_2015, SIMEL_1991),
+    ),
+    "razones_verosimilitud": Ficha(
+        formula=(
+            "LR+ = S/(1 − E), LR− = (1 − S)/E\n"
+            "Var(ln LR+) = 1/a − 1/(a + c) + 1/b − 1/(b + d);  Var(ln LR−) = 1/c − 1/(a + c) + 1/d − 1/(b + d)\n"
+            "Odds post-test = odds pre-test × LR;  probabilidad = odds/(1 + odds)"
+        ),
+        citas=(SIMEL_1991, JAESCHKE_1994),
     ),
 }
 

@@ -56,6 +56,9 @@ from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
 )
+from src.resultado.constructores.sueltos import (
+    mediciones_seriales, meta_analisis, prueba_diagnostica, razones_verosimilitud,
+)
 from src.resultado.constructores.supervivencia import kaplan_meier, log_rank, regresion_cox
 from src.resultado.constructores.tamano import (
     poder_t, tam_correlacion, tam_dos_medias, tam_dos_proporciones, tam_una_media,
@@ -155,6 +158,11 @@ CONSTRUCTORES = {
     # Machine learning
     "rf_clasificacion": rf_clasificacion,
     "rf_regresion": rf_regresion,
+    # Sueltos y pruebas diagnósticas
+    "meta_analisis": meta_analisis,
+    "mediciones_seriales": mediciones_seriales,
+    "prueba_diagnostica": prueba_diagnostica,
+    "razones_verosimilitud": razones_verosimilitud,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -193,6 +201,8 @@ for _n in ("tam_una_media", "tam_dos_medias", "tam_dos_proporciones", "tam_corre
     FIRMAS[_n] = "calculadora"
 FIRMAS["boot_media"] = FIRMAS["boot_mediana"] = "una"
 FIRMAS["rf_clasificacion"] = "respuesta_binaria"
+FIRMAS["mediciones_seriales"] = "lista"
+FIRMAS["prueba_diagnostica"] = FIRMAS["razones_verosimilitud"] = "binarias"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402

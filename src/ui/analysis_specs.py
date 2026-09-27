@@ -410,6 +410,24 @@ OPCIONES["Bootstrap (correlacion)"] = (
 )
 ETIQUETAS["Bootstrap (regresion)"] = {"c1": "X", "c2": "Y"}
 
+OPCIONES["Meta-analisis"] = (
+    Opcion("modelo", "Modelo",
+           (("aleatorio", "Efectos aleatorios (DerSimonian-Laird) — los estudios difieren de verdad"),
+            ("fijo", "Efectos fijos — todos estiman el mismo efecto")),
+           "Con heterogeneidad, los fijos dan un IC angosto de más."),
+)
+ETIQUETAS["Meta-analisis"] = {"c1": "Efecto de cada estudio", "c2": "Su error estándar"}
+PARAMETROS["Diagnostic test"] = (
+    Parametro("prevalencia", "Prevalencia en tu población, para el VPP y el VPN (vacío = la de "
+              "la muestra)", None, 0.0001, 0.9999),
+)
+PARAMETROS["Likelihood Ratios"] = (
+    Parametro("pretest", "Probabilidad pre-test (vacío = la prevalencia de la muestra)", None,
+              0.0001, 0.9999),
+)
+for _analisis in ("Diagnostic test", "Likelihood Ratios"):
+    ETIQUETAS[_analisis] = {"c1": "Resultado de la prueba", "c2": "Estándar de oro"}
+
 OPCIONES["Probit regression"] = (
     Opcion("escala", "Escala de la dosis (Variable 1)",
            (("lineal", "Lineal — la dosis tal como está"),

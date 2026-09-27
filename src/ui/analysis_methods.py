@@ -1,20 +1,8 @@
 """Panel de analisis estadistico."""
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
-    QPushButton, QLabel, QTextEdit, QGroupBox,
-    QLineEdit, QFormLayout, QScrollArea, QSplitter
-)
-from PyQt6.QtCore import Qt
-import numpy as np
-from scipy import stats
 import matplotlib
 matplotlib.use('QtAgg')
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
-from src.ui.icons import Icons
-from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
-from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 
 
 def _bins(valores, maximo=50):
@@ -41,48 +29,9 @@ def _bins(valores, maximo=50):
         n //= 2
     return max(1, n)
 
-def _fmt_p_html(p):
-    """p para mostrar. Redondear a 4 decimales convierte 3e-9 en `0.0000`, que
-    se lee como "p exactamente cero" — no existe tal cosa."""
-    if p is None:
-        return "n/d"
-    p = float(p)
-    if p != p:
-        return "n/d"
-    return "&lt;0.0001" if p < 0.0001 else f"{p:.4f}"
 
 
-def _p_html(p):
-    """El token entero: `p=0.0345` o `p&lt;0.0001`.
-
-    Concatenar el `=` a mano dejaba `p=<0.0001`, con el igual y el menor
-    pegados."""
-    t = _fmt_p_html(p)
-    return f"p{t}" if t.startswith("&lt;") else f"p={t}"
-
-
-def _sin_resultado(res):
-    """True si el core no pudo calcular: None, o dict de rechazo con motivo."""
-    return res is None or (isinstance(res, dict) and res.get("error"))
-
-
-def _msg_error(res, generico):
-    """Mensaje de error para la UI.
-
-    Prefiere el motivo especifico que devuelve el core (guards.py) sobre el
-    texto generico. Un "No se pudo calcular" no le dice al usuario que arreglar;
-    "Se necesitan al menos 3 pares de datos; hay 2" si.
-    """
-    if isinstance(res, dict) and res.get("error"):
-        return f"<b>No se puede calcular:</b> {res['error']}"
-    return f"<b>Error:</b> {generico}"
-from html import escape
-
-import pandas as pd
-
-from src.core.roc import auc_delong
 from src.ui.analysis_specs import parametros as spec_parametros
-from src.resultado.datos import filas_completas
 from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
     passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
@@ -112,6 +61,9 @@ from src.resultado.constructores.bootstrap import (
 )
 from src.resultado.constructores.ml import rf_clasificacion, rf_regresion
 from src.resultado.constructores.roc import comparar_auc, curva_roc
+from src.resultado.constructores.sueltos import (
+    mediciones_seriales, meta_analisis, prueba_diagnostica, razones_verosimilitud,
+)
 from src.resultado.constructores.tamano import (
     poder_t, tam_correlacion, tam_dos_medias, tam_dos_proporciones, tam_una_media,
 )
@@ -120,35 +72,7 @@ from src.resultado.constructores.resumen import (
     asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
     media_recortada, percentiles, shapiro_wilk, tukey,
 )
-from src.resultado.lenguaje import texto_descartes
 from src.resultado.modelo import Resultado
-from src.core.meta_analysis import meta_analysis
-from src.core.statistics import (
-    mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
-    mcnemar_test, kruskal_wallis, friedman_test,
-    f_test_variances, ttest_1sample, ttest_paired, ttest_ind,
-    partial_correlation, anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho,
-)
-from src.core.agreement import (
-    cohens_kappa, cronbach_alpha, weighted_kappa,
-)
-from src.core.regression import linear_regression, multiple_regression, logistic_regression
-from src.core.diagnostic_tests import (
-    odds_ratio, relative_risk, diagnostic_test,
-    likelihood_ratios, compare_two_means, compare_two_proportions, compare_two_auc
-)
-from src.core.two_way_anova import two_way_anova
-from src.core.ancova import ancova
-from src.core.repeated_measures import repeated_measures_anova
-from src.core.probit import probit_regression
-from src.core.cmh import cmh_test
-from src.core.serial_measurements import serial_measurements_summary
-from src.core.plots import youden_data, polar_plot_data, waterfall_data, mountain_plot_data
-from src.core.validation import (
-    validate_numeric_data, validate_paired_data, validate_groups,
-    validate_binary_outcome, validate_positive_values, validate_range,
-    validate_contingency_table, get_validation_summary
-)
 
 plt.rcParams.update({
     'figure.facecolor': 'white', 'axes.facecolor': '#fafbfd',
@@ -157,39 +81,11 @@ plt.rcParams.update({
     'font.size': 11, 'axes.titlesize': 13,
 })
 
-from src.ui.help_text import ANALYSIS_HELP
 
 
 
 class AnalysisMethodsMixin:
     """Métodos de cálculo+render de cada análisis (mixin de AnalysisPanel)."""
-
-    # Filas incompletas que dejo afuera el ultimo `_filas_completas`. `_run` lo
-    # pone en cero antes de cada analisis y lo informa despues.
-    _descartadas = 0
-
-    def _filas_completas(self, *cols):
-        """Las filas con dato en TODAS las columnas pedidas, sin reindexar.
-
-        Un analisis pareado compara cada fila consigo misma. El panel hacia
-        `data[c1].dropna()` y `data[c2].dropna()` por separado y despues cortaba
-        las dos al mismo largo: con una sola celda vacia, desde ahi cada valor
-        se comparaba con el del paciente siguiente (un Bland-Altman de 20 pares
-        con un hueco daba limites de +-90 en vez de +-2,4, sin aviso). Ver
-        `tests/test_pares_alineados.py`.
-
-        Deja en `self._descartadas` cuantas filas tenian dato en alguna de las
-        columnas y no en todas. La regla vive en `src/resultado/datos.py`, que
-        es lo que usan los analisis ya migrados a `Resultado`.
-        """
-        completas, entrada = filas_completas(self.data, *cols)
-        self._descartadas = entrada.descartadas
-        return completas
-
-    def _nota_descartes(self, n):
-        return ("<div style='margin-top:8px;padding:8px 10px;border-radius:6px;"
-                "background:#fdf6ec;border-left:3px solid #d97706;font-size:12px;'>"
-                f"{texto_descartes(n)}</div>")
 
     # ------------------------------------------------------------ entrada
     def _columnas_multi(self, excluir=()):
@@ -206,15 +102,6 @@ class AnalysisMethodsMixin:
             return [c for c in elegidas if c in numericas and c not in excluir], True
         return [c for c in numericas if c not in excluir], False
 
-    def _nota_columnas(self, columnas, del_dialogo):
-        lista = escape(", ".join(str(c) for c in columnas))
-        if del_dialogo:
-            return f"<p style='font-size:11px;color:#555;'>Columnas usadas: {lista}.</p>"
-        return ("<p style='font-size:11px;color:#b45309;'>Se usaron <b>todas</b> las "
-                f"columnas numéricas de la hoja: {lista}. Si alguna no corresponde (un "
-                "número de muestra, una edad), abrí el análisis desde el menú "
-                "<b>Estadísticas</b> y destildala.</p>")
-
     def _param(self, analisis, clave):
         """Parametro numerico: el del dialogo, o el de ejemplo si no hubo dialogo."""
         spec = {p.clave: p for p in spec_parametros(analisis)}[clave]
@@ -229,167 +116,6 @@ class AnalysisMethodsMixin:
             raise ValueError(f"«{spec.etiqueta}» = {valor:g} está fuera de rango "
                              f"({spec.minimo:g} a {spec.maximo:g}).")
         return int(round(valor)) if spec.entero else valor
-
-    def _nota_parametros(self):
-        if getattr(self, "parametros", None):
-            return ""
-        return ("<p style='font-size:11px;color:#b45309;'>Son los valores de ejemplo. Para "
-                "calcular con los tuyos, abrí este análisis desde el menú "
-                "<b>Estadísticas</b>: el diálogo los pide.</p>")
-
-    def _avisos_html(self, avisos):
-        return "".join(f"<p style='font-size:11px;color:#b45309;'>{a}</p>" for a in avisos if a)
-
-    _POSITIVOS = {"1", "1.0", "si", "sí", "s", "positivo", "positiva", "pos", "+", "yes",
-                  "y", "true", "verdadero", "reactivo", "detectado", "presente", "enfermo",
-                  "expuesto", "evento", "anormal", "caso"}
-
-    def _niveles_binarios(self, serie, nombre):
-        """(positivo, negativo, aviso) de una variable con dos valores, o (None, None, motivo)."""
-        valores = list(pd.unique(serie))
-        if len(valores) != 2:
-            return None, None, (f"«{escape(str(nombre))}» tiene {len(valores)} valor(es) "
-                                "distinto(s); para una tabla 2×2 hacen falta exactamente 2 "
-                                "(por ejemplo 0/1).")
-        if all(isinstance(v, (int, float, np.integer, np.floating)) for v in valores):
-            bajo, alto = sorted(valores, key=float)
-            if (float(bajo), float(alto)) == (0.0, 1.0):
-                return alto, bajo, ""
-            return alto, bajo, (f"«{escape(str(nombre))}» no está codificada 0/1: se tomó "
-                                f"{float(alto):g} como positivo y {float(bajo):g} como "
-                                "negativo. Si es al revés, recodificá a 0/1.")
-        texto = [str(v).strip().lower() for v in valores]
-        es_pos = [i for i, t in enumerate(texto) if t in self._POSITIVOS]
-        if len(es_pos) == 1:
-            i = es_pos[0]
-            return valores[i], valores[1 - i], ""
-        pos, neg = sorted(valores, key=str)
-        return pos, neg, (f"No se reconoce cuál valor de «{escape(str(nombre))}» es el "
-                          f"positivo: se tomó «{escape(str(pos))}». Si es al revés, "
-                          "recodificá a 0/1.")
-
-    def _tabla_2x2(self, c1, c2):
-        """Tabla 2×2 a partir de las variables elegidas.
-
-        Lo normal: dos columnas de datos crudos, una fila por sujeto. Si la
-        seleccion tiene exactamente 2 filas de conteos enteros que no son todos
-        0/1, se lee como tabla ya armada, y el informe dice cual de las dos
-        lecturas uso. Antes Fisher, McNemar, OR, RR y la prueba diagnostica
-        tomaban SIEMPRE las dos primeras filas de la hoja como conteos: sobre
-        datos crudos, Fisher daba p = 1 donde el real es p < 0,000001
-        (auditoria 2026-09, K3).
-
-        Returns: (a, b, c, d, filas, columnas, lectura, avisos) o str (HTML de error).
-        """
-        for c in (c1, c2):
-            if c is None or c not in self.data.columns:
-                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
-        if c1 == c2:
-            return "<b>Error:</b> Variable 1 y Variable 2 son la misma columna."
-        pares = self._filas_completas(c1, c2)
-        v1, v2 = pares[c1], pares[c2]
-        if len(pares) == 2:
-            try:
-                cuentas = np.array([[float(v1.iloc[0]), float(v2.iloc[0])],
-                                    [float(v1.iloc[1]), float(v2.iloc[1])]])
-            except (TypeError, ValueError):
-                cuentas = None
-            if (cuentas is not None and np.all(cuentas >= 0)
-                    and np.allclose(cuentas, np.round(cuentas))
-                    and not set(cuentas.ravel()) <= {0.0, 1.0}):
-                a, b, c, d = (int(x) for x in cuentas.ravel())
-                return (a, b, c, d, ("fila 1", "fila 2"),
-                        (escape(str(c1)), escape(str(c2))),
-                        (f"Se leyó como <b>tabla de conteos ya armada</b> (2 filas): "
-                         f"[{a}, {b}] / [{c}, {d}]."), [])
-        pos1, neg1, av1 = self._niveles_binarios(v1, c1)
-        if pos1 is None:
-            return f"<b>Error:</b> {av1}"
-        pos2, neg2, av2 = self._niveles_binarios(v2, c2)
-        if pos2 is None:
-            return f"<b>Error:</b> {av2}"
-        a = int(np.sum((v1 == pos1) & (v2 == pos2)))
-        b = int(np.sum((v1 == pos1) & (v2 == neg2)))
-        c = int(np.sum((v1 == neg1) & (v2 == pos2)))
-        d = int(np.sum((v1 == neg1) & (v2 == neg2)))
-        n1, n2 = escape(str(c1)), escape(str(c2))
-        lectura = (f"Tabla armada con {len(pares)} filas, una por sujeto: filas = «{n1}» "
-                   f"({escape(str(pos1))} / {escape(str(neg1))}), columnas = «{n2}» "
-                   f"({escape(str(pos2))} / {escape(str(neg2))}).")
-        return (a, b, c, d, (f"{n1} = {escape(str(pos1))}", f"{n1} = {escape(str(neg1))}"),
-                (f"{n2} = {escape(str(pos2))}", f"{n2} = {escape(str(neg2))}"),
-                lectura, [x for x in (av1, av2) if x])
-
-    def _html_tabla_2x2(self, a, b, c, d, filas, columnas):
-        celda = "padding:2px 10px;text-align:center;"
-        return ("<table style='font-size:12px;border-collapse:collapse;margin:4px 0;'>"
-                f"<tr><td></td><td style='{celda}'><b>{columnas[0]}</b></td>"
-                f"<td style='{celda}'><b>{columnas[1]}</b></td></tr>"
-                f"<tr><td><b>{filas[0]}</b></td><td style='{celda}'>{a}</td>"
-                f"<td style='{celda}'>{b}</td></tr>"
-                f"<tr><td><b>{filas[1]}</b></td><td style='{celda}'>{c}</td>"
-                f"<td style='{celda}'>{d}</td></tr></table>")
-
-    def _tabla_rxc(self, c1, c2, max_niveles=10):
-        """Tabla de contingencia r×c de las dos variables elegidas (datos crudos)."""
-        for c in (c1, c2):
-            if c is None or c not in self.data.columns:
-                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
-        if c1 == c2:
-            return "<b>Error:</b> Variable 1 y Variable 2 son la misma columna."
-        pares = self._filas_completas(c1, c2)
-        tabla = pd.crosstab(pares[c1], pares[c2])
-        if tabla.shape[0] > max_niveles or tabla.shape[1] > max_niveles:
-            return (f"<b>Error:</b> «{escape(str(c1))}» tiene {tabla.shape[0]} categorías y "
-                    f"«{escape(str(c2))}» {tabla.shape[1]}: esta prueba es para variables "
-                    f"categóricas (hasta {max_niveles} categorías cada una).")
-        if tabla.shape[0] < 2 or tabla.shape[1] < 2:
-            return "<b>Error:</b> cada variable necesita al menos 2 categorías con datos."
-        return tabla
-
-    def _html_tabla_rxc(self, tabla):
-        celda = "padding:2px 8px;text-align:center;"
-        h = "<table style='font-size:12px;border-collapse:collapse;margin:4px 0;'><tr><td></td>"
-        h += "".join(f"<td style='{celda}'><b>{escape(str(c))}</b></td>" for c in tabla.columns)
-        h += "</tr>"
-        for idx, fila in tabla.iterrows():
-            h += f"<tr><td><b>{escape(str(idx))}</b></td>"
-            h += "".join(f"<td style='{celda}'>{int(v)}</td>" for v in fila.values)
-            h += "</tr>"
-        return h + "</table>"
-
-    def _grupos_largo(self, c1, c2):
-        """Grupos en formato largo: c1 = respuesta numerica, c2 = grupo.
-
-        Returns: (etiquetas, [arrays], lectura) o str (HTML de error).
-        """
-        for c in (c1, c2):
-            if c is None or c not in self.data.columns:
-                return f"<b>Error:</b> la columna «{escape(str(c))}» no está en la hoja."
-        if c1 == c2:
-            return "<b>Error:</b> Variable 1 (respuesta) y Variable 2 (grupo) son la misma columna."
-        pares = self._filas_completas(c1, c2)
-        y = pd.to_numeric(pares[c1], errors="coerce")
-        if y.isna().any():
-            return f"<b>Error:</b> «{escape(str(c1))}» (la respuesta) tiene valores no numéricos."
-        grupos = [(str(k), g.to_numpy(dtype=float)) for k, g in y.groupby(pares[c2])]
-        k, n = len(grupos), len(pares)
-        if k < 2:
-            return f"<b>Error:</b> «{escape(str(c2))}» (el grupo) tiene un solo valor."
-        if k > 20 or k > n / 2:
-            return (f"<b>Error:</b> «{escape(str(c2))}» tiene {k} valores distintos para {n} "
-                    "filas: parece una medición, no un código de grupo. La Variable 1 es la "
-                    "respuesta y la Variable 2 el grupo (por ejemplo 1, 2, 3 o A, B, C).")
-        return [g[0] for g in grupos], [g[1] for g in grupos]
-
-    def _html_grupos(self, etiquetas, datos):
-        h = ("<table style='font-size:12px;'><tr><td><b>Grupo</b></td><td><b>n</b></td>"
-             "<td><b>Media</b></td><td><b>DE</b></td><td><b>Mediana</b></td></tr>")
-        for e, g in zip(etiquetas, datos):
-            de = f"{np.std(g, ddof=1):.4f}" if len(g) > 1 else "—"
-            h += (f"<tr><td>{escape(e)}</td><td>{len(g)}</td><td>{np.mean(g):.4f}</td>"
-                  f"<td>{de}</td><td>{np.median(g):.4f}</td></tr>")
-        return h + "</table>"
 
     # --- Resumen y distribucion: los arma src/resultado/constructores/resumen.py ---
     def _desc(self, col):
@@ -510,55 +236,9 @@ class AnalysisMethodsMixin:
 
     # --- Meta-analisis ---
     def _meta(self, effect_col, se_col):
-        if effect_col not in self.data.columns or se_col not in self.data.columns:
-            return "<b>Error:</b> Selecciona columna de efectos y de error estandar."
-        pares = self._filas_completas(effect_col, se_col)
-        eff, se = pares[effect_col].values, pares[se_col].values
-        n = len(pares)
-        if n < 2:
-            return "<b>Error:</b> Minimo 2 estudios."
-
-        result = meta_analysis(eff, se)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-
-        h = self._h(f" Meta-analisis")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Estudios (k)", result["k"]),
-                      ("Modelo", result["model"]),
-                      ("Efecto combinado", f"{result['effect']:.4f}"),
-                      ("IC 95%", f"[{result['ci_lower']:.4f}, {result['ci_upper']:.4f}]"),
-                      ("Z", f"{result['z']:.4f}"),
-                      ("Valor p", f"{result['p']:.6f}"),
-                      ("Q de Cochran", f"{result['q']:.4f}"),
-                      ("p heterogeneidad", f"{result['p_heterogeneity']:.4f}"),
-                      ("I2", f"{result['i2']:.1f}%")]:
-            h += self._r(l, v)
-        h += "</table>"
-
-        if result['i2'] < 25:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Baja heterogeneidad (I2={result['i2']:.0f}%)</b></div>"
-        elif result['i2'] < 75:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> Heterogeneidad moderada (I2={result['i2']:.0f}%)</b></div>"
-        else:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;border-left:3px solid #ef4444;'><b style='color:#dc2626;'> Heterogeneidad alta (I2={result['i2']:.0f}%)</b></div>"
-
-        fig, ax = plt.subplots(figsize=(8, max(3, result["k"] * 0.6 + 1)))
-        y_pos = range(result["k"])
-        ax.errorbar(result["effects"], y_pos, xerr=1.96*result["se_effects"],
-                    fmt='o', color='#4f6ef7', ecolor='#d1d5e0', capsize=3, markersize=6)
-        ax.errorbar(result["effect"], -1, xerr=1.96*result["se"],
-                    fmt='D', color='#ef4444', ecolor='#ef4444', capsize=5, markersize=8, label='Combinado')
-        ax.axvline(0, color='#d1d5e0', ls='--', lw=1)
-        ax.set_yticks(list(y_pos) + [-1])
-        ax.set_yticklabels(result["labels"] + ["COMBINADO"])
-        ax.set_xlabel('Efecto')
-        ax.set_title('Forest Plot', fontweight='bold')
-        ax.legend(loc='lower right', framealpha=0.9)
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
+        """Variable 1 = efecto de cada estudio, Variable 2 = su error estándar."""
+        return meta_analisis(self.data, effect_col, se_col,
+                             getattr(self, "opciones_metodo", None))
 
     # --- Tamaño de muestra y poder: src/resultado/constructores/tamano.py ---
     def _calculadora(self, nombre, constructor, extra=None):
@@ -739,42 +419,20 @@ class AnalysisMethodsMixin:
 
     # --- Diagnostic test ---
     def _diag_test(self, c1, c2):
-        """Prueba diagnóstica: Variable 1 = resultado de la prueba, Variable 2 =
-        estándar de oro (enfermo/sano), una fila por sujeto."""
-        t = self._tabla_2x2(c1, c2)
-        if isinstance(t, str):
-            return t
-        a, b, c, d, filas, columnas, lectura, avisos = t
-        r = diagnostic_test(a, b, c, d)
-        self._set_formula("Formula: Prueba Diagnostica",
-                          "a = VP, b = FP, c = FN, d = VN\nSens = a/(a+c), Espec = d/(b+d)\n"
-                          "VPP = a/(a+b), VPN = d/(c+d)\nIC 95%: Wilson (CLSI EP12)",
-                          f"Sens={r['sens']:.4f}, Spec={r['spec']:.4f}\nPPV={r['ppv']:.4f}, NPV={r['npv']:.4f}")
-        h = self._h(" Prueba Diagnostica")
-        h += f"<p style='font-size:11px;'>{lectura}</p>"
-        h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
-        h += "<table style='font-size:12px;'>"
+        """Variable 1 = resultado de la prueba, Variable 2 = estándar de oro."""
+        try:
+            prevalencia = self._param("Diagnostic test", "prevalencia")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        return prueba_diagnostica(self.data, c1, c2, {"prevalencia": prevalencia})
 
-        def _con_ic(valor, ic):
-            """Una proporcion sin su intervalo invita a leer 20/20 como
-            certeza. CLSI EP12 pide el IC; el metodo es Wilson."""
-            if not np.isfinite(valor):
-                return "no definido"
-            if ic is None or not all(np.isfinite(x) for x in ic):
-                return f"{valor:.4f}"
-            return f"{valor:.4f}  (IC 95%: {ic[0]:.4f} – {ic[1]:.4f})"
-
-        for l, clave, ic_clave in [("Sensibilidad", "sens", "ci_sens"),
-                                   ("Especificidad", "spec", "ci_spec"),
-                                   ("VPP", "ppv", "ci_ppv"),
-                                   ("VPN", "npv", "ci_npv"),
-                                   ("Exactitud", "acc", "ci_acc")]:
-            h += self._r(l, _con_ic(r[clave], r.get(ic_clave)))
-        for l, clave in [("LR+", "plr"), ("LR-", "nlr")]:
-            v = r[clave]
-            h += self._r(l, "infinito" if not np.isfinite(v) else f"{v:.4f}")
-        h += "</table>"
-        return h + self._avisos_html(list(avisos) + list(r.get("avisos", [])))
+    def _lr(self, c1, c2):
+        """Variable 1 = resultado de la prueba, Variable 2 = estándar de oro."""
+        try:
+            pretest = self._param("Likelihood Ratios", "pretest")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        return razones_verosimilitud(self.data, c1, c2, {"pretest": pretest})
 
     # --- Outliers Grubbs ---
     def _outliers_grubbs(self, col):
@@ -820,38 +478,6 @@ class AnalysisMethodsMixin:
                 "Elegí en la Variable 3 la variable que se quiere controlar.")
         return parcial(self.data, c1, c2, c3)
 
-    # --- Core Module Runners ---
-    def _run_core(self, func_name, c1=None, c2=None):
-        """Run a core module function and display results."""
-        try:
-            if func_name == "likelihood_ratios":
-                t = self._tabla_2x2(c1, c2)
-                if isinstance(t, str):
-                    return t
-                a, b, c, d, filas, columnas, lectura, avisos = t
-                result = likelihood_ratios(a, b, c, d)
-                self._set_formula("Formula: Likelihood Ratios (Simel et al., 1991)",
-                                  "LR+ = Sens / (1 − Espec),  LR− = (1 − Sens) / Espec\n"
-                                  "Var(ln LR+) = 1/a − 1/(a+c) + 1/b − 1/(b+d)\n"
-                                  "Var(ln LR−) = 1/c − 1/(a+c) + 1/d − 1/(b+d)")
-                h = self._h(" Likelihood Ratios")
-                h += f"<p style='font-size:11px;'>{lectura}</p>"
-                h += self._html_tabla_2x2(a, b, c, d, filas, columnas)
-                h += "<table style='font-size:12px;'>"
-                h += self._r("LR+", f"{result['plr']:.4f}")
-                if result.get('ci_plr'):
-                    h += self._r("IC 95% LR+", f"{result['ci_plr'][0]:.4f} a {result['ci_plr'][1]:.4f}")
-                h += self._r("LR−", f"{result['nlr']:.4f}")
-                if result.get('ci_nlr'):
-                    h += self._r("IC 95% LR−", f"{result['ci_nlr'][0]:.4f} a {result['ci_nlr'][1]:.4f}")
-                return h + "</table>" + self._avisos_html(avisos)
-
-            else:
-                return f"<b>Error:</b> Función desconocida: {func_name}"
-
-        except Exception as e:
-            return f"<p style='color:red'>Error en {func_name}: {str(e)}</p>"
-
     def _run_two_way_anova(self, c1, c2, c3):
         """Variable 1 = respuesta, Variable 2 = factor A, Variable 3 = factor B."""
         if c3 is None or c3 not in self.data.columns:
@@ -890,36 +516,10 @@ class AnalysisMethodsMixin:
         return cmh(self.data, c1, c2, c3)
 
     def _run_serial(self):
-        """Mediciones seriadas: una columna por tiempo (en orden), una fila por sujeto."""
+        """Una columna por tiempo (en orden), una fila por sujeto."""
         cols, del_dialogo = self._columnas_multi()
-        if len(cols) < 2:
-            return f"<b>Error:</b> hacen falta al menos 2 tiempos (columnas numéricas); hay {len(cols)}."
-        try:
-            result = serial_measurements_summary(self.data[cols].values)
-            self._set_formula("Formula: Mediciones Seriadas (medidas resumen)",
-                              "Pendiente de cada sujeto contra el tiempo (0, 1, ..., k−1)\n"
-                              "Tendencia: t de una muestra sobre las pendientes (H0: media = 0)")
-            h = self._h(" Mediciones Seriadas")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("Sujetos", result['n_subjects'])
-            h += self._r("Mediciones", result['n_timepoints'])
-            ic = result['ic_pendiente_media']
-            h += self._r("Pendiente media por sujeto", f"{result['mean_slope']:.4f}")
-            h += self._r("IC 95% de la pendiente media", f"{ic[0]:.4f} a {ic[1]:.4f}")
-            h += self._r("DE de las pendientes", f"{result['sd_slope']:.4f}")
-            h += self._r("¿Hay tendencia? (t sobre las pendientes)",
-                         f"t={result['t_tendencia']:.3f}, {_p_html(result['p_tendencia'])}")
-            h += "</table>"
-            h += ("<p style='font-size:11px;color:#555;'>Cada sujeto aporta una sola "
-                  "pendiente: sus mediciones no son independientes entre sí, las de "
-                  "sujetos distintos sí (Matthews et al., BMJ 1990).</p>")
-            h += self._avisos_html(result.get("avisos", []))
-            h += "<b style='font-size:12px;'>Medias por tiempo:</b><table style='font-size:12px;'>"
-            for c, m, s, k in zip(cols, result['means'], result['sds'], result['n_por_tiempo']):
-                h += self._r(escape(str(c)), f"{m:.4f} ± {s:.4f} (n={k})")
-            return h + "</table>" + self._nota_columnas(cols, del_dialogo)
-        except Exception as e:
-            return f"<p style='color:red'>Error: {escape(str(e))}</p>"
+        return self._con_nota_columnas(mediciones_seriales(self.data, cols), cols,
+                                       del_dialogo, "tiempos")
 
     # --- Graficos de comparacion: src/resultado/constructores/graficos.py ---
     def _run_youden(self, c1, c2):

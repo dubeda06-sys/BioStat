@@ -5,50 +5,13 @@ from PyQt6.QtWidgets import (
     QLineEdit, QFormLayout, QScrollArea, QSplitter
 )
 from PyQt6.QtCore import Qt
-import numpy as np
-from scipy import stats
 import matplotlib
 matplotlib.use('QtAgg')
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from src.ui.grafico_editable import GraficoEditable
 import matplotlib.pyplot as plt
 
 from src.ui.icons import Icons
 from src.resultado import Resultado, render_html
-from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
-from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
-from src.core.passing_bablok import passing_bablok
-from src.core.meta_analysis import meta_analysis
-from src.core.statistics import (
-    mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
-    mcnemar_test, kruskal_wallis, friedman_test,
-    f_test_variances, ttest_1sample, ttest_paired, ttest_ind,
-    trimmed_mean, skewness_test, kurtosis_test,
-    partial_correlation, descriptive_stats, geometric_mean, harmonic_mean,
-    anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho, normality_test
-)
-from src.core.agreement import (
-    cohens_kappa, intraclass_correlation, cronbach_alpha,
-    weighted_kappa, deming_regression, cv_from_duplicates
-)
-from src.core.regression import linear_regression, multiple_regression, logistic_regression
-from src.core.diagnostic_tests import (
-    odds_ratio, relative_risk, diagnostic_test,
-    likelihood_ratios, compare_two_means, compare_two_proportions, compare_two_auc
-)
-from src.core.outliers import grubbs_test, tukey_outliers, generalized_esd
-from src.core.two_way_anova import two_way_anova
-from src.core.ancova import ancova
-from src.core.repeated_measures import repeated_measures_anova
-from src.core.probit import probit_regression
-from src.core.cmh import cmh_test
-from src.core.serial_measurements import serial_measurements_summary
-from src.core.plots import youden_data, polar_plot_data, waterfall_data, mountain_plot_data
-from src.core.validation import (
-    validate_numeric_data, validate_paired_data, validate_groups,
-    validate_binary_outcome, validate_positive_values, validate_range,
-    validate_contingency_table, get_validation_summary
-)
 
 plt.rcParams.update({
     'figure.facecolor': 'white', 'axes.facecolor': '#fafbfd',
@@ -604,7 +567,7 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
             "Kappa ponderado": lambda: self._kappa_ponderado(c1, c2),
             "Deming regression": lambda: self._deming(c1, c2),
             "CV duplicatas": lambda: self._cv_dup(c1, c2),
-            "Likelihood Ratios": lambda: self._run_core("likelihood_ratios", c1, c2),
+            "Likelihood Ratios": lambda: self._lr(c1, c2),
             "Comparar 2 medias": lambda: self._comparar_medias(),
             "Comparar 2 proporciones": lambda: self._dos_proporciones(),
             "Comparar 2 AUC": lambda: self._comparar_auc(),
@@ -631,16 +594,13 @@ class AnalysisPanel(AnalysisMethodsMixin, QWidget):
         }
         fn = dispatch.get(at)
         if fn:
-            self._descartadas = 0
             salida = fn()
-            # Conviven dos formas mientras dura la migracion: los analisis viejos
-            # devuelven su HTML armado a mano; los migrados, un Resultado que
-            # trae los descartes en su Entrada y se renderiza en un solo lugar.
+            # Todos los analisis devuelven un Resultado, con los descartes en su
+            # Entrada. Lo unico que llega como texto es un parametro del dialogo
+            # mal escrito, que se rechaza antes de calcular.
             if isinstance(salida, Resultado):
                 self._mostrar_resultado(salida)
                 return
-            if self._descartadas:
-                salida += self._nota_descartes(self._descartadas)
             self.txt_results.setHtml(salida)
 
     def _mostrar_resultado(self, res):

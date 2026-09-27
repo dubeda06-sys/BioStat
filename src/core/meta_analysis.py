@@ -40,34 +40,38 @@ def meta_analysis(effects, se_effects, labels=None, model="random"):
 
     q = np.sum(weights_fixed * (effects - effect_fixed)**2)
     df = k - 1
-    p_heterogeneity = 1 - stats.chi2.cdf(q, df)
+    p_heterogeneity = float(stats.chi2.sf(q, df))
 
     i2 = max(0, (q - df) / q * 100) if q > 0 else 0
 
-    if model == "random" and i2 > 0:
+    # DerSimonian-Laird. Con tau2 = 0 los aleatorios coinciden con los fijos,
+    # pero el modelo sigue siendo el elegido: antes la etiqueta cambiaba a
+    # «fijos» sola y parecia que se habia cambiado el modelo.
+    tau2 = 0.0
+    if model == "random":
         c = np.sum(weights_fixed) - np.sum(weights_fixed**2) / np.sum(weights_fixed)
-        tau2 = max(0, (q - df) / c)
-        weights_random = 1 / (se**2 + tau2)
-        effect_random = np.sum(weights_random * effects) / np.sum(weights_random)
-        se_random = np.sqrt(1 / np.sum(weights_random))
-
-        effect_combined = effect_random
-        se_combined = se_random
-        weights = weights_random
-        model_used = "Aleatorios (DerSimonian-Laird)"
+        tau2 = max(0.0, (q - df) / c) if c > 0 else 0.0
+        weights = 1 / (se**2 + tau2)
+        model_used = "Efectos aleatorios (DerSimonian-Laird)"
     else:
-        effect_combined = effect_fixed
-        se_combined = se_fixed
         weights = weights_fixed
-        model_used = "Efectos fijos"
+        model_used = "Efectos fijos (inverso de la varianza)"
+    effect_combined = np.sum(weights * effects) / np.sum(weights)
+    se_combined = np.sqrt(1 / np.sum(weights))
 
     ci_lower = effect_combined - 1.96 * se_combined
     ci_upper = effect_combined + 1.96 * se_combined
 
     z = effect_combined / se_combined if se_combined > 0 else 0
-    p_combined = 2 * (1 - stats.norm.cdf(abs(z)))
+    p_combined = float(2 * stats.norm.sf(abs(z)))
 
-    p_fail = 1 - stats.norm.cdf(effect_combined / se_combined) if se_combined > 0 else 0.5
+    # Intervalo de prediccion (Higgins, Thompson y Spiegelhalter 2009): donde
+    # caeria el efecto de un estudio nuevo. Solo con aleatorios y k >= 3.
+    prediccion = None
+    if model == "random" and k >= 3:
+        t = stats.t.ppf(0.975, k - 2)
+        semi = t * np.sqrt(tau2 + se_combined**2)
+        prediccion = (float(effect_combined - semi), float(effect_combined + semi))
 
     return {
         "k": k,
@@ -78,7 +82,6 @@ def meta_analysis(effects, se_effects, labels=None, model="random"):
         "ci_upper": ci_upper,
         "z": z,
         "p": p_combined,
-        "p_fail": p_fail,
         "effects": effects,
         "se_effects": se,
         "weights": weights,
@@ -87,8 +90,34 @@ def meta_analysis(effects, se_effects, labels=None, model="random"):
         "df": df,
         "p_heterogeneity": p_heterogeneity,
         "i2": i2,
+        "tau2": tau2,
+        "prediccion": prediccion,
+        "egger": egger(effects, se),
         "weights_pct": weights / np.sum(weights) * 100,
     }
+
+
+def egger(effects, se):
+    """Prueba de Egger (1997) de efecto de estudios pequenos.
+
+    Regresion del efecto estandarizado (efecto/EE) contra la precision (1/EE):
+    sin sesgo la recta pasa por el origen. Se prueba el intercepto con t de
+    k - 2 gl. Con menos de 10 estudios no tiene poder (Sterne et al. 2011):
+    devuelve None.
+    """
+    effects, se = np.asarray(effects, dtype=float), np.asarray(se, dtype=float)
+    k = len(effects)
+    if k < 10:
+        return None
+    y, x = effects / se, 1 / se
+    X = np.column_stack([np.ones(k), x])
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    res = y - X @ coef
+    s2 = res @ res / (k - 2)
+    cov = s2 * np.linalg.inv(X.T @ X)
+    t = coef[0] / np.sqrt(cov[0, 0])
+    return {"intercepto": float(coef[0]), "ee": float(np.sqrt(cov[0, 0])),
+            "p": float(2 * stats.t.sf(abs(t), k - 2)), "k": k}
 
 
 def odds_ratio_to_log(or_val, se_or):
