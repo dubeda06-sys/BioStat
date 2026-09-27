@@ -8,6 +8,9 @@ qué filas entran.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import numpy as np
 import pandas as pd
 
 from src.resultado.modelo import Entrada
@@ -41,3 +44,36 @@ def filas_completas(df: pd.DataFrame, *cols) -> tuple[pd.DataFrame, Entrada]:
     completas = sub.dropna()
     return completas, Entrada(columnas=tuple(unicas), n=len(completas),
                               descartadas=descartadas)
+
+
+@dataclass
+class Columna:
+    """Una columna lista para el core: sus números finitos y lo que quedó afuera."""
+    valores: np.ndarray | None
+    entrada: Entrada | None
+    no_finitos: int = 0         # ±∞: se sacan, y el informe lo dice
+    motivo: str | None = None   # rechazo: la columna no está o tiene texto
+
+
+def una(df: pd.DataFrame, col) -> Columna:
+    """Los valores numéricos de una columna, sin tirar nada en silencio.
+
+    Las celdas vacías son el final de la planilla o un dato que no se midió, y
+    no cuentan. Una celda con texto en una columna de números, en cambio, suele
+    ser un error de carga («<0,5», «hemolizada», una coma de más): se rechaza y
+    se muestra un ejemplo, en vez de convertirla en vacía y seguir como si nada.
+    """
+    falta = columnas_faltantes(df, col)
+    if falta:
+        return Columna(None, None, motivo=falta)
+    presentes = df[col].dropna()
+    numeros = pd.to_numeric(presentes, errors="coerce")
+    texto = presentes[numeros.isna()]
+    if len(texto):
+        return Columna(None, None, motivo=(
+            f"La columna «{col}» tiene {len(texto)} celda(s) que no son números (por "
+            f"ejemplo «{texto.iloc[0]}»): corregilas o elegí otra columna."))
+    valores = numeros.to_numpy(dtype=float)
+    finitos = np.isfinite(valores)
+    return Columna(valores[finitos], Entrada(columnas=(col,), n=int(finitos.sum())),
+                   no_finitos=int((~finitos).sum()))

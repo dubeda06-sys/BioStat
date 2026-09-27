@@ -23,7 +23,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation  # noqa: E402
 from src.resultado import render_html  # noqa: E402
 from src.resultado.citas import ficha  # noqa: E402
-from src.resultado.constructores import CONSTRUCTORES, bland_altman  # noqa: E402
+from src.resultado.constructores import CONSTRUCTORES, FIRMAS, bland_altman  # noqa: E402
 from src.resultado.lenguaje import p_token  # noqa: E402
 
 MODOS = ("auto", "parametrico", "no_parametrico")
@@ -210,14 +210,20 @@ def test_menos_de_tres_pares_trae_el_motivo_del_core():
 
 # ---------------- Contrato de todo constructor migrado ----------------
 
-# Los que no reciben un par de columnas: EP15 toma una lista de corridas.
-_LLAMADAS = {"precision_ep15": lambda f, df: f(df, ["A", "B"])}
+# Cada constructor se llama según su firma (una columna, un par, una lista).
+_LLAMADAS = {"una": lambda f, df: f(df, "A"),
+             "par": lambda f, df: f(df, "A", "B"),
+             "lista": lambda f, df: f(df, ["A", "B"])}
+
+
+def test_toda_firma_es_conocida():
+    assert set(FIRMAS) == set(CONSTRUCTORES)
+    assert set(FIRMAS.values()) <= set(_LLAMADAS)
 
 
 @pytest.mark.parametrize("analisis", sorted(CONSTRUCTORES))
 def test_contrato(analisis):
-    llamar = _LLAMADAS.get(analisis, lambda f, df: f(df, "A", "B"))
-    res = llamar(CONSTRUCTORES[analisis], _hoja_normal())
+    res = _LLAMADAS[FIRMAS[analisis]](CONSTRUCTORES[analisis], _hoja_normal())
     assert res.ok, res.error
     f = ficha(analisis)
     assert f.formula and f.citas, "todo análisis migrado lleva fórmula y cita"

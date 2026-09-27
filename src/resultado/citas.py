@@ -65,6 +65,39 @@ CLSI_EP15_ERRATA_2017 = Cita("CLSI (2017). EP15-A3, fe de erratas del 23 may: ec
                              "https://clsi.org/media/1649/ep15_correction_notice_20170523_web.pdf")
 GRUBBS_1969 = Cita("Grubbs FE (1969). Procedures for detecting outlying observations in "
                    "samples. Technometrics 11:1-21.")
+MEDCALC_SUMMARY = Cita("MedCalc, manual: Summary statistics.",
+                       "https://www.medcalc.org/en/manual/summary-statistics.php")
+MEDCALC_OUTLIERS = Cita("MedCalc, manual: Outlier detection.",
+                        "https://www.medcalc.org/en/manual/outliers.php")
+ALTMAN_1980 = Cita("Altman DG (1980). Statistics and ethics in medical research. VI - "
+                   "Presentation of results. BMJ 281:1542-1544.")
+ALTMAN_1983 = Cita("Altman DG, Gore SM, Gardner MJ, Pocock SJ (1983). Statistical guidelines "
+                   "for contributors to medical journals. BMJ 286:1489-1493.")
+ALTMAN_1991 = Cita("Altman DG (1991). Practical statistics for medical research. London: "
+                   "Chapman and Hall.")
+DAGOSTINO_1990 = Cita("D'Agostino RB, Belanger A, D'Agostino RB Jr (1990). A suggestion for "
+                      "using powerful and informative tests of normality. Am Stat 44:316-321.")
+ANSCOMBE_1983 = Cita("Anscombe FJ, Glynn WJ (1983). Distribution of the kurtosis statistic b2 "
+                     "for normal samples. Biometrika 70:227-234.")
+WESTFALL_2014 = Cita("Westfall PH (2014). Kurtosis as peakedness, 1905-2014. R.I.P. Am Stat "
+                     "68:191-195.")
+HYNDMAN_1996 = Cita("Hyndman RJ, Fan Y (1996). Sample quantiles in statistical packages. Am "
+                    "Stat 50:361-365. Definición 6: rango p(n+1).")
+CLSI_EP28 = Cita("CLSI (2010). EP28-A3c: Defining, establishing, and verifying reference "
+                 "intervals in the clinical laboratory, 3.ª ed.")
+TUKEY_1963 = Cita("Tukey JW, McLaughlin DH (1963). Less vulnerable confidence and significance "
+                  "procedures for location based on a single sample: trimming/winsorization. "
+                  "Sankhyā A 25:331-352.")
+WILCOX_2012 = Cita("Wilcox RR (2012). Introduction to robust estimation and hypothesis "
+                   "testing, 3.ª ed. Academic Press.")
+ROYSTON_1995 = Cita("Royston P (1995). Remark AS R94: a remark on algorithm AS 181, the "
+                    "W-test for normality. Appl Stat 44:547-551.")
+ROSNER_1983 = Cita("Rosner B (1983). Percentage points for a generalized ESD many-outlier "
+                   "procedure. Technometrics 25:165-172.")
+TUKEY_1977 = Cita("Tukey JW (1977). Exploratory data analysis. Reading, MA: Addison-Wesley.")
+NIST_OUTLIERS = Cita("NIST/SEMATECH e-Handbook of Statistical Methods, §1.3.5.17: Grubbs y "
+                     "ESD generalizado.",
+                     "https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -216,6 +249,91 @@ FICHAS: dict[str, Ficha] = {
             "Precisión (si hay corridas): EP15-A3, ver su ficha"
         ),
         citas=(CLSI_EP09, CLSI_EP15, KROUWER_2008, PASSING_1983, LINNET_1990, EFRON_1993),
+    ),
+
+    # ---------------- Resumen y distribución: src/resultado/constructores/resumen.py
+    # docs/referencia-medcalc/Control de calidad y variabilidad analitica.md,
+    # "Summary statistics" y "Outlier detection"; core: src/core/statistics.py,
+    # src/core/reference.py, src/core/outliers.py
+    "descriptivas": Ficha(
+        formula=(
+            "x̄ = Σx / n;  s = √(Σ(x − x̄)² / (n − 1));  EE = s / √n\n"
+            "IC 95 % de la media = x̄ ± t(0,975; n − 1)·EE\n"
+            "CV = 100·s / x̄;  RIC = P75 − P25, percentiles por rango p(n + 1) como en EP28\n"
+            "Rango del 95 % de los datos, si son normales: x̄ ± 1,96·s"
+        ),
+        citas=(MEDCALC_SUMMARY, ALTMAN_1980, ALTMAN_1991, SHAPIRO_1965),
+    ),
+    "asimetria_curtosis": Ficha(
+        formula=(
+            "g₁ = m₃ / m₂^(3/2);  exceso de curtosis g₂ = m₄ / m₂² − 3\n"
+            "    mₖ = Σ(x − x̄)ᵏ / n  (0 en los dos para una normal)\n"
+            "Asimetría: z de D'Agostino (normal ya con n ≥ 8)\n"
+            "Curtosis: z de Anscombe y Glynn (poco confiable con n < 20)"
+        ),
+        citas=(DAGOSTINO_1990, ANSCOMBE_1983, WESTFALL_2014, MEDCALC_SUMMARY),
+    ),
+    "percentiles": Ficha(
+        formula=(
+            "Pₚ = valor en el rango p·(n + 1)/100, interpolando entre vecinos\n"
+            "    (definición 6 de Hyndman y Fan; la de EP28)\n"
+            "Solo existe si 1 ≤ p·(n + 1)/100 ≤ n: P5 y P95 piden n ≥ 19\n"
+            "IC 95 %: bootstrap percentil, 2000 remuestras, semilla fija"
+        ),
+        citas=(HYNDMAN_1996, CLSI_EP28, MEDCALC_SUMMARY, EFRON_1993),
+    ),
+    "media_recortada": Ficha(
+        formula=(
+            "g = 10 % de cada cola;  k = ⌊g·n⌋ datos fuera de cada lado;  h = n − 2k\n"
+            "Media recortada = media de los h datos del medio\n"
+            "EE = s_w / ((1 − 2g)·√n),  s_w = DE de la muestra winsorizada\n"
+            "IC 95 % = media recortada ± t(0,975; h − 1)·EE"
+        ),
+        citas=(TUKEY_1963, WILCOX_2012),
+    ),
+    "media_geometrica": Ficha(
+        formula=(
+            "MG = exp(Σ ln x / n) = (x₁·x₂·…·xₙ)^(1/n);  solo con x > 0\n"
+            "IC 95 % = exp(media(ln x) ± t(0,975; n − 1)·DE(ln x)/√n)"
+        ),
+        citas=(MEDCALC_SUMMARY, ALTMAN_1983),
+    ),
+    "media_armonica": Ficha(
+        formula="MH = n / Σ(1/x);  solo con x > 0",
+        citas=(MEDCALC_SUMMARY,),
+    ),
+    "shapiro_wilk": Ficha(
+        formula=(
+            "W = (Σ aᵢ·x₍ᵢ₎)² / Σ(xᵢ − x̄)²,  x₍ᵢ₎ = datos ordenados\n"
+            "aᵢ y el p: algoritmo de Royston (AS R94), válido de 3 a 5000 datos\n"
+            "Con más de 5000, se prueba una submuestra de 5000 (semilla fija)"
+        ),
+        citas=(SHAPIRO_1965, ROYSTON_1995, MEDCALC_SUMMARY),
+    ),
+    "grubbs": Ficha(
+        formula=(
+            "G = máx |xᵢ − x̄| / s  (dos colas)\n"
+            "G crítico = ((n − 1)/√n)·√(t² / (n − 2 + t²)),  t = t(1 − α/(2n); n − 2)\n"
+            "p: la misma relación invertida, con la cota de Bonferroni 2n"
+        ),
+        citas=(GRUBBS_1969, NIST_OUTLIERS, MEDCALC_OUTLIERS),
+    ),
+    "tukey": Ficha(
+        formula=(
+            "RIC = P75 − P25\n"
+            "Vallas internas («outside»): P25 − 1,5·RIC y P75 + 1,5·RIC\n"
+            "Vallas externas («far out»): P25 − 3·RIC y P75 + 3·RIC"
+        ),
+        citas=(TUKEY_1977, MEDCALC_OUTLIERS),
+    ),
+    "esd": Ficha(
+        formula=(
+            "Para i = 1…r:  Rᵢ = máx |x − x̄| / s sobre los datos que quedan, y se saca ese\n"
+            "λᵢ = (n − i)·t / √((n − i − 1 + t²)(n − i + 1)),  t = t(1 − α/(2(n − i + 1)); n − i − 1)\n"
+            "Atípicos = los primeros k, con k el MAYOR i tal que Rᵢ > λᵢ\n"
+            "r = mín(10, ⌊(n − 2)/2⌋), α = 0,05"
+        ),
+        citas=(ROSNER_1983, NIST_OUTLIERS, MEDCALC_OUTLIERS),
     ),
 }
 

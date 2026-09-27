@@ -38,8 +38,13 @@ def descriptive_stats(data):
         "ci95": (mean - stats.t.ppf(0.975, n - 1) * sem, mean + stats.t.ppf(0.975, n - 1) * sem),
         "cv": (sd / mean * 100) if mean != 0 else np.nan,
         "skewness": skew, "kurtosis": kurt,
-        "q25": np.percentile(data, 25), "q75": np.percentile(data, 75),
-        "iqr": np.percentile(data, 75) - np.percentile(data, 25),
+        # Cuartiles con el rango p(n+1), la definicion de la tabla de
+        # percentiles y de EP28: el mismo P25 en todos los analisis. Antes era
+        # la interpolacion lineal de numpy y la misma columna daba dos P25.
+        "q25": np.percentile(data, 25, method="weibull"),
+        "q75": np.percentile(data, 75, method="weibull"),
+        "iqr": (np.percentile(data, 75, method="weibull")
+                - np.percentile(data, 25, method="weibull")),
     }
 
 

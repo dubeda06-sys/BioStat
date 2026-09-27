@@ -89,6 +89,10 @@ from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
     passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
 )
+from src.resultado.constructores.resumen import (
+    asimetria_curtosis, descriptivas, esd, grubbs, media_armonica, media_geometrica,
+    media_recortada, percentiles, shapiro_wilk, tukey,
+)
 from src.resultado.lenguaje import texto_descartes
 from src.core.meta_analysis import meta_analysis
 from src.core.sample_size import (
@@ -104,9 +108,7 @@ from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
     mcnemar_test, kruskal_wallis, friedman_test,
     f_test_variances, ttest_1sample, ttest_paired, ttest_ind,
-    trimmed_mean, skewness_test, kurtosis_test,
-    partial_correlation, descriptive_stats, geometric_mean, harmonic_mean,
-    anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho, normality_test
+    partial_correlation, anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho,
 )
 from src.core.agreement import (
     cohens_kappa, cronbach_alpha, weighted_kappa,
@@ -116,8 +118,7 @@ from src.core.diagnostic_tests import (
     odds_ratio, relative_risk, diagnostic_test,
     likelihood_ratios, compare_two_means, compare_two_proportions, compare_two_auc
 )
-from src.core.outliers import grubbs_test, tukey_outliers, generalized_esd
-from src.core.reference import reference_interval, percentile_table, age_related_reference
+from src.core.reference import reference_interval, age_related_reference
 from src.core.two_way_anova import two_way_anova
 from src.core.ancova import ancova
 from src.core.repeated_measures import repeated_measures_anova
@@ -373,31 +374,21 @@ class AnalysisMethodsMixin:
                   f"<td>{de}</td><td>{np.median(g):.4f}</td></tr>")
         return h + "</table>"
 
+    # --- Resumen y distribucion: los arma src/resultado/constructores/resumen.py ---
     def _desc(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        if not np.issubdtype(d.dtype, np.number):
-            return f"<b>Error:</b> '{col}' no es numerica."
-        
-        result = descriptive_stats(d)
-        self._set_formula(
-            "Formula: Estadisticas Descriptivas",
-            "Media: x̄ = Σxi / n\nDE: s = √(Σ(xi - x̄)² / (n-1))\nSE: SE = s / √n\nIC95%: x̄ ± t(n−1) × SE\nCV%: (s / x̄) × 100"
-        )
-        
-        h = self._h(f" Descriptivas — {col}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n", result['n']), ("Media", f"{result['mean']:.4f}"), ("Mediana", f"{result['median']:.4f}"),
-                      ("DE", f"{result['std']:.4f}"), ("Varianza", f"{result['var']:.4f}"),
-                      ("Error estandar", f"{result['sem']:.4f}"),
-                      ("Minimo", f"{result['min']:.4f}"), ("Maximo", f"{result['max']:.4f}"),
-                      ("IC 95%", f"[{result['ci95'][0]:.4f}, {result['ci95'][1]:.4f}]"),
-                      ("CV%", f"{result['cv']:.2f}%"),
-                      ("Q25", f"{result['q25']:.4f}"), ("Q75", f"{result['q75']:.4f}"),
-                      ("IQR", f"{result['iqr']:.4f}")]:
-            h += self._r(l, v)
-        return h + "</table>"
+        return descriptivas(self.data, col)
+
+    def _geo_mean(self, col):
+        return media_geometrica(self.data, col)
+
+    def _harm_mean(self, col):
+        return media_armonica(self.data, col)
+
+    def _percentiles(self, col):
+        return percentiles(self.data, col)
+
+    def _esd(self, col):
+        return esd(self.data, col)
 
     # --- t-test pareado ---
     def _t_paired(self, c1, c2, a):
@@ -543,33 +534,7 @@ class AnalysisMethodsMixin:
 
     # --- Shapiro-Wilk ---
     def _shapiro(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{escape(str(col))}' no encontrada."
-        d = self.data[col].dropna()
-        if len(d) < 3:
-            return "<b>Error:</b> Minimo 3 datos."
-        if len(d) > 5000:
-            d = d.sample(5000, random_state=42)
-        result = normality_test(d)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-        self._set_formula("Formula: Shapiro-Wilk", "W = (Σ aᵢ·x₍ᵢ₎)² / Σ (xᵢ − x̄)²,  x₍ᵢ₎ = datos ordenados")
-        h = self._h(f" Shapiro-Wilk — {escape(str(col))}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n", result['n']), ("W", f"{result['statistic']:.4f}"), ("p", _p_html(result['p']))]:
-            h += self._r(l, v)
-        h += "</table>"
-        if result['p'] < 0.05:
-            h += ("<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef2f2;"
-                  "border-left:3px solid #ef4444;'><b style='color:#dc2626;'>Se aparta de la "
-                  "normal (p &lt; 0,05)</b><br>Conviene una prueba que no suponga normalidad.</div>")
-        else:
-            # No rechazar no es probar: con n chico casi nada rechaza.
-            h += ("<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;"
-                  "border-left:3px solid #22c55e;'><b style='color:#16a34a;'>No se detectó un "
-                  "apartamiento de la normal (p ≥ 0,05)</b><br>Eso no prueba que sea normal: "
-                  "con pocos datos la prueba casi nunca rechaza. Mirá también el histograma.</div>")
-        return h
+        return shapiro_wilk(self.data, col)
 
     # --- Curva ROC ---
     def _roc(self, score_col, label_col):
@@ -1595,38 +1560,11 @@ class AnalysisMethodsMixin:
 
     # --- Outliers Grubbs ---
     def _outliers_grubbs(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        r = grubbs_test(d.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "Minimo 5 datos.")
-        self._set_formula("Formula: Grubbs", "G = |xi - xbar| / s", f"G = {r['g']:.4f}\nG critico = {r['g_crit']:.4f}\nOutlier: {r['outlier_value']:.4f}")
-        h = self._h(f" Outliers — Grubbs ({col})")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("Valor", f"{r['outlier_value']:.4f}"), ("G", f"{r['g']:.4f}"),
-                      ("G critico", f"{r['g_crit']:.4f}"), ("Es outlier?", "SI" if r['is_outlier'] else "NO")]:
-            h += self._r(l, v)
-        return h + "</table>"
+        return grubbs(self.data, col)
 
     # --- Outliers Tukey ---
     def _outliers_tukey(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        r = tukey_outliers(d.values)
-        if _sin_resultado(r):
-            return _msg_error(r, "Minimo 4 datos.")
-        self._set_formula("Formula: Tukey", "Lim interno: Q1-1.5*IQR, Q3+1.5*IQR\nLim externo: Q1-3*IQR, Q3+3*IQR", f"IQR = {r['iqr']:.4f}\nSuaves: {r['n_mild']}\nExtremos: {r['n_extreme']}")
-        h = self._h(f" Outliers — Tukey ({col})")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("IQR", f"{r['iqr']:.4f}")
-        h += self._r("Outliers suaves", f"{r['n_mild']}")
-        h += self._r("Outliers extremos", f"{r['n_extreme']}")
-        if r['outliers_mild']:
-            h += self._r("Valores", str(r['outliers_mild'][:5]))
-        h += "</table>"
-        return h
+        return tukey(self.data, col)
 
     # --- Intervalos de referencia ---
     def _ref_interval(self, col):
@@ -1665,37 +1603,11 @@ class AnalysisMethodsMixin:
 
     # --- Asimetria y curtosis ---
     def _skew_kurt(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        sk = skewness_test(d.values)
-        ku = kurtosis_test(d.values)
-        if sk is None or ku is None:
-            return "<b>Error:</b> Minimo 8 datos."
-        self._set_formula("Formula: Asimetria y Curtosis", "Sesgo = E[(x-mu)^3]/sigma^3\nCurtosis = E[(x-mu)^4]/sigma^4 - 3", f"Sesgo = {sk['skewness']:.4f} (p={sk['p']:.4f})\nCurtosis = {ku['kurtosis']:.4f} (p={ku['p']:.4f})")
-        h = self._h(f" Asimetria y Curtosis — {col}")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("Asimetria", f"{sk['skewness']:.4f} (p={sk['p']:.4f})")
-        h += self._r("Curtosis", f"{ku['kurtosis']:.4f} (p={ku['p']:.4f})")
-        h += "</table>"
-        return h
+        return asimetria_curtosis(self.data, col)
 
     # --- Media recortada ---
     def _trimmed(self, col):
-        if col not in self.data.columns:
-            return f"<b>Error:</b> '{col}' no encontrada."
-        d = self.data[col].dropna()
-        r = trimmed_mean(d.values, 0.1)
-        if _sin_resultado(r):
-            return _msg_error(r, "Minimo 5 datos.")
-        self._set_formula("Formula: Media Recortada", "Recortar 10% superior e inferior", f"Media original = {np.mean(d.values):.4f}\nMedia recortada = {r['mean']:.4f}\nSE = {r['se']:.4f}")
-        h = self._h(f" Media Recortada (10%) — {col}")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("Media original", f"{np.mean(d.values):.4f}")
-        h += self._r("Media recortada", f"{r['mean']:.4f}")
-        h += self._r("IC 95%", f"[{r['ci95'][0]:.4f}, {r['ci95'][1]:.4f}]")
-        h += "</table>"
-        return h
+        return media_recortada(self.data, col)
 
     # --- Correlacion parcial ---
     def _partial_corr(self, c1, c2, c3):
@@ -1720,38 +1632,7 @@ class AnalysisMethodsMixin:
     def _run_core(self, func_name, c1=None, c2=None):
         """Run a core module function and display results."""
         try:
-            if func_name == "geometric_mean":
-                if c1 is None or c1 not in self.data.columns:
-                    return "<b>Error:</b> Selecciona una columna."
-                d = self.data[c1].dropna()
-                result = geometric_mean(d)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo calcular.")
-                self._set_formula("Formula: Media Geométrica",
-                                  "GM = exp(media de ln x) = (x1 × x2 × ... × xn)^(1/n)\n"
-                                  "IC 95% = exp(media ln x ± t(n−1) · DE(ln x)/√n)")
-                h = self._h(f" Media Geométrica — {c1}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Media geométrica", f"{result['gm']:.4f}")
-                h += self._r("IC 95%", f"{result['ci95'][0]:.4f} a {result['ci95'][1]:.4f}")
-                h += self._r("n", result['n'])
-                return h + "</table>"
-
-            elif func_name == "harmonic_mean":
-                if c1 is None or c1 not in self.data.columns:
-                    return "<b>Error:</b> Selecciona una columna."
-                d = self.data[c1].dropna()
-                result = harmonic_mean(d)
-                if _sin_resultado(result):
-                    return _msg_error(result, "No se pudo calcular.")
-                self._set_formula("Formula: Media Armónica", "HM = n / (1/x1 + 1/x2 + ... + 1/xn)")
-                h = self._h(f" Media Armónica — {c1}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Media armónica", f"{result['hm']:.4f}")
-                h += self._r("n", result['n'])
-                return h + "</table>"
-
-            elif func_name == "ttest_1sample":
+            if func_name == "ttest_1sample":
                 if c1 is None or c1 not in self.data.columns:
                     return "<b>Error:</b> Selecciona una columna."
                 d = self.data[c1].dropna()
@@ -1930,23 +1811,6 @@ class AnalysisMethodsMixin:
                 h += self._r("p", _p_html(result['p']))
                 h += "</table>" + self._avisos_html(result.get("avisos", []))
                 return h + self._ok(result['p'] < 0.05)
-            elif func_name == "percentile_table":
-                if c1 is None or c1 not in self.data.columns:
-                    return "<b>Error:</b> Selecciona una columna."
-                d = self.data[c1].dropna()
-                result = percentile_table(d)
-                self._set_formula("Formula: Percentiles", "P_k = valor en posición k×(n+1)/100")
-                h = self._h(f" Tabla de Percentiles — {c1}")
-                h += "<table style='font-size:12px;'>"
-                h += "<tr><th>Percentil</th><th>Valor</th><th>95% CI</th></tr>"
-                for row in result['percentiles']:
-                    val, cl, ch = row['value'], row.get('ci_low'), row.get('ci_high')
-                    if val != val:  # NaN
-                        h += f"<tr><td>{row['percentile']}%</td><td>—</td><td>{row.get('note','')}</td></tr>"
-                    else:
-                        h += f"<tr><td>{row['percentile']}%</td><td>{val:.4f}</td><td>[{cl:.4f}, {ch:.4f}]</td></tr>"
-                return h + "</table>"
-
             elif func_name == "age_related":
                 for c in (c1, c2):
                     if c is None or c not in self.data.columns:
@@ -1974,20 +1838,6 @@ class AnalysisMethodsMixin:
                                             "percentiles: con tan pocos datos no hay percentil 5 "
                                             "ni 95 que estimar."])
                 return h
-
-            elif func_name == "generalized_esd":
-                if c1 is None or c1 not in self.data.columns:
-                    return "<b>Error:</b> Selecciona una columna."
-                d = self.data[c1].dropna().values
-                result = generalized_esd(d, max_outliers=10, alpha=0.05)
-                self._set_formula("Formula: ESD Generalizado", "R_i = |x_i - x̄| / s")
-                h = self._h(f" Test ESD Generalizado — {c1}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Outliers encontrados", result['n_outliers'])
-                if result['outliers']:
-                    h += self._r("Valores", ", ".join([f"{v:.4f}" for v in result['outliers']]))
-                h += self._r("n original", result['n_original'])
-                return h + "</table>"
 
             elif func_name == "bootstrap_median":
                 if c1 is None or c1 not in self.data.columns:

@@ -66,8 +66,9 @@ def tukey_outliers(data):
     n = len(data)
     if n < 4:
         return None
-    q25 = np.percentile(data, 25)
-    q75 = np.percentile(data, 75)
+    # Mismos cuartiles que la tabla de percentiles y las descriptivas: p(n+1).
+    q25 = np.percentile(data, 25, method="weibull")
+    q75 = np.percentile(data, 75, method="weibull")
     iqr = q75 - q25
     lower_inner = q25 - 1.5 * iqr
     upper_inner = q75 + 1.5 * iqr
