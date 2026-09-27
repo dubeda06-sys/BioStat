@@ -42,6 +42,7 @@ from src.resultado.constructores.graficos import cascada, mountain, polar, youde
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
 )
+from src.resultado.constructores.ml import rf_clasificacion, rf_regresion
 from src.resultado.constructores.noparametricas import (
     cochran, friedman, kruskal, mann_whitney, signos, wilcoxon,
 )
@@ -151,6 +152,9 @@ CONSTRUCTORES = {
     "boot_diferencia": boot_diferencia,
     "boot_correlacion": boot_correlacion,
     "boot_regresion": boot_regresion,
+    # Machine learning
+    "rf_clasificacion": rf_clasificacion,
+    "rf_regresion": rf_regresion,
 }
 
 FIRMAS = {nombre: "par" for nombre in CONSTRUCTORES}
@@ -188,6 +192,7 @@ for _n in ("tam_una_media", "tam_dos_medias", "tam_dos_proporciones", "tam_corre
            "poder_t"):
     FIRMAS[_n] = "calculadora"
 FIRMAS["boot_media"] = FIRMAS["boot_mediana"] = "una"
+FIRMAS["rf_clasificacion"] = "respuesta_binaria"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 from src.resultado.constructores.tablas import EJEMPLOS as _EJ_TABLAS  # noqa: E402

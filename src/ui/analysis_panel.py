@@ -19,7 +19,6 @@ from src.core.roc import roc_curve, auc, optimal_threshold, diagnostic_stats
 from src.core.bland_altman import bland_altman_analysis, concordance_correlation, bland_altman_multiple
 from src.core.passing_bablok import passing_bablok
 from src.core.meta_analysis import meta_analysis
-from src.core.random_forest import RandomForestClassifier, RandomForestRegressor
 from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
     mcnemar_test, kruskal_wallis, friedman_test,

@@ -110,6 +110,7 @@ from src.resultado.constructores.referencia import intervalo_referencia, interva
 from src.resultado.constructores.bootstrap import (
     boot_correlacion, boot_diferencia, boot_media, boot_mediana, boot_regresion,
 )
+from src.resultado.constructores.ml import rf_clasificacion, rf_regresion
 from src.resultado.constructores.roc import comparar_auc, curva_roc
 from src.resultado.constructores.tamano import (
     poder_t, tam_correlacion, tam_dos_medias, tam_dos_proporciones, tam_una_media,
@@ -122,7 +123,6 @@ from src.resultado.constructores.resumen import (
 from src.resultado.lenguaje import texto_descartes
 from src.resultado.modelo import Resultado
 from src.core.meta_analysis import meta_analysis
-from src.core.random_forest import RandomForestClassifier, RandomForestRegressor
 from src.core.statistics import (
     mannwhitneyu, wilcoxon_signed_rank, chi_square_test, fisher_exact_test,
     mcnemar_test, kruskal_wallis, friedman_test,
@@ -609,119 +609,18 @@ class AnalysisMethodsMixin:
         """Variable 1 = X, Variable 2 = Y."""
         return boot_regresion(self.data, c1, c2, getattr(self, "opciones_metodo", None))
 
-    # --- Random Forest (clasificacion) ---
+    # --- Machine learning: src/resultado/constructores/ml.py ---
     def _rf_class(self, target_col):
-        """Random Forest (clasificación): Variable 1 = clase; predictoras = las tildadas."""
-        if target_col not in self.data.columns:
-            return f"<b>Error:</b> '{escape(str(target_col))}' no encontrada."
-        nums, del_dialogo = self._columnas_multi(excluir=(target_col,))
-        if len(nums) < 1:
-            return "<b>Error:</b> Se necesita al menos 1 predictora numérica."
-        filas = self._filas_completas(target_col, *nums)
-        X, y = filas[nums].values, filas[target_col].values
-        if len(np.unique(y)) < 2:
-            return "<b>Error:</b> La clase tiene que tener al menos 2 valores."
-        if not np.all(y == y.astype(int)) or len(np.unique(y)) > 20:
-            return ("<b>Error:</b> La clase tiene que ser categórica (pocas clases discretas, "
-                    "ej. 0/1). Para una variable continua usá <b>Random Forest (regresión)</b>.")
-        self._set_formula(
-            "Formula: Random Forest (Clasificacion)",
-            "1. Cada árbol: remuestreo con reemplazo; en cada nodo, √p predictoras al azar; corte por Gini\n"
-            "2. Clase = voto mayoritario de 100 árboles\n"
-            "3. Desempeño: exactitud por validación cruzada estratificada (k particiones)",
-            f"Predictoras: {', '.join(str(c) for c in nums[:5])}\nClase: {target_col}")
-        rf = RandomForestClassifier(n_trees=100, max_depth=8, random_state=42)
-        rf.fit(X, y)
-        cv = rf.validacion_cruzada(X, y)
-        importances = rf.get_feature_importance()
-        h = self._h(" Random Forest — Clasificación")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("Clase", escape(str(target_col)))
-        h += self._r("Observaciones", len(y))
-        h += self._r("Clases", len(np.unique(y)))
-        if _sin_resultado(cv):
-            h += self._r("Exactitud por validación cruzada", cv.get("error", "—"))
-        else:
-            h += self._r(f"Exactitud por validación cruzada (k={cv['k']})",
-                         f"{cv['media']:.4f} ± {cv['de']:.4f}")
-        h += self._r("Exactitud sobre los datos de entrenamiento (optimista)", f"{rf.score(X, y):.4f}")
-        h += "</table>"
-        h += ("<p style='font-size:11px;color:#555;'>La exactitud que vale es la de validación "
-              "cruzada: la de entrenamiento mide al modelo sobre los mismos casos con que se "
-              "ajustó y con ruido puro da cerca de 1.</p>")
-        h += "<b style='font-size:12px;'>Importancia de Variables:</b><table style='font-size:12px;'>"
-        sorted_idx = np.argsort(importances)[::-1]
-        for i in sorted_idx[:8]:
-            bar = "█" * int(importances[i] * 50)
-            h += self._r(escape(str(nums[i])), f"{importances[i]:.4f} {bar}")
-        h += "</table>" + self._nota_columnas(nums, del_dialogo)
+        """Variable 1 = la clase; predictoras = las tildadas."""
+        predictoras, del_dialogo = self._columnas_multi(excluir=(target_col,))
+        return self._con_nota_columnas(rf_clasificacion(self.data, target_col, predictoras),
+                                       predictoras, del_dialogo)
 
-        fig, ax = plt.subplots(figsize=(8, max(3, min(8, len(nums)) * 0.5)))
-        top_n = min(8, len(nums))
-        idx = sorted_idx[:top_n]
-        ax.barh(range(top_n), importances[idx], color='#4f6ef7', edgecolor='white')
-        ax.set_yticks(range(top_n))
-        ax.set_yticklabels([nums[i] for i in idx])
-        ax.set_xlabel('Importancia')
-        ax.set_title('Random Forest — Importancia', fontweight='bold')
-        ax.invert_yaxis()
-        fig.tight_layout()
-        self._show_fig(fig)
-        return h
-
-    # --- Random Forest (regresion) ---
     def _rf_regress(self, target_col):
-        """Random Forest (regresión): Variable 1 = respuesta; predictoras = las tildadas."""
-        if target_col not in self.data.columns:
-            return f"<b>Error:</b> '{escape(str(target_col))}' no encontrada."
-        nums, del_dialogo = self._columnas_multi(excluir=(target_col,))
-        if len(nums) < 1:
-            return "<b>Error:</b> Se necesita al menos 1 predictora numérica."
-        filas = self._filas_completas(target_col, *nums)
-        X, y = filas[nums].values, filas[target_col].values
-        if len(y) < 10:
-            return "<b>Error:</b> Minimo 10 observaciones."
-        self._set_formula(
-            "Formula: Random Forest (Regresion)",
-            "1. Cada árbol: remuestreo con reemplazo; corte que minimiza la varianza\n"
-            "2. Predicción = promedio de 100 árboles\n"
-            "3. Desempeño: R² por validación cruzada (k particiones)",
-            f"Predictoras: {', '.join(str(c) for c in nums[:5])}\nRespuesta: {target_col}\nn = {len(y)}")
-        rf = RandomForestRegressor(n_trees=100, max_depth=8, random_state=42)
-        rf.fit(X, y)
-        cv = rf.validacion_cruzada(X, y)
-        r2_train = rf.score(X, y)
-        y_pred = rf.predict(X)
-        h = self._h(" Random Forest — Regresión")
-        h += "<table style='font-size:12px;'>"
-        h += self._r("Respuesta", escape(str(target_col)))
-        h += self._r("Observaciones", len(y))
-        if _sin_resultado(cv):
-            h += self._r("R² por validación cruzada", cv.get("error", "—"))
-        else:
-            h += self._r(f"R² por validación cruzada (k={cv['k']})", f"{cv['media']:.4f} ± {cv['de']:.4f}")
-        h += self._r("R² sobre los datos de entrenamiento (optimista)", f"{r2_train:.4f}")
-        h += "</table>" + self._nota_columnas(nums, del_dialogo)
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
-        ax1.scatter(y, y_pred, alpha=0.5, c='#4f6ef7', edgecolors='white', s=50)
-        lims = [min(y.min(), y_pred.min()), max(y.max(), y_pred.max())]
-        ax1.plot(lims, lims, '--', color='#ef4444', lw=1.5, label='Predicción perfecta')
-        ax1.set_xlabel('Observado')
-        ax1.set_ylabel('Predicho (sobre entrenamiento)')
-        ax1.set_title('Observado vs Predicho', fontweight='bold')
-        ax1.legend(framealpha=0.9)
-        imp = rf.get_feature_importance()
-        sorted_idx = np.argsort(imp)[::-1][:min(8, len(nums))]
-        ax2.barh(range(len(sorted_idx)), imp[sorted_idx], color='#22c55e', edgecolor='white')
-        ax2.set_yticks(range(len(sorted_idx)))
-        ax2.set_yticklabels([nums[i] for i in sorted_idx])
-        ax2.set_xlabel('Importancia')
-        ax2.set_title('Importancia de Variables', fontweight='bold')
-        ax2.invert_yaxis()
-        fig.tight_layout()
-        self._show_fig(fig)
-        return h
+        """Variable 1 = la respuesta; predictoras = las tildadas."""
+        predictoras, del_dialogo = self._columnas_multi(excluir=(target_col,))
+        return self._con_nota_columnas(rf_regresion(self.data, target_col, predictoras),
+                                       predictoras, del_dialogo)
 
     # --- Mann-Whitney U ---
     # --- No parametricas: las arma src/resultado/constructores/noparametricas.py ---

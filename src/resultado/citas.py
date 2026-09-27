@@ -296,6 +296,12 @@ EFRON_1993_BOOT = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bo
                        "York: Chapman & Hall. Cap. 13 y 14: IC percentil y BCa.")
 CAMPBELL_1988 = Cita("Campbell MJ, Gardner MJ (1988). Calculating confidence intervals for "
                      "some non-parametric analyses. BMJ 296:1454-1456.")
+BREIMAN_2001 = Cita("Breiman L (2001). Random forests. Mach Learn 45:5-32.")
+STROBL_2007 = Cita("Strobl C, Boulesteix AL, Zeileis A, Hothorn T (2007). Bias in random forest "
+                   "variable importance measures: illustrations, sources and a solution. BMC "
+                   "Bioinformatics 8:25.")
+HASTIE_2009 = Cita("Hastie T, Tibshirani R, Friedman J (2009). The elements of statistical "
+                   "learning, 2.ª ed. New York: Springer. Cap. 7.10: validación cruzada.")
 PEDUZZI_1995 = Cita("Peduzzi P, Concato J, Feinstein AR, Holford TR (1995). Importance of "
                     "events per independent variable in proportional hazards regression "
                     "analysis. II. Accuracy and precision of regression estimates. J Clin "
@@ -970,6 +976,26 @@ FICHAS: dict[str, Ficha] = {
         ("boot_correlacion", "r de los pares (x, y) remuestreados juntos,", "", ()),
         ("boot_regresion", "Pendiente e intercepto de mínimos cuadrados de los pares,", "", ()),
     )},
+
+    # ---------------- Machine learning: src/resultado/constructores/ml.py
+    "rf_clasificacion": Ficha(
+        formula=(
+            "100 árboles, cada uno sobre un remuestreo de los casos, √p predictoras por corte (Gini)\n"
+            "Desempeño: predicción de cada caso por un modelo que no lo vio (validación cruzada\n"
+            "estratificada, k = 5); contra la exactitud de adivinar siempre la clase más frecuente\n"
+            "(binomial a una cola). AUC de las probabilidades fuera de muestra, IC de DeLong\n"
+            "Importancia: caída de la exactitud al desordenar la predictora en la partición de prueba"
+        ),
+        citas=(BREIMAN_2001, HASTIE_2009, STROBL_2007, DELONG_1988),
+    ),
+    "rf_regresion": Ficha(
+        formula=(
+            "100 árboles, cada uno sobre un remuestreo de los casos; predicción = promedio\n"
+            "R² fuera de muestra = 1 − Σ(y − ŷ_cv)² / Σ(y − ȳ)²  (0 = predecir siempre la media)\n"
+            "Importancia: caída del R² al desordenar la predictora en la partición de prueba"
+        ),
+        citas=(BREIMAN_2001, HASTIE_2009, STROBL_2007),
+    ),
 }
 
 

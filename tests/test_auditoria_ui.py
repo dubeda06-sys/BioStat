@@ -211,7 +211,8 @@ def test_random_forest_informa_la_validacion_cruzada(qt_app):
     df = pd.DataFrame(rng.normal(0, 1, (80, 5)), columns=list("abcde"))
     df["clase"] = rng.integers(0, 2, 80)
     t = _texto(_panel(df)._rf_class("clase"))
-    cv = float(re.search(r"validación cruzada \(k=\d+\) ([0-9.]+)", t).group(1))
+    # Desde la familia 15 del paso 4 el rótulo es «Exactitud (validación cruzada)».
+    cv = float(re.search(r"Exactitud \(validación cruzada\) ([0-9.]+)", t).group(1))
     assert cv < 0.75          # ruido puro: cerca de 0,5; la de entrenamiento daba 0,95
     assert "optimista" in t
 
