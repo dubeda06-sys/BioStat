@@ -27,8 +27,8 @@ git tag -n                                                          # versiones 
 Antes de compilar, correr las pruebas:
 
 ```bash
-python -m pytest tests/ -q     # 744
-python scripts/smoke_ui.py     # 76/76
+python -m pytest tests/ -q     # 1073 (27 sep); el número crece
+python scripts/smoke_ui.py     # 78/78
 ```
 
 ## Instalación

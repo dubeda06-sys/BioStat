@@ -5,7 +5,9 @@
 > Hecho: el arreglo de pares (paso 1), el esqueleto (paso 2) y el paso 3
 > completo: Bland-Altman con el CCC, Passing-Bablok, Deming (con y sin
 > ponderar), imprecisión desde duplicados, ICC y Bland-Altman múltiple, en
-> `src/resultado/constructores/comparacion.py`. Lo que sigue es el asistente B.
+> `src/resultado/constructores/comparacion.py`. El asistente B quedó hecho el
+> 27 sep sobre esa base (`constructores/validacion.py`, ver `docs/HANDOFF.md`);
+> falta el paso 4, el resto de las familias.
 
 ## Qué hay hoy (leído del código, no del HANDOFF)
 

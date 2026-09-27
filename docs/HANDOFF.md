@@ -6,8 +6,9 @@
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
 > Versión actual: **v1.0.0**.
-> Última puesta al día: **26 sep** — auditoría completa y sus 42 arreglos
-> (`docs/AUDITORIA-2026-09.md`, sección «Estado»).
+> Última puesta al día: **27 sep** — el asistente B «Validar un método», con
+> EP15-A3 y la prueba Cusum de Passing-Bablok. Antes, el 26 sep, la auditoría
+> completa y sus 42 arreglos (`docs/AUDITORIA-2026-09.md`, sección «Estado»).
 
 ## El `.exe` del Escritorio ya está al día
 
@@ -33,8 +34,8 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 992 verdes (26 sep)
-python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
+python -m pytest tests/ -q        # esperar 1073 verdes (27 sep)
+python scripts/smoke_ui.py        # esperar 78/78, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
@@ -76,9 +77,66 @@ que saber:
 > [!warning] λ de Deming: la convención es la de EP09c
 > λ = var_error(X) / var_error(Y). La auditoría de agosto dio por buena la
 > dirección de λ y era al revés (A13): `_deming_fit` usaba λ donde va δ = 1/λ.
-> Con λ = 1, que es lo que usan la UI y el Omnianálisis, no cambiaba nada. **La
-> ficha del vault `Cerebro/Proyectos/BioStat/BioStat.md` todavía dice lo
-> contrario**: corregirla (pendiente de confirmar con el usuario).
+> Con λ = 1, que es lo que usan la UI y el Omnianálisis, no cambiaba nada. La
+> ficha del vault `Cerebro/Proyectos/BioStat/BioStat.md` quedó corregida el 27
+> sep.
+
+## 27 sep: el asistente B, «Validar un método»
+
+Primer ítem de **Comparación de métodos**. Variable 1 = método en uso
+(comparativo, X), Variable 2 = método en prueba (Y); sesgo = Y − X. Arma
+`src/resultado/constructores/validacion.py` y corre, sin reescribir ninguna
+lectura:
+
+1. **Bland-Altman** con el comparativo como eje (Krouwer) y el CCC.
+2. **La recta que corresponde** por EP09c §6.2 (`core/ep09.regla_ep09`, la misma
+   función que ahora usa el Omnianálisis: una sola copia) y la otra para
+   comparar.
+3. **El sesgo en los niveles de decisión** (hasta tres en el diálogo; vacíos =
+   cuartiles del comparativo) con su IC 95 %: jackknife con t(N−2) si la recta es
+   Deming (apéndice K), bootstrap percentil con semilla fija si es
+   Passing-Bablok (el jackknife no sirve para medianas). Cobertura simulada,
+   94,5 a 97 %.
+4. **La precisión por EP15-A3**, si se tildan corridas.
+5. **Un veredicto** contra el sesgo permitido (en % del nivel o en unidades), con
+   lógica de equivalencia: el IC entero adentro **cumple**, entero afuera **no
+   cumple**, si cruza el límite **no concluyente**. Sin sesgo permitido no hay
+   veredicto. Una curva detectada por la Cusum impide el «cumple», y una
+   precisión que no verifica lo declarado lo vuelve «no cumple».
+
+Cada análisis va debajo con su informe entero: `Resultado.partes`, que
+`render_html` dibuja después de las referencias.
+
+**Dos análisis nuevos para el core que pedía B:**
+
+- **Cusum de linealidad** (`core/passing_bablok.cusum_linealidad`, Passing y
+  Bablok 1983; pasos de NCSS y del paquete `mcr` de R). Entra como supuesto del
+  Passing-Bablok del panel y como advertencia del Omnianálisis. Es algo liberal:
+  con datos lineales rechaza 4 a 9 % al 5 % nominal (simulado, y el informe lo
+  dice). Con √n en vez de √(n₋ + 1) no rechazaría nunca: la normalización
+  publicada compensa que la recta se ajusta a los mismos datos.
+- **Precisión EP15** (`core/ep15.py`, análisis «Precisión EP15»): una columna por
+  corrida, ANOVA de un factor con n0 para corridas desbalanceadas, verificación
+  contra lo declarado con el UVL (gl de s_WL por Satterthwaite con la ρ
+  declarada, apéndice B) y, con valor asignado, el intervalo de verificación del
+  sesgo (escenarios A a E). Probado contra la **tabla 10** y los **ejemplos 1A,
+  3A y 4** de la norma **con sus dos fe de erratas** (oct 2015, may 2017, en
+  clsi.org). Dos diferencias con lo impreso, documentadas en
+  `tests/test_ep15.py`: la tabla dice s_WL = 2,40 donde sus propios MS dan
+  2,387 (redondeo de la tabla: las otras tres columnas cierran), y en el 1A la
+  norma lee gl = 12 de la tabla 15A; desde los datos, Satterthwaite da 11,6 → 12
+  y el intervalo 139,6 a 145,4 sale exacto.
+
+`Parametro(defecto=None)`: campo vacío = «no se declaró» (lo del fabricante, el
+valor asignado, el sesgo permitido). `analysis_specs.ETIQUETAS` rotula las
+variables de un análisis («Método en uso», «Método en prueba») y
+`Multi(tildadas=False)` deja la lista de corridas vacía de entrada.
+
+**Queda afuera, a propósito:** el error total (TE = |sesgo| + 2·s, estilo
+Westgard) no entra al veredicto; EP15 dentro del asistente verifica precisión
+pero no el sesgo contra un valor asignado (eso es el análisis «Precisión EP15»
+suelto); el caso narrado del Omnianálisis todavía no cuenta la Cusum (sí la
+traza y la advertencia).
 
 ## 26 sep: la familia de validación, entera en `Resultado`
 
@@ -587,7 +645,7 @@ Decidido el 21 de agosto. Tres definiciones que acotan el resto:
    impecables: ahí el core ya está corregido y verificado. (El QC diario
    —Westgard— se sacó el 22 de agosto; ver Deudas.)
 
-### Arquitectura propuesta (falta aprobar el detalle)
+### Arquitectura (A hecha el 26 sep para la familia de validación; B, el 27)
 
 **A — Envoltura `Resultado` (sustrato).** El core devuelve lo suyo; encima, un
 objeto con **valores, método, supuestos verificados, fórmula, cita e
@@ -603,7 +661,8 @@ con su norma. Así se trabaja: nadie corre un Bland-Altman suelto, valida un
 método.
 
 **Orden: A y después B.** Arrancar por B deja al asistente escribiendo su propio
-texto: dos verdades.
+texto: dos verdades. Así se hizo: B no escribe ninguna lectura propia salvo el
+veredicto, y cada análisis que corre va debajo con su informe.
 
 El registro de supuestos y citas **no es proyecto aparte**: es el campo
 `supuestos` de la envoltura, alimentado por una tabla declarativa.
@@ -616,18 +675,21 @@ calidad. Ver su `LEEME.md`.
 
 ## Deudas conocidas
 
-1. **`src/ui/analysis_methods.py`, 2329 líneas.** Lo resuelve la envoltura de A.
+1. **`src/ui/analysis_methods.py`, ~2400 líneas.** La familia de validación ya
+   sale de `Resultado`; el resto de las familias es el paso 4 de
+   `docs/plans/2026-09-26-envoltura-resultado.md`, una familia por commit.
 2. **Levey-Jennings y Westgard, eliminados el 22 ago.** Vivían en
    `src/ui/qc_panel.py` (`_lj`, `_wj`, `_wj_rules`), sin core ni tests: la parte
    que decide si un lote se acepta o rechaza era la única sin verificación de
    referencia. La pestaña QC queda con **Estadísticas** y **Tendencias**;
    `src/core/qc/__init__.py` sigue **vacío**. Si el QC vuelve, entra por el core
    con tests contra un caso publicado, no dentro del panel.
-3. **Siguiente: el asistente B «Validar un método»**, sobre la familia ya
-   migrada. Le falta al core: la prueba Cusum de linealidad de Passing-Bablok
-   (MedCalc la informa; EP09c no la trae, hay que tomarla de Passing y Bablok
-   1983 con su tabla) y la repetibilidad EP15, con su test contra el ejemplo de
-   la norma.
+3. **Asistente B, hecho el 27 sep.** Lo que podría seguir: error total contra
+   TEa como criterio alternativo; el sesgo de EP15 contra valor asignado dentro
+   del asistente; que el caso narrado del Omnianálisis cuente la Cusum. Y
+   KaizenHub tiene su propio EP15 (`stats-engine/core/ep15_anova.py`) con dos
+   diferencias con la norma: el UVL no corrige por el número de muestras y los
+   gl de s_WL salen de lo observado, no de la ρ declarada.
 4. Omnianálisis, de la auditoría del 26 sep: el pre-test de normalidad por
    grupo manda ~15 % de los grupos normales heterocedásticos a Kruskal-Wallis
    (falsos positivos 7,7 % en vez de 5 %); el IC jackknife del intercepto de
@@ -641,8 +703,8 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 992 verdes (26 sep); el número crece
-python scripts/smoke_ui.py                       # smoke de UI, 76/76
+python -m pytest tests/ -q                       # 1073 verdes (27 sep); el número crece
+python scripts/smoke_ui.py                       # smoke de UI, 78/78
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
 
