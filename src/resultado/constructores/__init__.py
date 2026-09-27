@@ -16,7 +16,13 @@ uno, para que el contrato pueda correrlos a todos sin saber de cada familia:
     "respuesta_binaria": f(df, respuesta_0_1, [predictoras])
     "dosis_respuesta":   f(df, dosis, respuesta_0_1)
     "calculadora":       f(opciones), sin hoja; ejemplo en EJEMPLOS
+    "respuesta_grupo":   f(df, respuesta, grupo)  (formato largo)
+    "respuesta_dos_factores":     f(df, respuesta, factor_a, factor_b)
+    "respuesta_grupo_covariable": f(df, respuesta, grupo, covariable)
 """
+from src.resultado.constructores.anova import (
+    ancova, anova_dos_vias, anova_una_via, medidas_repetidas,
+)
 from src.resultado.constructores.comparacion import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
 )
@@ -61,6 +67,11 @@ CONSTRUCTORES = {
     "t_independiente": t_independiente,
     "comparar_medias": comparar_medias,
     "f_varianzas": f_varianzas,
+    # ANOVA
+    "anova_una_via": anova_una_via,
+    "anova_dos_vias": anova_dos_vias,
+    "ancova": ancova,
+    "medidas_repetidas": medidas_repetidas,
     # Comparación de métodos
     "bland_altman": bland_altman,
     "passing_bablok": passing_bablok,
@@ -82,6 +93,10 @@ FIRMAS["regresion_logistica"] = "respuesta_binaria"
 FIRMAS["probit"] = "dosis_respuesta"
 FIRMAS["t_una_muestra"] = "una"
 FIRMAS["comparar_medias"] = "calculadora"
+FIRMAS["anova_una_via"] = "respuesta_grupo"
+FIRMAS["anova_dos_vias"] = "respuesta_dos_factores"
+FIRMAS["ancova"] = "respuesta_grupo_covariable"
+FIRMAS["medidas_repetidas"] = "lista"
 
 from src.resultado.constructores.medias import EJEMPLOS  # noqa: E402
 

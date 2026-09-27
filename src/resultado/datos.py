@@ -47,6 +47,44 @@ def filas_completas(df: pd.DataFrame, *cols) -> tuple[pd.DataFrame, Entrada]:
 
 
 @dataclass
+class Grupos:
+    """Una respuesta numérica partida por un código de grupo (formato largo)."""
+    etiquetas: list | None
+    datos: list | None
+    entrada: Entrada | None
+    motivo: str | None = None
+
+
+def grupos(df: pd.DataFrame, respuesta, grupo, max_grupos: int = 20) -> Grupos:
+    """Formato largo: una fila por sujeto, la medición y su grupo.
+
+    Rechaza con motivo lo que suele ser un error de uso: la misma columna en los
+    dos lugares, texto en la respuesta, un solo grupo, o un «grupo» con tantos
+    valores distintos que es una medición.
+    """
+    falta = columnas_faltantes(df, respuesta, grupo)
+    if falta:
+        return Grupos(None, None, None, falta)
+    if respuesta == grupo:
+        return Grupos(None, None, None, "La respuesta y el grupo son la misma columna.")
+    pares, entrada = filas_completas(df, respuesta, grupo)
+    y = pd.to_numeric(pares[respuesta], errors="coerce")
+    if y.isna().any():
+        return Grupos(None, None, entrada,
+                      f"«{respuesta}» (la respuesta) tiene valores que no son números.")
+    partes = [(str(k), g.to_numpy(dtype=float)) for k, g in y.groupby(pares[grupo])]
+    k, n = len(partes), len(pares)
+    if k < 2:
+        return Grupos(None, None, entrada, f"«{grupo}» (el grupo) tiene un solo valor.")
+    if k > max_grupos or k > n / 2:
+        return Grupos(None, None, entrada,
+                      f"«{grupo}» tiene {k} valores distintos para {n} filas: parece una "
+                      "medición, no un código de grupo. La primera variable es la respuesta "
+                      "y la segunda el grupo (por ejemplo 1, 2, 3 o A, B, C).")
+    return Grupos([p[0] for p in partes], [p[1] for p in partes], entrada)
+
+
+@dataclass
 class Columna:
     """Una columna lista para el core: sus números finitos y lo que quedó afuera."""
     valores: np.ndarray | None

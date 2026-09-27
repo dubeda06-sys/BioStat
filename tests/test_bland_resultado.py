@@ -220,7 +220,16 @@ _LLAMADAS = {"una": lambda f, df: f(df, "A"),
                                      "A", "B", "C"),
              "respuesta_binaria": lambda f, df: f(_con_binaria(df), "Y", "A"),
              "dosis_respuesta": lambda f, df: f(_con_binaria(df), "A", "Y"),
-             "calculadora": lambda f, df: f(EJEMPLOS[f.__name__])}
+             "calculadora": lambda f, df: f(EJEMPLOS[f.__name__]),
+             "respuesta_grupo": lambda f, df: f(_con_grupos(df), "A", "G"),
+             "respuesta_dos_factores": lambda f, df: f(_con_grupos(df), "A", "G", "H"),
+             "respuesta_grupo_covariable": lambda f, df: f(_con_grupos(df), "A", "G", "B")}
+
+
+def _con_grupos(df):
+    """Dos códigos de grupo cruzados, con réplicas en cada celda."""
+    i = np.arange(len(df))
+    return df.assign(G=i % 3, H=(i // 3) % 2)
 
 
 def _con_binaria(df):

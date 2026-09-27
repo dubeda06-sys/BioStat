@@ -16,7 +16,7 @@ from src.analysis.omni_config import OmniConfig, DEFAULT_CONFIG
 from src.resultado.lenguaje import fmt_p, p_token
 from src.core.statistics import (
     descriptive_stats, normality_test, anova_oneway, kruskal_wallis,
-    chi_square_test, fisher_exact_test, pearson_r, spearman_rho,
+    chi_square_test, fisher_exact_test, pearson_r, spearman_rho, tukey_hsd,
     dunn_test, welch_anova, games_howell,
 )
 from src.core.bland_altman import (
@@ -636,17 +636,10 @@ def _correr_posthoc(block: dict, detectado: bool, p_txt: str, cfg: OmniConfig) -
 
 
 def _tukey_posthoc(y, g, cfg: OmniConfig):
-    try:
-        from statsmodels.stats.multicomp import pairwise_tukeyhsd
-        res = pairwise_tukeyhsd(y, g, alpha=cfg.ALPHA)
-    except Exception as e:
-        return {"metodo": "Tukey HSD", "error": str(e)}
-    grupos = [str(x) for x in res.groupsunique]
-    pares = [(grupos[i], grupos[j]) for i in range(len(grupos))
-             for j in range(i + 1, len(grupos))]
-    return {"metodo": "Tukey HSD",
-            "comparaciones": [{"par": f"{a} vs {b}", "diferencia": float(d), "p_adj": float(p)}
-                              for (a, b), d, p in zip(pares, res.meandiffs, res.pvalues)]}
+    """El Tukey del core (el mismo que usa el panel), desde el formato largo."""
+    y, g = np.asarray(y, dtype=float), np.asarray(g).astype(str)
+    etiquetas = sorted(set(g))
+    return tukey_hsd([y[g == e] for e in etiquetas], etiquetas, alpha=cfg.ALPHA)
 
 
 def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:

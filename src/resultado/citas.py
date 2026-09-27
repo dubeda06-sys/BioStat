@@ -138,6 +138,24 @@ BROWN_FORSYTHE_1974 = Cita("Brown MB, Forsythe AB (1974). Robust tests for the e
                            "variances. J Am Stat Assoc 69:364-367.")
 SNEDECOR_1989 = Cita("Snedecor GW, Cochran WG (1989). Statistical methods, 8.ª ed. Ames: Iowa "
                      "State University Press.")
+WELCH_1951 = Cita("Welch BL (1951). On the comparison of several mean values: an alternative "
+                  "approach. Biometrika 38:330-336.")
+LEVENE_1960 = Cita("Levene H (1960). Robust tests for equality of variances. En Olkin I (ed). "
+                   "Contributions to probability and statistics. Stanford University Press, "
+                   "278-292.")
+TUKEY_1949 = Cita("Tukey JW (1949). Comparing individual means in the analysis of variance. "
+                  "Biometrics 5:99-114.")
+GAMES_1976 = Cita("Games PA, Howell JF (1976). Pairwise multiple comparison procedures with "
+                  "unequal n's and/or variances: a Monte Carlo study. J Educ Stat 1:113-125.")
+DELACRE_2019 = Cita("Delacre M, Leys C, Mora YL, Lakens D (2019). Taking parametric assumptions "
+                    "seriously: arguments for the use of Welch's F-test instead of the "
+                    "classical F-test in one-way ANOVA. Int Rev Soc Psychol 32:13.")
+LANGSRUD_2003 = Cita("Langsrud Ø (2003). ANOVA for unbalanced data: use type II instead of type "
+                     "III sums of squares. Stat Comput 13:163-167.")
+HUITEMA_2011 = Cita("Huitema BE (2011). The analysis of covariance and alternatives, 2.ª ed. "
+                    "Hoboken: Wiley.")
+GREENHOUSE_1959 = Cita("Greenhouse SW, Geisser S (1959). On methods in the analysis of profile "
+                       "data. Psychometrika 24:95-112.")
 EFRON_1993 = Cita("Efron B, Tibshirani RJ (1993). An introduction to the bootstrap. New "
                   "York: Chapman & Hall. Cap. 11: el jackknife no sirve para la mediana.")
 CORNBLEET_1979 = Cita("Cornbleet PJ, Gochman N (1979). Incorrect least-squares regression "
@@ -485,6 +503,42 @@ FICHAS: dict[str, Ficha] = {
             "Brown-Forsythe: ANOVA de |x − mediana del grupo|, no supone normalidad"
         ),
         citas=(SNEDECOR_1989, BROWN_FORSYTHE_1974),
+    ),
+
+    # ---------------- ANOVA: src/resultado/constructores/anova.py
+    # core: statistics.py (scipy, pingouin, statsmodels), two_way_anova.py, ancova.py,
+    # repeated_measures.py
+    "anova_una_via": Ficha(
+        formula=(
+            "F = MS_entre / MS_dentro,  (k − 1, N − k) gl\n"
+            "Levene p ≥ 0,05 → ANOVA clásico + Tukey HSD;  p < 0,05 → ANOVA de Welch\n"
+            "    (cada grupo pesado por nᵢ/sᵢ²) + Games-Howell\n"
+            "El post-hoc solo corre si la prueba global detecta diferencia"
+        ),
+        citas=(LEVENE_1960, WELCH_1951, TUKEY_1949, GAMES_1976, DELACRE_2019),
+    ),
+    "anova_dos_vias": Ficha(
+        formula=(
+            "y ~ A + B + A×B;  sumas de cuadrados tipo II (statsmodels)\n"
+            "F de cada efecto = MS_efecto / MS_error"
+        ),
+        citas=(LANGSRUD_2003, SNEDECOR_1989),
+    ),
+    "ancova": Ficha(
+        formula=(
+            "y = b₀ + efecto del grupo + b·x + error;  sumas de cuadrados tipo II\n"
+            "Media ajustada de cada grupo: predicción en la media general de x\n"
+            "Paralelismo: término grupo × x;  η² parcial = SS_grupo/(SS_grupo + SS_error)"
+        ),
+        citas=(HUITEMA_2011, LANGSRUD_2003),
+    ),
+    "medidas_repetidas": Ficha(
+        formula=(
+            "F = MS_tiempo / MS_error (sujetos como bloque)\n"
+            "ε de Greenhouse-Geisser = tr(S*)² / ((k − 1)·ΣS*²),  S* = covarianza doblemente\n"
+            "    centrada;  p corregido con gl·ε"
+        ),
+        citas=(GREENHOUSE_1959, SNEDECOR_1989),
     ),
 }
 

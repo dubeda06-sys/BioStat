@@ -403,6 +403,34 @@ def welch_anova(groups):
             "k": len(groups)}
 
 
+def tukey_hsd(groups, labels=None, alpha=0.05):
+    """Post-hoc de Tukey HSD (statsmodels): el que acompana al ANOVA clasico.
+
+    Supone varianzas iguales, como el ANOVA; con varianzas distintas va
+    Games-Howell. Una sola copia para el panel y el Omnianalisis.
+    """
+    from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+    labels = [str(l) for l in (labels or range(1, len(groups) + 1))]
+    y = np.concatenate([np.asarray(g, dtype=float) for g in groups])
+    g = np.repeat(labels, [len(x) for x in groups])
+    try:
+        res = pairwise_tukeyhsd(y, g, alpha=alpha)
+    except Exception as e:  # noqa: BLE001
+        return {"metodo": "Tukey HSD", "error": str(e)}
+    grupos = [str(x) for x in res.groupsunique]
+    pares = [(grupos[i], grupos[j]) for i in range(len(grupos))
+             for j in range(i + 1, len(grupos))]
+    ic = np.asarray(res.confint, dtype=float)
+    # statsmodels da media(b) - media(a) para el par (a, b); aca va a - b, como
+    # Games-Howell de pingouin: «A vs B» se lee A menos B en los dos post-hoc.
+    return {"metodo": "Tukey HSD",
+            "comparaciones": [{"par": f"{a} vs {b}", "diferencia": -float(d),
+                               "ic95": (-float(hi), -float(lo)), "p_adj": float(p)}
+                              for (a, b), d, (lo, hi), p in
+                              zip(pares, res.meandiffs, ic, res.pvalues)]}
+
+
 def games_howell(groups, labels=None):
     """Post-hoc de Games-Howell (pingouin): el que acompaña al ANOVA de Welch.
 

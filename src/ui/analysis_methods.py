@@ -89,6 +89,9 @@ from src.resultado.constructores import (
     bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
     passing_bablok as passing_bablok_resultado, precision_ep15, validar_metodo,
 )
+from src.resultado.constructores.anova import (
+    ancova as ancova_resultado, anova_dos_vias, anova_una_via, medidas_repetidas,
+)
 from src.resultado.constructores.correlacion import parcial, pearson, spearman
 from src.resultado.constructores.medias import (
     comparar_medias, f_varianzas, t_independiente, t_pareada, t_una_muestra,
@@ -427,45 +430,10 @@ class AnalysisMethodsMixin:
         return t_independiente(self.data, c1, c2, {"alpha": a})
 
     # --- ANOVA ---
+    # --- ANOVA: la arma src/resultado/constructores/anova.py ---
     def _anova(self, c1, c2, a):
-        """ANOVA de una via en formato largo: Variable 1 = respuesta, Variable 2 = grupo.
-
-        Antes tomaba cada columna numerica de la hoja como un grupo sin mirar las
-        variables elegidas: con una hoja Valor + Grupo comparaba los valores
-        contra los codigos de grupo y daba F = 7460 donde el p real es 0,79
-        (auditoria 2026-09, K2).
-        """
-        grupos = self._grupos_largo(c1, c2)
-        if isinstance(grupos, str):
-            return grupos
-        etiquetas, datos = grupos
-        result = anova_oneway(datos)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
-        self._set_formula("Formula: ANOVA Una Vía",
-                          "F = MS_entre / MS_dentro\nMS_entre = SS_entre / (k−1)\n"
-                          "MS_dentro = SS_dentro / (N−k)")
-        h = self._h(f" ANOVA una vía — {escape(str(c1))} por {escape(str(c2))}")
-        h += self._html_grupos(etiquetas, datos)
-        h += "<table style='font-size:12px;'>"
-        h += self._r("F", f"{result['F']:.4f} (gl {result['df_between']}, {result['df_within']})")
-        h += self._r("p", _p_html(result['p']))
-        avisos = []
-        if all(len(g) >= 2 for g in datos):
-            lev_p = float(stats.levene(*datos).pvalue)
-            h += self._r("Levene (varianzas iguales)", _p_html(lev_p))
-            if lev_p < 0.05:
-                import pingouin as pg
-                largo = pd.DataFrame({"y": np.concatenate(datos),
-                                      "g": np.repeat(etiquetas, [len(g) for g in datos])})
-                welch = pg.welch_anova(data=largo, dv="y", between="g")
-                p_w = float(welch["p_unc"].iloc[0])
-                h += self._r("ANOVA de Welch", f"F={float(welch['F'].iloc[0]):.4f}, {_p_html(p_w)}")
-                avisos.append("Las varianzas difieren (Levene): la F clásica supone varianzas "
-                              "iguales. Vale la ANOVA de Welch, que no lo supone.")
-                result = dict(result, p=p_w)
-        h += "</table>" + self._avisos_html(avisos)
-        return h + self._ok(result['p'] < a)
+        """Variable 1 = respuesta, Variable 2 = grupo (formato largo)."""
+        return anova_una_via(self.data, c1, c2, {"alpha": a})
 
     # --- Correlacion: la arma src/resultado/constructores/correlacion.py ---
     def _corr_p(self, c1, c2):
@@ -1337,11 +1305,11 @@ class AnalysisMethodsMixin:
         return self._con_nota_columnas(
             regresion_logistica(self.data, c1, predictoras), predictoras, del_dialogo)
 
-    def _con_nota_columnas(self, res, columnas, del_dialogo):
+    def _con_nota_columnas(self, res, columnas, del_dialogo, que="predictoras"):
         """Sin dialogo se usaron todas las numericas: el informe lo dice."""
         if res.ok and not del_dialogo:
             res.advertencias.append(
-                "Se usaron todas las columnas numéricas de la hoja como predictoras: "
+                f"Se usaron todas las columnas numéricas de la hoja como {que}: "
                 + ", ".join(str(c) for c in columnas) + ". Si alguna no corresponde "
                 "(un número de muestra, una fecha), abrí el análisis desde el menú "
                 "Estadísticas y destildala.")
@@ -1495,21 +1463,7 @@ class AnalysisMethodsMixin:
     def _run_core(self, func_name, c1=None, c2=None):
         """Run a core module function and display results."""
         try:
-            if func_name == "anova_oneway":
-                if self.data.shape[1] < 2:
-                    return "<b>Error:</b> Se necesitan al menos 2 columnas."
-                groups = [self.data.iloc[:, i].dropna().values for i in range(self.data.shape[1])]
-                result = anova_oneway(groups)
-                self._set_formula("Formula: ANOVA Una Vía", "F = MS_between / MS_within")
-                h = self._h(f" ANOVA Una Vía (Core)")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("F", f"{result['F']:.4f}")
-                h += self._r("p", f"{result['p']:.6f}")
-                h += self._r("gl entre", result['df_between'])
-                h += self._r("gl dentro", result['df_within'])
-                return h + "</table>" + self._ok(result['p'] < 0.05, "Se detectó diferencia", "No se detectó diferencia")
-
-            elif func_name == "sign_test":
+            if func_name == "sign_test":
                 if c1 is None or c2 is None:
                     return "<b>Error:</b> Selecciona 2 columnas."
                 if c1 not in self.data.columns or c2 not in self.data.columns:
@@ -1720,87 +1674,24 @@ class AnalysisMethodsMixin:
             return f"<p style='color:red'>Error en {func_name}: {str(e)}</p>"
 
     def _run_two_way_anova(self, c1, c2, c3):
-        """Run Two-way ANOVA. c1=respuesta (continua), c2=Factor A, c3=Factor B."""
-        if c1 is None or c2 is None or c3 is None or c3 == "(ninguna)":
-            return "<b>Error:</b> Selecciona V1=respuesta (continua), V2=Factor A, V3=Factor B."
-        for c in (c1, c2, c3):
-            if c not in self.data.columns:
-                return f"<b>Error:</b> Columna '{c}' no encontrada."
-        try:
-            sub = self.data[[c1, c2, c3]].dropna()
-            result = two_way_anova(sub[c1].values, sub[c2].values, sub[c3].values)
-            if _sin_resultado(result):
-                return _msg_error(result, "Datos insuficientes o sin réplicas por celda para estimar el error.")
-            self._set_formula("Formula: ANOVA Dos Vías", "y ~ C(A) + C(B) + C(A):C(B) (suma de cuadrados tipo II)")
-            h = self._h(f" ANOVA Dos Vías — {c1} por {c2} × {c3}")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("Factor A", f"F={result['F_A']:.4f}, p={result['p_A']:.4f}, gl={result['df_A']}")
-            h += self._r("Factor B", f"F={result['F_B']:.4f}, p={result['p_B']:.4f}, gl={result['df_B']}")
-            h += self._r("Interacción A×B", f"F={result['F_AB']:.4f}, p={result['p_AB']:.4f}, gl={result['df_AB']}")
-            h += self._r("Error", f"gl={result['df_error']}")
-            return h + "</table>"
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+        """Variable 1 = respuesta, Variable 2 = factor A, Variable 3 = factor B."""
+        if c3 is None or c3 not in self.data.columns:
+            return Resultado.rechazo("anova_dos_vias", "ANOVA de dos vías",
+                                     "Elegí el segundo factor en la Variable 3.")
+        return anova_dos_vias(self.data, c1, c2, c3)
 
     def _run_ancova(self, c1, c2, c3):
-        """Run ANCOVA."""
-        if c1 is None or c2 is None or c3 is None:
-            return "<b>Error:</b> Selecciona Variable dependiente (V1), Factor (V2), y Covariable (V3)."
-        if c1 not in self.data.columns or c2 not in self.data.columns or c3 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        try:
-            sub = self.data[[c1, c2, c3]].dropna()
-            result = ancova(sub[c1].values, sub[c2].values, sub[c3].values)
-            if _sin_resultado(result):
-                return _msg_error(result, "No se pudo calcular.")
-            self._set_formula("Formula: ANCOVA",
-                              f"{c1} = b0 + efecto de {c2} + b·{c3} + error\n"
-                              "F del grupo con sumas de cuadrados tipo II (statsmodels)\n"
-                              f"Medias ajustadas: prediccion de cada grupo en la media de {c3}")
-            h = self._h(f" ANCOVA — {c1} por {c2} | {c3}")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("n", result['n'])
-            h += self._r("Grupo (ajustado)", f"F={result['F']:.4f}, {_p_html(result['p'])}, "
-                                             f"gl={result['df_group']}, {result['df_error']}")
-            h += self._r("Covariable", f"F={result['F_covariate']:.4f}, {_p_html(result['p_covariate'])}, "
-                                       f"pendiente={result['pendiente_covariable']:.4f}")
-            h += self._r("η² parcial del grupo", f"{result['eta_squared']:.4f}")
-            for grupo, media in result['medias_ajustadas'].items():
-                h += self._r(f"Media ajustada — {grupo}", f"{media:.4f}")
-            h += self._r("Paralelismo (grupo × covariable)", _p_html(result['p_interaccion']))
-            h += "</table>"
-            for aviso in result.get("avisos", []):
-                h += f"<p style='font-size:11px;color:#b45309;'>{aviso}</p>"
-            return h + self._ok(result['p'] < 0.05, "Se detectó diferencia entre grupos, ajustada por la covariable", "No se detectó diferencia entre grupos")
-        except Exception as e:
-            return f"<p style='color:red'>Error: {str(e)}</p>"
+        """Variable 1 = respuesta, Variable 2 = grupo, Variable 3 = covariable."""
+        if c3 is None or c3 not in self.data.columns:
+            return Resultado.rechazo("ancova", "ANCOVA",
+                                     "Elegí la covariable en la Variable 3.")
+        return ancova_resultado(self.data, c1, c2, c3)
 
     def _run_repeated_measures(self):
-        """ANOVA de medidas repetidas: una columna por tiempo, una fila por sujeto."""
+        """Una columna por tiempo, una fila por sujeto."""
         cols, del_dialogo = self._columnas_multi()
-        if len(cols) < 2:
-            return f"<b>Error:</b> hacen falta al menos 2 tiempos (columnas numéricas); hay {len(cols)}."
-        try:
-            result = repeated_measures_anova(self.data[cols].values)
-            if _sin_resultado(result):
-                return _msg_error(result, "No se pudo calcular.")
-            self._set_formula("Formula: Medidas Repetidas",
-                              "F = MS_tiempo / MS_error\n"
-                              "Greenhouse-Geisser: ε = tr(S*)² / ((k−1)·ΣS*²), S* = covarianza "
-                              "doblemente centrada;\ngl corregidos = ε·gl")
-            h = self._h(" ANOVA Medidas Repetidas")
-            h += "<table style='font-size:12px;'>"
-            h += self._r("Sujetos completos", f"{result['n']} ({result['n_excluidos']} excluidos)")
-            h += self._r("F", f"{result['F']:.4f} (gl {result['df_time']}, {result['df_error']})")
-            h += self._r("p (sin corregir)", _p_html(result['p']))
-            h += self._r("Épsilon (Greenhouse-Geisser)", f"{result['epsilon']:.4f}")
-            h += self._r("p (GG corregido)", _p_html(result['p_gg']))
-            h += "</table>" + self._nota_columnas(cols, del_dialogo)
-            h += self._avisos_html(result.get("avisos", []))
-            return h + self._ok(result['p_gg'] < 0.05, "Se detectó cambio entre tiempos",
-                                "No se detectó cambio entre tiempos")
-        except Exception as e:
-            return f"<p style='color:red'>Error: {escape(str(e))}</p>"
+        return self._con_nota_columnas(medidas_repetidas(self.data, cols), cols,
+                                       del_dialogo, "tiempos")
 
     def _run_cox(self, c1, c2):
         """Run Cox Regression."""

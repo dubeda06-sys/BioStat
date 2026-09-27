@@ -82,7 +82,7 @@ def test_la_anova_avisa_y_usa_welch_con_varianzas_distintas(qt_app):
     df = pd.DataFrame({"v": np.r_[rng.normal(50, 1, 30), rng.normal(50, 8, 30), rng.normal(50, 20, 30)],
                        "g": np.repeat(["A", "B", "C"], 30)})
     t = _texto(_panel(df)._anova("v", "g", 0.05))
-    assert "ANOVA de Welch" in t and "Vale la ANOVA de Welch" in t
+    assert "ANOVA de Welch" in t and "no supone varianzas iguales" in t
 
 
 # ------------------------------------------------------------------ K3
