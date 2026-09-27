@@ -654,3 +654,27 @@ def test_passing_bablok_del_omnianalisis_corre_la_cusum():
     assert reg["cusum_p"] < 0.05
     assert any("Cusum" in a and "linealidad" in a for a in b["advertencias"])
     assert any(t.startswith("Cusum de linealidad") for t in b["traza"])
+
+
+def test_el_caso_narrado_cuenta_la_cusum():
+    """Deuda del asistente B (27 sep): el caso narrado no contaba la Cusum
+    aunque el bloque la tuviera. Con datos curvos, el paso lo dice y queda
+    en rojo; con datos lineales, dice que la recta se puede leer."""
+    from src.analysis.omni_caso import caso_de_bloque
+    rng = np.random.default_rng(3)
+    X = rng.uniform(1, 400, 120)
+    sd = np.where(X < 100, 3.0, 0.03 * X)
+    x = X + rng.normal(0, 1, 120) * sd
+    curva = caso_de_bloque(_clase(x, X + 0.3 * (X - 200) ** 2 / 200
+                                  + rng.normal(0, 1, 120) * sd))
+    paso = next(p for p in curva.pasos if "recta en todo el rango" in p.pregunta)
+    assert paso.ok is False
+    assert "no se deben leer" in paso.consecuencia
+    assert paso.medicion.startswith("Cusum de linealidad: H = ")
+
+    bloque = _clase(x, X + rng.normal(0, 1, 120) * sd)
+    assert bloque["resultados"]["regresion"]["cusum_p"] >= 0.05
+    paso = next(p for p in caso_de_bloque(bloque).pasos
+                if "recta en todo el rango" in p.pregunta)
+    assert paso.ok is True
+    assert "es aplicable" in paso.consecuencia

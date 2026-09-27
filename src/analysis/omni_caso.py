@@ -702,6 +702,31 @@ def _caso_concordancia(b: dict) -> Caso:
             consecuencia=consecuencia,
             ok=(not prop and not const and concluyente),
         ))
+        # La Cusum de Passing y Bablok (1983) dice si la recta de arriba se puede
+        # leer: con la relación curva, pendiente e intercepto promedian tramos
+        # que se comportan distinto. Mismo texto que el panel (_paso_cusum).
+        if reg.get("cusum_p") is not None:
+            curva = reg["cusum_p"] < 0.05
+            caso.pasos.append(Paso(
+                pregunta="¿La relación entre los dos métodos es una recta en todo el rango?",
+                medicion=f"Cusum de linealidad: H = {_num(reg.get('cusum_h'))}, "
+                         f"{_p(reg['cusum_p'])}",
+                respuesta="No: se detectó desvío" if curva else "Sí, no se detectó desvío",
+                consecuencia=(
+                    "Los residuos de un mismo signo se agrupan a lo largo de la recta en "
+                    "vez de alternarse: la relación es curva, y la pendiente y el "
+                    "intercepto del paso anterior no se deben leer. Conviene comparar por "
+                    "tramos de concentración. La prueba es algo liberal: un p apenas "
+                    "debajo de 0,05 es evidencia débil."
+                    if curva else
+                    "Los residuos se alternan a los dos lados de la recta sin agruparse: "
+                    "la recta del paso anterior es aplicable."),
+                alternativa=("si los residuos se agruparan (arriba en los extremos y abajo "
+                             "en el medio, o al revés), la relación sería curva."
+                             if not curva else
+                             "si se alternaran al azar, la recta sería aplicable."),
+                ok=not curva,
+            ))
 
     ccc = res.get("ccc")
     if ccc is not None:
