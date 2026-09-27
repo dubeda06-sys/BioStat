@@ -16,8 +16,10 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **27 sep a la tarde** desde `develop` (`c789807`), con el paso 4
-entero: los 78 análisis en `Resultado`. El de la mañana (`466e298`) tenía las
+Recompilado el **27 sep a la noche** desde `develop` (`4567002`), con las deudas
+de esa noche cerradas: sin control de calidad, el Omnianálisis con Welch, series
+temporales y el score calibrado, el asistente con TEa y el mixin borrado. El de
+la tarde (`c789807`) tenía el paso 4 entero: los 78 análisis en `Resultado`. El de la mañana (`466e298`) tenía las
 diez primeras familias: Kaplan-Meier con la «supervivencia media» sin sentido,
 Cox con `columns[3:]` y el falso «no convergió», el bootstrap percentil. El de
 antes (`84255a9`, también del 27) tenía los 42 arreglos de la
