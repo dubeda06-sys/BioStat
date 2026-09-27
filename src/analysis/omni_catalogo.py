@@ -70,9 +70,9 @@ ENSAYOS: tuple[Ensayo, ...] = (
            incondicional=True),
     Ensayo("perfil_temporal", "Detección de estructura temporal", PERFILADO,
            "Hay al menos una columna fecha/hora.",
-           "Si los datos son una serie de tiempo, el análisis transversal no "
-           "vale: las observaciones no son independientes. El motor avisa y no "
-           "lo fuerza."),
+           "Si los datos son una serie de tiempo, cada numérica se analiza además "
+           "contra la fecha (tendencia y autocorrelación), y el motor avisa que las "
+           "pruebas transversales suponen observaciones independientes."),
 
     # ---------------- Univariado numerico ----------------
     Ensayo("desc_numericos", "Descriptivos", UNIVARIADO,
@@ -195,6 +195,22 @@ ENSAYOS: tuple[Ensayo, ...] = (
            "pares. No es Mann-Whitney de a pares: ese re-rankea cada par y "
            "pierde a los demás grupos.",
            alternativa="tukey_hsd", norma="Dunn 1964"),
+
+    # ---------------- Bivariado: fecha x numerica ----------------
+    Ensayo("autocorrelacion", "Autocorrelación: prueba de Ljung-Box", BIVARIADO,
+           "Par fecha × numérica con 10 o más puntos.",
+           "¿Cada valor se parece al anterior más de lo que daría el azar? Las "
+           "pruebas de tendencia suponen mediciones independientes: con rachas, "
+           "el p sale demasiado chico y una racha se lee como tendencia. Va sobre "
+           "los residuos de la recta de Sen, para no confundir la tendencia misma "
+           "con autocorrelación.",
+           norma="Ljung y Box 1978", incondicional=True),
+    Ensayo("mann_kendall", "Tendencia: Mann-Kendall y pendiente de Sen", BIVARIADO,
+           "Par fecha × numérica con 5 o más puntos.",
+           "¿Los valores suben o bajan con el tiempo? Mann-Kendall es la τ de "
+           "Kendall entre la fecha y el valor: no supone forma ni normalidad. La "
+           "pendiente de Sen dice cuánto cambia por día, con su IC.",
+           norma="Mann 1945; Kendall 1975; Sen 1968", incondicional=True),
 
     # ---------------- Bivariado: categorica x categorica ----------------
     Ensayo("chi2", "Chi-cuadrado", BIVARIADO,

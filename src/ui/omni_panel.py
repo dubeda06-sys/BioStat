@@ -26,7 +26,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
 from src.analysis.omni_analyzer import run_omnianalysis
-from src.analysis.omni_plots import comparison_figures
+from src.analysis.omni_plots import comparison_figures, serie_figure
 from src.ui.grafico_editable import GraficoEditable
 from src.analysis import omni_arbol
 from src.analysis.omni_caso import casos as construir_casos
@@ -574,6 +574,18 @@ class OmniPanel(QWidget):
                 w.setParent(None)
         n_plots = 0
         for b in report.get("blocks", []):
+            serie = b.get("resultados", {}).get("_plot_serie")
+            if b.get("tipo") == "serie temporal" and serie:
+                title = QLabel(b.get("titulo", ""))
+                title.setStyleSheet("font-weight:bold; color:#0e7490; padding:8px 2px 2px;")
+                self.plot_layout.addWidget(title)
+                fig = serie_figure(serie)
+                canvas = GraficoEditable(fig)
+                canvas.setMinimumHeight(340)
+                self.plot_layout.addWidget(canvas)
+                plt.close(fig)
+                n_plots += 1
+                continue
             if b.get("tipo") != "concordancia":
                 continue
             pdata = b.get("resultados", {}).get("_plot")
@@ -592,7 +604,8 @@ class OmniPanel(QWidget):
                 n_plots += 1
         if n_plots == 0:
             hint = QLabel("Los gráficos de comparación (Bland-Altman / Passing-Bablok / "
-                          "Deming) aparecen aquí al confirmar un par de métodos comparables.")
+                          "Deming) aparecen aquí al confirmar un par de métodos comparables, "
+                          "y el de cada serie cuando hay una columna de fecha.")
             hint.setWordWrap(True)
             hint.setStyleSheet("color:#64748b; padding:10px;")
             self.plot_layout.addWidget(hint)
@@ -711,6 +724,19 @@ class OmniPanel(QWidget):
                     h += (f"<tr><td>{s['nivel']}</td><td>{s['sesgo_abs']}</td>"
                           f"<td>{s['sesgo_pct'] if s['sesgo_pct'] is not None else '—'}</td></tr>")
                 h += "</table></div>"
+            if "serie" in res:
+                se = res["serie"]
+                lo, hi = se["ic95_dia"]
+                h += ("<div class='result'><b>Serie temporal:</b> "
+                      f"{se['n']} puntos, {se['desde']} a {se['hasta']} ({se['dias']:.0f} días). "
+                      f"Pendiente de Sen: {se['pendiente_sen_dia']:.4g} por día "
+                      f"(IC 95 %: {lo:.4g} a {hi:.4g}); en el período, "
+                      f"{se['cambio_en_el_periodo']:.4g}.")
+                ac = se.get("autocorrelacion")
+                if ac:
+                    h += (f" Autocorrelación (Ljung-Box, {ac['rezagos']} rezago(s)): "
+                          f"p={ac['p']}, r₁={ac['r1']}.")
+                h += "</div>"
             if "ccc" in res:
                 ic = res.get("ccc_ic95")
                 ic_txt = f" &nbsp;IC 95%: {ic[0]} a {ic[1]}" if ic else ""

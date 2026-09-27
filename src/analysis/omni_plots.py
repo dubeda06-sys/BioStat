@@ -321,6 +321,30 @@ def ccc_decomposition_figure(plot_data: dict):
     return fig
 
 
+def serie_figure(plot_data: dict):
+    """La serie contra la fecha, con la recta de Sen."""
+    import pandas as pd
+    fechas = pd.to_datetime(plot_data["fechas"])
+    dias = np.asarray(plot_data["dias"], dtype=float)
+    y = np.asarray(plot_data["y"], dtype=float)
+    pendiente, intercepto = plot_data["sen"]
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    ax.plot(fechas, y, color=_MUTED, lw=0.8, zorder=2)
+    ax.scatter(fechas, y, s=30, c=_TEAL, alpha=0.8, edgecolors="white", linewidths=0.6,
+               zorder=3)
+    ax.plot(fechas, intercepto + pendiente * dias, color=_AMBER, lw=1.8, zorder=4,
+            label=f"Pendiente de Sen = {pendiente:.3g} por día")
+    ax.set_xlabel(plot_data.get("nombre_t", "Fecha"))
+    ax.set_ylabel(plot_data.get("nombre_y", "Valor"))
+    ax.set_title(f"{plot_data.get('nombre_y', 'Valor')} en el tiempo", fontweight="bold",
+                 color=_INK)
+    ax.legend(fontsize=9, framealpha=0.9, loc="best")
+    ax.grid(True, alpha=0.25)
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
 def comparison_figures(plot_data: dict):
     """Devuelve [(titulo, Figure), ...] para un par comparado."""
     figs = []

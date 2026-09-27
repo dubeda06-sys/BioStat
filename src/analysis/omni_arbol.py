@@ -128,6 +128,8 @@ LAYOUT = {
             ("chi2", 2, 0.7),
             ("fisher", 2, 0.0),
             ("chi2_montecarlo", 2, -0.7),
+            ("mann_kendall", 1, 8.2),
+            ("autocorrelacion", 2, 8.2),
         ],
         # Las etiquetas dicen la condición completa que usa el motor: la
         # versión anterior omitía Levene en "3+, normal → ANOVA" (auditoría
@@ -151,6 +153,8 @@ LAYOUT = {
             ("?esperadas", "chi2", "sí"),
             ("?esperadas", "fisher", "no, 2×2"),
             ("?esperadas", "chi2_montecarlo", "no, mayor"),
+            ("?tipos_par", "mann_kendall", "fecha × num"),
+            ("mann_kendall", "autocorrelacion", "n ≥ 10"),
         ],
     },
     CONCORDANCIA: {

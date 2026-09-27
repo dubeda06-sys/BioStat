@@ -756,7 +756,58 @@ def _veredicto_concordancia(par, ccc, sesgo, lo, hi, u="") -> str:
 # ============================================================
 #  Entrada
 # ============================================================
+def _caso_serie(b: dict) -> Caso:
+    res = b.get("resultados", {})
+    se = res.get("serie") or {}
+    pruebas = b.get("pruebas", [])
+    pr = pruebas[0] if pruebas else {}
+    par = b.get("titulo", "").replace("Bivariado — ", "")
+    caso = Caso(
+        titulo=b.get("titulo", ""),
+        tipo="¿Cambia con el tiempo?",
+        pregunta=f"En {par}, ¿los valores suben o bajan con el tiempo, o varían al azar?",
+    )
+    if not se:
+        return caso
+    caso.pasos.append(Paso(
+        pregunta="¿Cuántas mediciones hay, y en qué período?",
+        medicion=f"{se['n']} puntos, {se['desde']} a {se['hasta']}",
+        respuesta=f"{se['dias']:.0f} días",
+        consecuencia=("Se ordenan por fecha: en una serie importa el orden, no solo "
+                      "los valores."),
+    ))
+    ac = se.get("autocorrelacion")
+    if ac:
+        rachas = ac["p"] < 0.05
+        caso.pasos.append(Paso(
+            pregunta="¿Cada valor se parece al anterior más de lo que daría el azar?",
+            medicion=f"Ljung-Box ({ac['rezagos']} rezago(s)): {_p(ac['p'])}; r₁={ac['r1']}",
+            respuesta="Sí, vienen en rachas" if rachas else "No se detecta",
+            consecuencia=("La prueba de tendencia supone mediciones independientes: con "
+                          "rachas su p sale demasiado chico, y una racha se puede leer "
+                          "como tendencia." if rachas else
+                          "La prueba de tendencia puede tomar cada punto como "
+                          "independiente."),
+            ok=not rachas,
+        ))
+    if pr:
+        lo, hi = se["ic95_dia"]
+        caso.pasos.append(Paso(
+            pregunta="¿Hay una tendencia más grande de lo que daría el azar?",
+            medicion=f"Mann-Kendall: {_p_de_la_prueba(pr)}",
+            respuesta=("Sí, hay tendencia" if pr.get("detectado")
+                       else "No alcanza para afirmarlo"),
+            consecuencia=(f"Cambia {se['pendiente_sen_dia']:.3g} por día según la "
+                          f"pendiente de Sen (IC 95 %: {lo:.3g} a {hi:.3g}); en todo "
+                          f"el período, {se['cambio_en_el_periodo']:.3g}. "
+                          + _consecuencia_del_p(pr)),
+            ok=bool(pr.get("detectado")),
+        ))
+    return caso
+
+
 _CONSTRUCTORES = {
+    "serie temporal": _caso_serie,
     "correlación": _caso_correlacion,
     "comparación de grupos": _caso_grupos,
     "tabla de contingencia": _caso_contingencia,

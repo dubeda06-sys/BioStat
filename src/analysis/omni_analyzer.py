@@ -116,8 +116,8 @@ def _classify_column(series: pd.Series, cfg: OmniConfig) -> dict:
         info["nota"] = "Columna vacía."
         return info
 
-    # Fecha
-    if pd.api.types.is_datetime64_any_dtype(s):
+    # Fecha: tipo fecha, o texto con forma de fecha (un CSV no trae el tipo)
+    if pd.api.types.is_datetime64_any_dtype(s) or _texto_de_fechas(s):
         info["tipo"] = DATETIME
         return info
 
@@ -168,6 +168,26 @@ def _classify_column(series: pd.Series, cfg: OmniConfig) -> dict:
     else:
         info["tipo"] = CATEGORICAL_NOMINAL
     return info
+
+
+def _a_fechas(serie: pd.Series) -> pd.Series:
+    """Fechas desde el tipo fecha o desde texto día/mes/año (el orden local)."""
+    if pd.api.types.is_datetime64_any_dtype(serie):
+        return serie
+    return pd.to_datetime(serie, errors="coerce", dayfirst=True, format="mixed")
+
+
+def _texto_de_fechas(s: pd.Series) -> bool:
+    """True si al menos el 90 % del texto tiene forma de fecha (25/07/2025,
+    2025-07-25) y se lee como fecha. Sin la forma, pandas lee «1» o «3» como
+    días del mes corriente."""
+    if pd.api.types.is_numeric_dtype(s) or len(s) == 0:
+        return False
+    texto = s.astype(str).str.strip()
+    forma = texto.str.match(r"^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}(\s.*)?$")
+    if forma.mean() < 0.9:
+        return False
+    return bool(_a_fechas(texto).notna().mean() >= 0.9)
 
 
 def _son_codigos(arr, n_unique: int, cfg: OmniConfig) -> bool:
@@ -437,8 +457,131 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
     if n1_cat and n2_cat:
         return _contingency(c1, s1, c2, s2, cfg, block)
 
+    # --- fecha × numérica → serie temporal ---
+    if t1 == DATETIME and n2_num:
+        return _serie_temporal(c1, s1, c2, s2, cfg, block)
+    if t2 == DATETIME and n1_num:
+        return _serie_temporal(c2, s2, c1, s1, cfg, block)
+
     block["tipo"] = "no soportado"
     block["conclusion"] = f"Combinación de tipos ({t1} × {t2}) no cubierta por el árbol."
+    return block
+
+
+# ============================================================
+#  Fecha × numérica — serie temporal
+# ============================================================
+# Menos de 5 puntos, Mann-Kendall no puede detectar nada: con n = 4 el menor
+# p bilateral posible es 2/24 = 0,083. Ljung-Box necesita más: con menos de
+# 10 puntos la autocorrelación no se distingue de la tendencia.
+SERIE_MIN_N = 5
+SERIE_MIN_N_AUTOCORR = 10
+
+
+def _serie_temporal(tcol: str, ts: pd.Series, ycol: str, ys: pd.Series,
+                    cfg: OmniConfig, block: dict) -> dict:
+    """Una numérica contra la fecha: ¿hay tendencia, y los puntos son independientes?
+
+    - Tendencia: Mann-Kendall (Mann 1945; Kendall 1975), que es la τ de Kendall
+      entre el tiempo y el valor. No supone forma ni normalidad.
+    - Cuánto cambia: pendiente de Sen (Sen 1968), la mediana de las pendientes
+      entre todos los pares de puntos, con su IC 95 %. En unidades por día.
+    - Independencia: Ljung-Box (Ljung y Box 1978) sobre los residuos de la
+      recta de Sen, en orden temporal. Mann-Kendall supone puntos
+      independientes: con autocorrelación positiva su p sale demasiado chico
+      (Hamed y Rao 1998), y una racha parece una tendencia.
+    """
+    block["tipo"] = "serie temporal"
+    df = pd.DataFrame({"t": _a_fechas(ts),
+                       "y": pd.to_numeric(ys, errors="coerce")})
+    df = df[np.isfinite(df["y"]) & df["t"].notna()].sort_values("t", kind="stable")
+    n = len(df)
+    if n < SERIE_MIN_N:
+        motivo = (f"{n} punto(s) con fecha y valor: con menos de {SERIE_MIN_N} Mann-Kendall "
+                  "no puede detectar una tendencia")
+        _descartar(block, "mann_kendall", motivo)
+        _descartar(block, "autocorrelacion", motivo)
+        block["conclusion"] = f"Serie demasiado corta: {motivo}."
+        return block
+    dias = ((df["t"] - df["t"].iloc[0]).dt.total_seconds() / 86400.0).to_numpy()
+    y = df["y"].to_numpy(dtype=float)
+    if np.ptp(dias) == 0:
+        motivo = "todas las mediciones tienen la misma fecha"
+        _descartar(block, "mann_kendall", motivo)
+        _descartar(block, "autocorrelacion", motivo)
+        block["conclusion"] = f"Sin serie: {motivo}."
+        return block
+    if np.ptp(y) == 0:
+        motivo = f"{ycol} es constante"
+        _descartar(block, "mann_kendall", motivo)
+        _descartar(block, "autocorrelacion", motivo)
+        block["conclusion"] = f"Sin serie: {motivo}."
+        return block
+
+    tau, p = stats.kendalltau(dias, y)
+    sen = stats.theilslopes(y, dias, alpha=0.95)
+    periodo = float(dias[-1])
+    serie = {
+        "n": int(n), "desde": str(df["t"].iloc[0].date()), "hasta": str(df["t"].iloc[-1].date()),
+        "dias": round(periodo, 2),
+        "tau": round(float(tau), 4),
+        "pendiente_sen_dia": float(sen.slope),
+        "ic95_dia": (float(sen.low_slope), float(sen.high_slope)),
+        "cambio_en_el_periodo": float(sen.slope * periodo),
+    }
+    block["resultados"]["serie"] = serie
+    block["resultados"]["_plot_serie"] = {
+        "fechas": [str(t) for t in df["t"]], "dias": dias.tolist(), "y": y.tolist(),
+        "sen": (float(sen.slope), float(sen.intercept)), "nombre_t": tcol,
+        "nombre_y": ycol}
+    block["traza"].append(
+        f"{n} puntos de {serie['desde']} a {serie['hasta']} ({periodo:.0f} días), ordenados "
+        f"por {tcol}.")
+    block["pruebas"].append({"prueba": "Mann-Kendall", "estadístico": round(float(tau), 4),
+                             "p": round(float(p), 4)})
+    _marcar(block, "mann_kendall", f"τ={round(float(tau), 4)}, {_p(p)}")
+    block["traza"].append(
+        f"Mann-Kendall (τ de Kendall contra el tiempo): τ={round(float(tau), 4)}, {_p(p)}. "
+        f"Pendiente de Sen: {sen.slope:.4g} por día (IC 95 % {sen.low_slope:.4g} a "
+        f"{sen.high_slope:.4g}); en el período, {sen.slope * periodo:.4g}.")
+
+    intervalos = np.diff(dias)
+    if len(intervalos) > 1 and np.mean(intervalos) > 0 and \
+            np.std(intervalos) > 0.5 * np.mean(intervalos):
+        block["advertencias"].append(
+            "Las mediciones no están espaciadas en forma pareja: la autocorrelación se "
+            "mide por orden de llegada, no por distancia en días.")
+
+    if n < SERIE_MIN_N_AUTOCORR:
+        _descartar(block, "autocorrelacion",
+                   f"{n} puntos: con menos de {SERIE_MIN_N_AUTOCORR} la autocorrelación no "
+                   "se distingue de la tendencia")
+        block["advertencias"].append(
+            f"Con {n} puntos no se puede verificar que las mediciones sean independientes: "
+            "si vienen en rachas, el p de la tendencia sale demasiado chico.")
+    else:
+        from statsmodels.stats.diagnostic import acorr_ljungbox
+        residuos = y - (sen.intercept + sen.slope * dias)
+        rezagos = max(1, min(10, n // 5))
+        lb = acorr_ljungbox(residuos, lags=[rezagos], return_df=True)
+        lb_p = float(lb["lb_pvalue"].iloc[0])
+        r1 = float(np.corrcoef(residuos[:-1], residuos[1:])[0, 1])
+        serie["autocorrelacion"] = {"r1": round(r1, 4), "rezagos": int(rezagos),
+                                    "ljung_box": round(float(lb["lb_stat"].iloc[0]), 4),
+                                    "p": round(lb_p, 4)}
+        _marcar(block, "autocorrelacion",
+                f"Ljung-Box con {rezagos} rezago(s): {_p(lb_p)}; r₁={round(r1, 3)}")
+        block["traza"].append(
+            f"Ljung-Box sobre los residuos de la recta de Sen, {rezagos} rezago(s): {_p(lb_p)} "
+            f"→ {'hay' if lb_p < cfg.ALPHA else 'no se detecta'} autocorrelación "
+            f"(r₁={round(r1, 3)}).")
+        if lb_p < cfg.ALPHA:
+            block["advertencias"].append(
+                f"Los valores consecutivos se parecen entre sí más de lo que daría el azar "
+                f"(Ljung-Box {_p(lb_p)}, r₁={round(r1, 2)}). Mann-Kendall supone mediciones "
+                "independientes: con rachas su p sale demasiado chico, y una racha puede "
+                "leerse como tendencia (Hamed y Rao 1998).")
+    _dejar_p(block, float(p))
     return block
 
 
@@ -742,9 +885,11 @@ def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:
 _QUE_SE_BUSCA = {
     "comparación de grupos": "diferencia entre los grupos",
     "tabla de contingencia": "asociación entre las categorías",
+    "serie temporal": "tendencia en el tiempo",
 }
 _SIMBOLO = {"t de Student": "t", "t de Welch": "t", "Mann-Whitney U": "U",
-            "ANOVA una vía": "F", "ANOVA de Welch": "F", "Kruskal-Wallis": "H"}
+            "ANOVA una vía": "F", "ANOVA de Welch": "F", "Kruskal-Wallis": "H",
+            "Mann-Kendall": "τ"}
 
 
 def _texto_p(p, p_adj, n_familia: int) -> str:
@@ -1569,8 +1714,10 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
 
     if profile["shape"].startswith("serie temporal"):
         report["warnings_globales"].append(
-            "Estructura temporal detectada: este árbol no cubre series de tiempo. "
-            "Análisis transversal puede no ser válido (rama futura)."
+            "Estructura temporal detectada: cada numérica se analiza además contra la "
+            "fecha (tendencia de Mann-Kendall y autocorrelación). Las pruebas "
+            "transversales suponen mediciones independientes: si la serie viene en "
+            "rachas, sus p pueden salir demasiado chicos."
         )
         _marcar(report, "perfil_temporal", "hay columna fecha/hora")
     else:
