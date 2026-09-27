@@ -278,6 +278,19 @@ def parametros_por_defecto(analisis):
     return {p.clave: p.defecto for p in PARAMETROS.get(analisis, ())}
 
 
+PARAMETROS["Deming regression"] = (
+    Parametro("lambda", "λ = var. del error de Variable 1 / de Variable 2 (1 si no se conoce)",
+              1.0, 1e-6, 1e6),
+)
+
+OPCIONES["Deming regression"] = (
+    Opcion("tipo", "Ponderación",
+           (("auto", "Automática — según cómo se abre la dispersión (EP09c §6.2)"),
+            ("constante", "Sin ponderar — DE constante"),
+            ("ponderado", "Ponderada — CV constante (EP09c, apéndice B)")),
+           "Con CV constante, sin ponderar los puntos altos arrastran la recta."),
+)
+
 OPCIONES["Poder estadistico"] = (
     Opcion("diseno", "Diseño",
            (("una", "Una muestra o datos pareados (t de una muestra)"),

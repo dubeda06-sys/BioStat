@@ -33,7 +33,7 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 957 verdes (26 sep)
+python -m pytest tests/ -q        # esperar 992 verdes (26 sep)
 python scripts/smoke_ui.py        # esperar 76/76, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -79,6 +79,33 @@ que saber:
 > Con λ = 1, que es lo que usan la UI y el Omnianálisis, no cambiaba nada. **La
 > ficha del vault `Cerebro/Proyectos/BioStat/BioStat.md` todavía dice lo
 > contrario**: corregirla (pendiente de confirmar con el usuario).
+
+## 26 sep: la familia de validación, entera en `Resultado`
+
+Paso 3 de la propuesta, cerrado. Los seis análisis de comparación de métodos
+salen de `src/resultado/constructores/comparacion.py` y el panel solo los
+muestra: Bland-Altman (con el CCC), **Passing-Bablok**, **Deming**,
+**imprecisión desde duplicados**, **ICC** y **Bland-Altman múltiple**.
+`tests/test_validacion_resultado.py` compara cada número contra el core; el
+contrato común (ficha, sin «significativo», ningún p impreso como cero) corre
+sobre todo `CONSTRUCTORES`.
+
+Cambió a propósito, y cada test lo dice en su nombre:
+
+- **Passing-Bablok** decide por los intervalos, y un intervalo de pendiente más
+  ancho que 0,5 **no concluye**. Se fue el «10 % de la media» del veredicto viejo
+  (decisión 3). Informa además el sesgo en P25/P50/P75 del comparativo (EP09c
+  §6.3), como el Omnianálisis.
+- **Deming** elige ponderar según la variabilidad de las diferencias (EP09c
+  §6.2) y acepta **λ** desde el diálogo (Parámetros) y la ponderación (Opciones).
+  Con λ = 1 lo dice, y explica cómo sacarlo de los CV de EP05.
+- **CV de duplicados**: los tres métodos de MedCalc (DE intrasujeto, raíz
+  cuadrática media, logarítmico) con IC por χ² (Bland 2006), y la variabilidad
+  decide cuál leer. El panel mostraba DE(d)/(√2·media) con la DE centrada, que no
+  es ninguno de los tres. `core/agreement.cv_duplicados`; el viejo
+  `cv_from_duplicates` queda por compatibilidad.
+- **ICC** muestra el de acuerdo absoluto y el de consistencia, explica la
+  diferencia con una t pareada y se lee por su IC con la escala de Koo y Li.
 
 ## 26 sep: arranca la envoltura `Resultado`
 
@@ -596,9 +623,11 @@ calidad. Ver su `LEEME.md`.
    referencia. La pestaña QC queda con **Estadísticas** y **Tendencias**;
    `src/core/qc/__init__.py` sigue **vacío**. Si el QC vuelve, entra por el core
    con tests contra un caso publicado, no dentro del panel.
-3. **Migrar la familia de validación a `Resultado`** antes del asistente B:
-   Passing-Bablok (veredicto por `_regresion_concluyente`), Deming, CV de
-   duplicados, ICC y Bland-Altman múltiple. Hoy solo Bland-Altman está migrado.
+3. **Siguiente: el asistente B «Validar un método»**, sobre la familia ya
+   migrada. Le falta al core: la prueba Cusum de linealidad de Passing-Bablok
+   (MedCalc la informa; EP09c no la trae, hay que tomarla de Passing y Bablok
+   1983 con su tabla) y la repetibilidad EP15, con su test contra el ejemplo de
+   la norma.
 4. Omnianálisis, de la auditoría del 26 sep: el pre-test de normalidad por
    grupo manda ~15 % de los grupos normales heterocedásticos a Kruskal-Wallis
    (falsos positivos 7,7 % en vez de 5 %); el IC jackknife del intercepto de
@@ -612,7 +641,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 957 verdes (26 sep); el número crece
+python -m pytest tests/ -q                       # 992 verdes (26 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 76/76
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

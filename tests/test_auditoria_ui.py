@@ -37,6 +37,10 @@ def _panel(df):
 
 
 def _texto(html):
+    # Los análisis migrados devuelven un Resultado; los viejos, su HTML.
+    if not isinstance(html, str):
+        from src.resultado import render_html
+        html = render_html(html)
     return unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))).strip()
 
 

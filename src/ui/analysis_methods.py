@@ -80,14 +80,15 @@ from html import escape
 
 import pandas as pd
 
-from src.core.passing_bablok import passing_bablok
 from src.core.roc import auc_delong
-from src.core.bland_altman import bland_altman_contra_referencia
 from src.core.sample_size import power_two_means
 from src.ui.analysis_specs import parametros as spec_parametros
 from src.core.survival import kaplan_meier, log_rank_test
 from src.resultado.datos import filas_completas
-from src.resultado.constructores import bland_altman
+from src.resultado.constructores import (
+    bland_altman, bland_altman_multiple, cv_duplicados, deming, icc,
+    passing_bablok as passing_bablok_resultado,
+)
 from src.resultado.lenguaje import texto_descartes
 from src.core.meta_analysis import meta_analysis
 from src.core.sample_size import (
@@ -108,8 +109,7 @@ from src.core.statistics import (
     anova_oneway, sign_test, cochran_q, pearson_r, spearman_rho, normality_test
 )
 from src.core.agreement import (
-    cohens_kappa, intraclass_correlation, cronbach_alpha,
-    weighted_kappa, deming_regression, cv_from_duplicates
+    cohens_kappa, cronbach_alpha, weighted_kappa,
 )
 from src.core.regression import linear_regression, multiple_regression, logistic_regression
 from src.core.diagnostic_tests import (
@@ -673,70 +673,23 @@ class AnalysisMethodsMixin:
         es el primer analisis migrado a `Resultado`."""
         return bland_altman(self.data, c1, c2, opciones)
 
-    # --- Passing-Bablok ---
+    # --- Comparación de métodos: la familia de validación, migrada ---
+    # Los arma src/resultado/constructores/comparacion.py. El veredicto de
+    # Passing-Bablok ya no usa el «10 % de la media» (no sale de ninguna norma):
+    # decide por los intervalos, y un intervalo ancho no concluye.
     def _passing(self, c1, c2):
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        d1, d2 = pares[c1], pares[c2]
-        n = len(pares)
-        if n < 3:
-            return "<b>Error:</b> Minimo 3 pares."
+        return passing_bablok_resultado(self.data, c1, c2)
 
-        result = passing_bablok(d1.values, d2.values)
-        if _sin_resultado(result):
-            return _msg_error(result, "No se pudo calcular.")
+    def _deming(self, c1, c2):
+        opciones = dict(getattr(self, "opciones_metodo", None) or {})
+        try:
+            opciones["lambda"] = self._param("Deming regression", "lambda")
+        except ValueError as e:
+            return f"<b>Error:</b> {e}"
+        return deming(self.data, c1, c2, opciones)
 
-        h = self._h(f" Passing-Bablok — {c1} vs {c2}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n", result["n"]),
-                      ("Pendiente (b)", f"{result['slope']:.4f}"),
-                      ("IC 95% pendiente", f"[{result['ci_slope'][0]:.4f}, {result['ci_slope'][1]:.4f}]"),
-                      ("Intercepto (a)", f"{result['intercept']:.4f}"),
-                      ("DE residuos", f"{result['se_residuals']:.4f}"),
-                      ("Correlacion r", f"{result['correlation_r']:.4f}"),
-                      ("Media Metodo 1", f"{result['method1_mean']:.4f}"),
-                      ("Media Metodo 2", f"{result['method2_mean']:.4f}")]:
-            h += self._r(l, v)
-        h += "</table>"
-
-        slope_incl1 = result["ci_slope"][0] <= 1 <= result["ci_slope"][1]
-        intercept_zero = abs(result["intercept"]) < 0.1 * result["method1_mean"]
-
-        if slope_incl1 and intercept_zero:
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#ecfdf5;border-left:3px solid #22c55e;'><b style='color:#16a34a;'> Metodos concordantes</b><br>Pendiente incluye 1 e intercepto cerca de 0.</div>"
-        else:
-            issues = []
-            if not slope_incl1:
-                issues.append(f"pendiente={result['slope']:.3f} (IC no incluye 1)")
-            if not intercept_zero:
-                issues.append(f"intercepto={result['intercept']:.3f} (no es ~0)")
-            h += f"<div style='margin-top:8px;padding:8px;border-radius:6px;background:#fef9ee;border-left:3px solid #f59e0b;'><b style='color:#d97706;'> Discordancia detectada</b><br>{'; '.join(issues)}</div>"
-
-        m1, m2 = result["method1"], result["method2"]
-        slope, intercept = result["slope"], result["intercept"]
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-        ax1.scatter(m1, m2, alpha=0.5, c='#4f6ef7', edgecolors='white', s=50)
-        xl = np.linspace(m1.min(), m1.max(), 100)
-        ax1.plot(xl, slope*xl + intercept, color='#ef4444', lw=2, label=f'y = {slope:.3f}x + {intercept:.3f}')
-        ax1.plot(xl, xl, color='#d1d5e0', ls='--', lw=1, label='Identidad (y=x)')
-        ax1.set_xlabel(c1)
-        ax1.set_ylabel(c2)
-        ax1.set_title('Passing-Bablok', fontweight='bold')
-        ax1.legend(framealpha=0.9)
-
-        ax2.scatter(m1, result["residuals"], alpha=0.5, c='#4f6ef7', edgecolors='white', s=50)
-        ax2.axhline(0, color='#ef4444', ls='--', lw=1.5)
-        ax2.set_xlabel(c1)
-        ax2.set_ylabel('Residuos')
-        ax2.set_title('Residuos', fontweight='bold')
-
-        fig.tight_layout()
-        self._show_fig(fig)
-
-        return h
+    def _cv_dup(self, c1, c2):
+        return cv_duplicados(self.data, c1, c2)
 
     # --- Kaplan-Meier ---
     def _kaplan_meier(self, time_col, event_col):
@@ -1448,41 +1401,8 @@ class AnalysisMethodsMixin:
 
     # --- ICC ---
     def _icc(self, c1, c2):
-        """ICC de dos vías, acuerdo absoluto — ICC(A,1) de McGraw y Wong (1996).
-
-        Con dos métodos o evaluadores que miden a TODOS los sujetos, el modelo es
-        de dos vías; y para concordancia interesa el acuerdo absoluto (un sesgo
-        entre métodos baja el ICC). Antes se informaba el de una vía, ICC(1,1),
-        como "ICC" a secas (auditoría 2026-09, M11).
-        """
-        if c1 not in self.data.columns or c2 not in self.data.columns:
-            return "<b>Error:</b> Columnas no encontradas."
-        pares = self._filas_completas(c1, c2)
-        d1, d2 = pares[c1], pares[c2]
-        n = len(pares)
-        if n < 3:
-            return "<b>Error:</b> Minimo 3 pares."
-        data = np.column_stack([d1.values, d2.values])
-        r = intraclass_correlation(data, model="two-way-random")
-        rc = intraclass_correlation(data, model="two-way-mixed")
-        if _sin_resultado(r):
-            return _msg_error(r, "No se pudo calcular.")
-        self._set_formula(
-            "Formula: ICC(A,1) — dos vías, acuerdo absoluto",
-            "ICC = (MS_sujetos − MS_error) / (MS_sujetos + (k−1)·MS_error + k·(MS_métodos − MS_error)/n)",
-            f"ICC = {r['icc']:.4f}\nF = {r['f']:.4f}\np = {r['p']:.6f}")
-        h = self._h(f" ICC — {escape(str(c1))} vs {escape(str(c2))}")
-        h += "<table style='font-size:12px;'>"
-        for l, v in [("n", n), ("ICC(A,1) — acuerdo absoluto", f"{r['icc']:.4f}"),
-                     ("IC 95%", f"{r['ci_low']:.4f} a {r['ci_high']:.4f}"),
-                     ("ICC(C,1) — consistencia", f"{rc['icc']:.4f}" if not _sin_resultado(rc) else "—"),
-                     ("F", f"{r['f']:.4f}"), ("p (ICC = 0)", _p_html(r['p']))]:
-            h += self._r(l, v)
-        h += "</table>"
-        h += ("<p style='font-size:11px;color:#555;'>El de acuerdo absoluto baja si un método "
-              "lee sistemáticamente más alto que el otro; el de consistencia no. Si los dos "
-              "difieren mucho, hay sesgo entre los métodos.</p>")
-        return h
+        """ICC(A,1) y ICC(C,1): lo arma el constructor de `Resultado`."""
+        return icc(self.data, c1, c2)
 
     # --- Cronbach alpha ---
     def _cronbach(self):
@@ -1922,38 +1842,6 @@ class AnalysisMethodsMixin:
                 h += self._r("Kappa ponderado", f"{result['kappa']:.4f}")
                 h += self._r("Acuerdo observado (po)", f"{result['po']:.4f}")
                 h += self._r("Acuerdo esperado (pe)", f"{result['pe']:.4f}")
-                return h + "</table>"
-
-            elif func_name == "deming":
-                if c1 is None or c2 is None:
-                    return "<b>Error:</b> Selecciona 2 columnas."
-                if c1 not in self.data.columns or c2 not in self.data.columns:
-                    return "<b>Error:</b> Columnas no encontradas."
-                pares = self._filas_completas(c1, c2)
-                x, y = pares[c1].values, pares[c2].values
-                result = deming_regression(x, y)
-                self._set_formula("Formula: Deming Regression", "y = β₀ + β₁x (ajustada para error en ambas variables)")
-                h = self._h(f" Deming Regression — {c1} vs {c2}")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("Pendiente", f"{result['slope']:.4f}")
-                h += self._r("Intercepto", f"{result['intercept']:.4f}")
-                h += self._r("R²", f"{result['r2']:.4f}")
-                return h + "</table>"
-
-            elif func_name == "cv_duplicates":
-                if c1 is None or c2 is None:
-                    return "<b>Error:</b> Selecciona 2 columnas."
-                if c1 not in self.data.columns or c2 not in self.data.columns:
-                    return "<b>Error:</b> Columnas no encontradas."
-                pares = self._filas_completas(c1, c2)
-                d1, d2 = pares[c1].values, pares[c2].values
-                result = cv_from_duplicates(d1, d2)
-                self._set_formula("Formula: CV desde Duplicatas", "d = medición 1 − medición 2;  DE intraserie = DE(d) / √2\nCV = DE intraserie / media general × 100")
-                h = self._h(f" CV desde Duplicatas")
-                h += "<table style='font-size:12px;'>"
-                h += self._r("CV duplicados", f"{result['cv_dup']:.2f}%")
-                h += self._r("Media", f"{result['mean_cv']:.4f}")
-                h += self._r("n", result['n'])
                 return h + "</table>"
 
             elif func_name == "likelihood_ratios":
@@ -2497,54 +2385,15 @@ class AnalysisMethodsMixin:
         return h
 
     def _run_bland_multi(self, c1):
-        """Bland-Altman de varios métodos contra UNO de referencia (Variable 1).
-
-        Cada método se compara con la referencia: diferencia = método −
-        referencia, graficada contra la referencia (Krouwer 2008), con los IC de
-        los límites. Antes comparaba todas las columnas contra todas, sin
-        referencia y sin IC (auditoría 2026-09, M16).
-        """
+        """Varios métodos contra UNO de referencia (Variable 1): lo arma el constructor."""
         if c1 is None or c1 not in self.data.columns:
             return "<b>Error:</b> Elegí el método de referencia en la Variable 1."
         metodos, del_dialogo = self._columnas_multi(excluir=(c1,))
-        if not metodos:
-            return "<b>Error:</b> Hace falta al menos un método para comparar con la referencia."
-        resultados = {}
-        for m in metodos:
-            pares = self._filas_completas(c1, m)
-            resultados[m] = bland_altman_contra_referencia(pares[c1].values,
-                                                            {m: pares[m].values})[m]
-        self._set_formula("Formula: Bland-Altman contra referencia",
-                          "d = método − referencia, contra la referencia (Krouwer 2008)\n"
-                          "Sesgo = media de d;  LoA = sesgo ± 1,96·DE(d)\n"
-                          "IC 95% de cada LoA = LoA ± t(n−1)·DE·√(1/n + 1,96²/(2(n−1)))")
-        h = self._h(f" Bland-Altman múltiple — referencia: {escape(str(c1))}")
-        h += ("<table style='font-size:12px;'><tr><td><b>Método</b></td><td><b>n</b></td>"
-              "<td><b>Sesgo (IC 95%)</b></td><td><b>LoA inferior (IC 95%)</b></td>"
-              "<td><b>LoA superior (IC 95%)</b></td></tr>")
-        validos = {}
-        for m, r in resultados.items():
-            if _sin_resultado(r):
-                h += f"<tr><td>{escape(str(m))}</td><td colspan='4'>{escape(r.get('error', ''))}</td></tr>"
-                continue
-            validos[m] = r
-            h += (f"<tr><td>{escape(str(m))}</td><td>{r['n']}</td>"
-                  f"<td>{r['mean_difference']:.4f} ({r['ci_mean'][0]:.4f} a {r['ci_mean'][1]:.4f})</td>"
-                  f"<td>{r['loa_lower']:.4f} ({r['ci_lower'][0]:.4f} a {r['ci_lower'][1]:.4f})</td>"
-                  f"<td>{r['loa_upper']:.4f} ({r['ci_upper'][0]:.4f} a {r['ci_upper'][1]:.4f})</td></tr>")
-        h += "</table>" + self._nota_columnas(metodos, del_dialogo)
-        if validos:
-            k = len(validos)
-            fig, ejes = plt.subplots(1, k, figsize=(5 * k, 4.5), squeeze=False, sharey=True)
-            for ax, (m, r) in zip(ejes[0], validos.items()):
-                ax.scatter(r['x_axis'], r['diffs'], alpha=0.5, c='#4f6ef7', edgecolors='white', s=40)
-                ax.axhline(r['mean_difference'], color='#22c55e', lw=2)
-                ax.axhline(r['loa_upper'], color='#ef4444', ls='--', lw=1.3)
-                ax.axhline(r['loa_lower'], color='#ef4444', ls='--', lw=1.3)
-                ax.set_title(f'{m} − {c1}', fontweight='bold')
-                ax.set_xlabel(f'{c1} (referencia)')
-            ejes[0][0].set_ylabel('Diferencia (método − referencia)')
-            fig.tight_layout()
-            self._show_fig(fig)
-        return h
-
+        res = bland_altman_multiple(self.data, c1, metodos)
+        if res.ok and not del_dialogo:
+            res.advertencias.append(
+                "Se usaron todas las columnas numéricas de la hoja como métodos: "
+                + ", ".join(str(m) for m in metodos) + ". Si alguna no corresponde (un "
+                "número de muestra, una edad), abrí el análisis desde el menú "
+                "Estadísticas y destildala.")
+        return res

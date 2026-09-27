@@ -316,6 +316,65 @@ def deming_ponderado(x, y, lambda_ratio=1.0):
             "x_mean": float(np.mean(x)), "y_mean": float(np.mean(y))}
 
 
+def cv_duplicados(x1, x2):
+    """Imprecisión a partir de mediciones duplicadas: los tres métodos de MedCalc.
+
+    - DE intrasujeto: s = √(Σd² / 2n) (Jones y Payne 1997; Synek 2008), con
+      CV = 100·s / media global. Vale cuando la DE es constante en el rango.
+    - Raíz cuadrática media: CV = 100·√(Σ(d/m)² / 2n) (Hyslop y White 2009),
+      m = media de cada par. Vale cuando el CV es constante.
+    - Logarítmico: CV = 100·(exp(√(Σ(ln x₁ − ln x₂)² / 2n)) − 1) (Bland y
+      Altman 1996; Bland 2006). También para CV constante; exige valores > 0.
+
+    IC 95 %: con n pares, s² tiene n grados de libertad, así que el IC de s es
+    s·√(n/χ²(0,975; n)) a s·√(n/χ²(0,025; n)) (Bland 2006); el de cada CV sale
+    del de su s. Un método que no aplica a estos datos devuelve None con el
+    motivo en `notas`.
+
+    `cv_from_duplicates` (DE centrada de las diferencias sobre √2 × la media)
+    queda por compatibilidad: no es ninguno de los tres.
+    """
+    x1, x2, motivo = finite_pair(x1, x2, min_n=2,
+                                 nombre_metodo="el CV a partir de duplicados")
+    if motivo:
+        return {"error": motivo}
+    n = len(x1)
+    d = x1 - x2
+    m = (x1 + x2) / 2
+    media = float(np.mean(m))
+    factor = (np.sqrt(n / stats.chi2.ppf(0.975, n)), np.sqrt(n / stats.chi2.ppf(0.025, n)))
+    notas = {}
+
+    s_w = float(np.sqrt(np.sum(d ** 2) / (2 * n)))
+    res = {"n": n, "media": media, "sesgo_replicas": float(np.mean(d)),
+           "de_intra": s_w, "ic_de_intra": (s_w * factor[0], s_w * factor[1])}
+    if media > 0:
+        res["cv_de"] = 100 * s_w / media
+        res["ic_cv_de"] = (100 * s_w * factor[0] / media, 100 * s_w * factor[1] / media)
+    else:
+        res["cv_de"] = res["ic_cv_de"] = None
+        notas["cv_de"] = "la media global no es positiva: el CV no está definido."
+
+    if np.all(m > 0):
+        s_rel = float(np.sqrt(np.sum((d / m) ** 2) / (2 * n)))
+        res["cv_rms"] = 100 * s_rel
+        res["ic_cv_rms"] = (100 * s_rel * factor[0], 100 * s_rel * factor[1])
+    else:
+        res["cv_rms"] = res["ic_cv_rms"] = None
+        notas["cv_rms"] = "hay pares con media ≤ 0: el cociente d/m no está definido."
+
+    if np.all(x1 > 0) and np.all(x2 > 0):
+        s_log = float(np.sqrt(np.sum((np.log(x1) - np.log(x2)) ** 2) / (2 * n)))
+        res["cv_log"] = 100 * (np.exp(s_log) - 1)
+        res["ic_cv_log"] = (100 * (np.exp(s_log * factor[0]) - 1),
+                            100 * (np.exp(s_log * factor[1]) - 1))
+    else:
+        res["cv_log"] = res["ic_cv_log"] = None
+        notas["cv_log"] = "hay valores ≤ 0: el logaritmo no está definido."
+    res["notas"] = notas
+    return res
+
+
 def cv_from_duplicates(d1, d2):
     """CV desde mediciones duplicadas."""
     d1, d2, motivo = finite_pair(d1, d2, min_n=3,

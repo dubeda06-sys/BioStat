@@ -2,10 +2,10 @@
 
 > **2026-09-26.** Aprobada, con las cuatro recomendaciones del final. Es el paso
 > **A** de «MedCalc pero guiado» (ver `docs/HANDOFF.md`, *Hacia dónde va*).
-> Hecho: el arreglo de pares (paso 1), el esqueleto (paso 2) y, del paso 3,
-> **Bland-Altman con el CCC** junto con `citas.py`. Falta el resto de la
-> familia de validación: Passing-Bablok, Deming, CV de duplicados, ICC y
-> Bland-Altman múltiple.
+> Hecho: el arreglo de pares (paso 1), el esqueleto (paso 2) y el paso 3
+> completo: Bland-Altman con el CCC, Passing-Bablok, Deming (con y sin
+> ponderar), imprecisión desde duplicados, ICC y Bland-Altman múltiple, en
+> `src/resultado/constructores/comparacion.py`. Lo que sigue es el asistente B.
 
 ## Qué hay hoy (leído del código, no del HANDOFF)
 

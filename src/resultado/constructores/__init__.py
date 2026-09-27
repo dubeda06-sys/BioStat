@@ -8,10 +8,18 @@ El panel los llama desde su `dispatch`; los tests, directamente.
 recorren entera: todo lo que entra acá tiene que tener ficha, no decir
 «significativo» y no imprimir un p como cero.
 """
-from src.resultado.constructores.comparacion import bland_altman
+from src.resultado.constructores.comparacion import (
+    bland_altman, bland_altman_multiple, cv_duplicados, deming, icc, passing_bablok,
+)
 
 CONSTRUCTORES = {
     "bland_altman": bland_altman,
+    "passing_bablok": passing_bablok,
+    "deming": deming,
+    "cv_duplicados": cv_duplicados,
+    "icc": icc,
+    "bland_altman_multiple": bland_altman_multiple,
 }
 
-__all__ = ["CONSTRUCTORES", "bland_altman"]
+__all__ = ["CONSTRUCTORES", "bland_altman", "bland_altman_multiple", "cv_duplicados",
+           "deming", "icc", "passing_bablok"]
