@@ -17,6 +17,19 @@ Versionado [semántico](https://semver.org/lang/es/).
 
 ---
 
+## [Sin publicar]
+
+### Cambiado
+- **EP15: el factor F del límite de verificación (UVL) sale de la tabla 7 de
+  EP15-A3**, por grados de libertad y número de muestras, con el valor impreso
+  (dos decimales). Antes se calculaba con la fórmula del apéndice B5, de la que
+  la tabla sale; la diferencia está en el tercer decimal (con 20 gl y 2
+  muestras, 1,307 contra 1,31) y en un caso al límite podía dar otro veredicto.
+  Fuera de la tabla (gl < 5 o > 34, más de 6 muestras) se usa la fórmula, y el
+  informe dice cuál se usó.
+
+---
+
 ## [1.2.0] — 2026-09-27
 
 Versión de interfaz: los números son los de la 1.1.0. Lo que cambia es cómo se

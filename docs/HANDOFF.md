@@ -889,7 +889,10 @@ calidad. Ver su `LEEME.md`.
    el caso narrado del Omnianálisis.** Queda afuera del repo: KaizenHub tiene
    su propio EP15 (`stats-engine/core/ep15_anova.py`) con dos
    diferencias con la norma: el UVL no corrige por el número de muestras y los
-   gl de s_WL salen de lo observado, no de la ρ declarada.
+   gl de s_WL salen de lo observado, no de la ρ declarada. **El usuario (experto
+   en EP15) confirmó el 27 sep que el F va de la tabla 7 de EP15-A3 (2014)**,
+   por gl y número de muestras: BioStat ya la usa (`ep15.TABLA_7`); KaizenHub
+   usa siempre la columna de una muestra. Lo de los gl sigue sin su opinión.
 4. Omnianálisis, de la auditoría del 26 sep: **cerradas el 27 sep** (K10 y el
    IC del intercepto de Deming ponderado; ver «Estado» en el informe).
 5. Omnianálisis, de julio: **cerradas el 27 sep** salvo una. Queda calibrar

@@ -73,8 +73,45 @@ def test_la_anova_coincide_con_scipy():
 
 def test_apendice_b5_factor_uvl():
     """«En un estudio con dos muestras, si df = 20, entonces X² = 34,17.»"""
-    f = factor_uvl(20, n_muestras=2)
+    from src.core.ep15 import factor_uvl_formula
+    f = factor_uvl_formula(20, n_muestras=2)
     assert f * f * 20 == pytest.approx(34.17, abs=0.005)
+
+
+def test_la_tabla_7_es_la_formula_redondeada():
+    """Las 180 celdas transcritas de la tabla 7 (EP15-A3, 2014): si una no
+    coincide con la fórmula del ap. B5 a dos decimales, está mal copiada."""
+    from src.core.ep15 import TABLA_7, factor_uvl_formula
+    assert sorted(TABLA_7) == list(range(5, 35))
+    for gl, fila in TABLA_7.items():
+        assert len(fila) == 6
+        for m, impreso in enumerate(fila, start=1):
+            assert round(factor_uvl_formula(gl, m), 2) == impreso, (gl, m)
+
+
+def test_el_factor_sale_de_la_tabla_7():
+    """A pedido del usuario: el F es el impreso en la tabla, no la fórmula."""
+    assert factor_uvl(20, n_muestras=2) == 1.31
+    assert factor_uvl(20.0, n_muestras=1) == 1.25
+    assert factor_uvl(5, n_muestras=6) == 1.76
+    assert verificar(1.0, 1.0, 20, 2)["fuente"] == "tabla 7 de EP15-A3"
+
+
+def test_en_el_limite_manda_la_tabla():
+    """Con 20 gl y 2 muestras la fórmula da F = 1,3071 y la tabla 1,31: una
+    observada de 1,308 × lo declarado se verifica con la tabla y no con la
+    fórmula. Quien sigue la norma a mano la da por verificada."""
+    from src.core.ep15 import factor_uvl_formula
+    assert factor_uvl_formula(20, 2) < 1.308 < 1.31
+    assert verificar(1.308, 1.0, 20, n_muestras=2)["verificado"]
+
+
+@pytest.mark.parametrize("df, muestras", [(4, 1), (35, 2), (60, 1), (20, 7), (20.5, 1)])
+def test_fuera_de_la_tabla_7_se_usa_la_formula(df, muestras):
+    from src.core.ep15 import factor_uvl_formula
+    v = verificar(1.0, 1.0, df, n_muestras=muestras)
+    assert v["factor"] == factor_uvl_formula(df, muestras)
+    assert v["fuente"].startswith("fórmula")
 
 
 def test_df_intralab_en_los_extremos():

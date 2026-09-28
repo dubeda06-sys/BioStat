@@ -16,7 +16,6 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from scipy import stats  # noqa: E402
 
 from src.core.ep15 import precision_ep15 as core  # noqa: E402
 from src.resultado import render_html  # noqa: E402
@@ -65,13 +64,15 @@ def test_declaracion_del_fabricante_en_cv_verificada():
 
 
 def test_por_encima_de_lo_declarado_pero_debajo_del_uvl():
-    """s_R = 1,78: declarado 1,6, UVL = 1,6·√(χ²(0,95; 20)/20) = 1,6·1,253 = 2,005."""
+    """s_R = 1,78: declarado 1,6, UVL = 1,6 · F; F = 1,25 de la tabla 7 (20 gl,
+    una muestra), no el 1,253 de la fórmula."""
     res = precision_ep15(HOJA, COLS, {"sigma_r": 1.6})
     rep = _paso(res, "repetibilidad observada")
     assert rep.respuesta == "Sí" and rep.ok
     assert "no el límite de verificación" in rep.consecuencia
-    assert _valor(res, "Límite de verificación (UVL) de la repetibilidad").valor == \
-        pytest.approx(1.6 * np.sqrt(stats.chi2.ppf(0.95, 20) / 20), rel=1e-12)
+    uvl = _valor(res, "Límite de verificación (UVL) de la repetibilidad")
+    assert uvl.valor == pytest.approx(1.6 * 1.25, rel=1e-12)
+    assert uvl.nota == "F = 1.25 (tabla 7 de EP15-A3; 20 gl, 1 muestra)"
 
 
 def test_por_encima_del_uvl_no_se_verifica():

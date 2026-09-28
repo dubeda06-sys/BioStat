@@ -109,7 +109,7 @@ def precision_ep15(df, corridas, opciones=None) -> Resultado:
         ver_r = verificar(obs_r, sigma_r, res["df_dentro"], n_muestras)
         valores += [Valor("Repetibilidad declarada", sigma_r, unidad=u),
                     Valor("Límite de verificación (UVL) de la repetibilidad", ver_r["uvl"],
-                          unidad=u, nota=f"F = {_f(ver_r['factor'])}, {ver_r['df']:g} gl")]
+                          unidad=u, nota=_nota_factor(ver_r))]
         supuestos.append(_paso_verificacion("repetibilidad", obs_r, ver_r, u))
     if sigma_wl is not None:
         if sigma_r is not None:
@@ -120,8 +120,7 @@ def precision_ep15(df, corridas, opciones=None) -> Resultado:
         ver_wl = verificar(obs_wl, sigma_wl, df_wl, n_muestras)
         valores += [Valor("Intralaboratorio declarada", sigma_wl, unidad=u),
                     Valor("Límite de verificación (UVL) intralaboratorio", ver_wl["uvl"],
-                          unidad=u, nota=f"F = {_f(ver_wl['factor'])}, {df_wl:g} gl "
-                                         f"(ρ = σWL/σR {de_donde})")]
+                          unidad=u, nota=f"{_nota_factor(ver_wl)}; ρ = σWL/σR {de_donde}")]
         supuestos.append(_paso_verificacion("precisión intralaboratorio", obs_wl, ver_wl, u))
     for nombre, ver in (("repetibilidad", ver_r), ("precisión intralaboratorio", ver_wl)):
         if ver is None:
@@ -179,6 +178,14 @@ def precision_ep15(df, corridas, opciones=None) -> Resultado:
         figuras=[Figura("Corridas", lambda: _figura_corridas(res, corridas))],
         crudo={"ep15": res, "repetibilidad": ver_r, "intralaboratorio": ver_wl,
                "veracidad": verac})
+
+
+def _nota_factor(ver) -> str:
+    """«F = 1.31 (tabla 7 de EP15-A3; 20 gl, 2 muestras)»: el F impreso lleva dos
+    decimales, como en la tabla; el de la fórmula, tres."""
+    dec = 2 if ver["fuente"].startswith("tabla") else 3
+    muestras = f"{ver['n_muestras']} muestra" + ("s" if ver["n_muestras"] > 1 else "")
+    return f"F = {_f(ver['factor'], dec)} ({ver['fuente']}; {ver['df']:g} gl, {muestras})"
 
 
 def _rango(replicas) -> str:

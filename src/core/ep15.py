@@ -136,12 +136,72 @@ def df_intralab(rho: float, corridas: int, n0: float, n: int) -> float:
     return float(round(num / den))
 
 
-def factor_uvl(df: float, n_muestras: int = 1, alpha: float = 0.05) -> float:
+# CLSI EP15-A3 (2014), tabla 7: factor F del límite superior de verificación
+# (UVL = F · σ declarada), por grados de libertad (filas, 5 a 34) y número de
+# muestras (columnas, 1 a 6), α = 0,05. Cada celda es la fórmula del ap. B5
+# redondeada a dos decimales (test_ep15 lo comprueba celda por celda). Se usa
+# el valor impreso, no la fórmula, a pedido del usuario (experto en EP15, 27
+# sep): el UVL tiene que ser el mismo que calcula a mano quien sigue la norma,
+# y en un caso al límite el tercer decimal de la fórmula podía dar vuelta el
+# veredicto.
+TABLA_7 = {
+    5: (1.49, 1.60, 1.66, 1.71, 1.74, 1.76),
+    6: (1.45, 1.55, 1.61, 1.65, 1.67, 1.70),
+    7: (1.42, 1.51, 1.56, 1.60, 1.62, 1.65),
+    8: (1.39, 1.48, 1.53, 1.56, 1.58, 1.60),
+    9: (1.37, 1.45, 1.50, 1.53, 1.55, 1.57),
+    10: (1.35, 1.43, 1.47, 1.50, 1.52, 1.54),
+    11: (1.34, 1.41, 1.45, 1.48, 1.50, 1.52),
+    12: (1.32, 1.39, 1.43, 1.46, 1.48, 1.49),
+    13: (1.31, 1.38, 1.42, 1.44, 1.46, 1.47),
+    14: (1.30, 1.37, 1.40, 1.42, 1.44, 1.46),
+    15: (1.29, 1.35, 1.39, 1.41, 1.43, 1.44),
+    16: (1.28, 1.34, 1.38, 1.40, 1.41, 1.43),
+    17: (1.27, 1.33, 1.36, 1.39, 1.40, 1.41),
+    18: (1.27, 1.32, 1.35, 1.37, 1.39, 1.40),
+    19: (1.26, 1.31, 1.34, 1.36, 1.38, 1.39),
+    20: (1.25, 1.31, 1.34, 1.36, 1.37, 1.38),
+    21: (1.25, 1.30, 1.33, 1.35, 1.36, 1.37),
+    22: (1.24, 1.29, 1.32, 1.34, 1.35, 1.36),
+    23: (1.24, 1.29, 1.31, 1.33, 1.35, 1.36),
+    24: (1.23, 1.28, 1.31, 1.32, 1.34, 1.35),
+    25: (1.23, 1.28, 1.30, 1.32, 1.33, 1.34),
+    26: (1.22, 1.27, 1.30, 1.31, 1.32, 1.34),
+    27: (1.22, 1.26, 1.29, 1.31, 1.32, 1.33),
+    28: (1.22, 1.26, 1.28, 1.30, 1.31, 1.32),
+    29: (1.21, 1.26, 1.28, 1.30, 1.31, 1.32),
+    30: (1.21, 1.25, 1.27, 1.29, 1.30, 1.31),
+    31: (1.20, 1.25, 1.27, 1.29, 1.30, 1.31),
+    32: (1.20, 1.24, 1.27, 1.28, 1.29, 1.30),
+    33: (1.20, 1.24, 1.26, 1.28, 1.29, 1.30),
+    34: (1.20, 1.24, 1.26, 1.27, 1.28, 1.29),
+}
+
+
+def factor_uvl_formula(df: float, n_muestras: int = 1, alpha: float = 0.05) -> float:
     """F = √(χ²(1 − α/nMuestras; df) / df)  (EP15-A3, ap. B5).
 
     Ejemplo de la norma: dos muestras, df = 20 → χ² = 34,17.
     """
     return math.sqrt(stats.chi2.ppf(1 - alpha / n_muestras, df) / df)
+
+
+def _celda_tabla_7(df: float, n_muestras: int, alpha: float):
+    """El F impreso en la tabla 7, o None si el caso no está en la tabla."""
+    if alpha != 0.05 or float(df) != int(df):
+        return None
+    fila = TABLA_7.get(int(df))
+    if fila is None or not 1 <= n_muestras <= len(fila):
+        return None
+    return fila[n_muestras - 1]
+
+
+def factor_uvl(df: float, n_muestras: int = 1, alpha: float = 0.05) -> float:
+    """El F del UVL: el de la tabla 7 de EP15-A3 si gl y muestras están en ella
+    (gl 5 a 34, 1 a 6 muestras, α = 0,05); fuera de la tabla, la fórmula del
+    ap. B5, de la que la tabla sale."""
+    celda = _celda_tabla_7(df, n_muestras, alpha)
+    return celda if celda is not None else factor_uvl_formula(df, n_muestras, alpha)
 
 
 def verificar(s_obs: float, declarado: float, df: float, n_muestras: int = 1,
@@ -151,11 +211,15 @@ def verificar(s_obs: float, declarado: float, df: float, n_muestras: int = 1,
     Si no la supera, está verificada sin más. Si la supera, todavía puede ser
     azar: se compara con el límite superior de verificación, UVL = F·declarado,
     el percentil 95 de lo que daría un estudio de este tamaño si la declaración
-    fuera cierta.
+    fuera cierta. `fuente` dice de dónde salió F: la tabla 7 o, fuera de ella,
+    la fórmula.
     """
+    tabla = _celda_tabla_7(df, n_muestras, alpha) is not None
     f = factor_uvl(df, n_muestras, alpha)
     uvl = f * declarado
     return {"declarado": declarado, "df": df, "factor": f, "uvl": uvl,
+            "fuente": "tabla 7 de EP15-A3" if tabla else "fórmula del ap. B5 (fuera de la tabla 7)",
+            "n_muestras": n_muestras,
             "debajo": s_obs <= declarado, "verificado": s_obs <= uvl}
 
 
