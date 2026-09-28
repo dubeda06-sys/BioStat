@@ -497,3 +497,50 @@ OPCIONES["Poder estadistico"] = (
             ("dos", "Dos grupos independientes (t de dos muestras)")),
            "Con dos grupos, n es el tamaño de CADA grupo."),
 )
+
+
+# ---------------- Secciones del diálogo ----------------
+# Los análisis con muchos campos los agrupan: sin esto, «Validar un método» era
+# una lista de 13 campos y el diálogo medía 1150 px, más que la pantalla de una
+# notebook (los botones quedaban afuera). Cada sección nombra claves de
+# OPCIONES y PARAMETROS, y "multi" para la lista de columnas. `requiere_lista`:
+# la sección se apaga mientras la lista no tenga nada tildado (lo declarado por
+# el fabricante no sirve sin corridas).
+
+@dataclass(frozen=True)
+class Seccion:
+    titulo: str
+    claves: tuple
+    ayuda: str = ""
+    requiere_lista: bool = False
+
+
+_FABRICANTE = ("declaracion", "sigma_r", "sigma_wl", "n_muestras")
+_VALOR_ASIGNADO = ("valor_asignado", "incertidumbre", "u", "k", "n_lab")
+
+SECCIONES = {
+    "Validar un método": (
+        Seccion("Criterio del veredicto", ("escala_permitido", "sesgo_permitido", "tea"),
+                "Sin sesgo permitido ni TEa se informa el sesgo, pero no hay veredicto."),
+        Seccion("Niveles de decisión médica", ("nivel_1", "nivel_2", "nivel_3"),
+                "Vacíos = los cuartiles del método en uso."),
+        Seccion("Recta de Deming", ("lambda",)),
+        Seccion("Precisión por EP15 (opcional)", ("multi",)),
+        Seccion("Lo que declara el fabricante", _FABRICANTE,
+                "Se habilita al tildar al menos una corrida.", requiere_lista=True),
+        Seccion("Valor asignado del material", _VALOR_ASIGNADO,
+                "Se habilita al tildar al menos una corrida.", requiere_lista=True),
+    ),
+    "Precisión EP15": (
+        Seccion("Corridas", ("multi",)),
+        Seccion("Lo que declara el fabricante", _FABRICANTE,
+                "Vacío = solo se estima la precisión."),
+        Seccion("Valor asignado del material", _VALOR_ASIGNADO,
+                "Vacío = no se estima el sesgo."),
+    ),
+}
+
+
+def secciones(analisis):
+    return SECCIONES.get(analisis, ())
+

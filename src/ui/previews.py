@@ -38,27 +38,27 @@ _cache_png = {}
 # Que muestra cada familia, en una linea
 # --------------------------------------------------------------------------
 DESCRIPCION = {
-    "histograma": "Distribucion de una variable, con su media.",
-    "caja": "Comparacion de la dispersion entre grupos.",
+    "histograma": "Distribución de una variable, con su media.",
+    "caja": "Comparación de la dispersión entre grupos.",
     "pares": "Cada sujeto medido dos veces: se mira el cambio.",
-    "dispersion": "Relacion entre dos variables.",
+    "dispersion": "Relación entre dos variables.",
     "ajuste": "Nube de puntos con la recta ajustada y su banda.",
-    "bland_altman": "Diferencia contra promedio, con sesgo y limites de acuerdo.",
-    "regresion_metodos": "Recta de un metodo contra el otro, frente a la identidad.",
-    "mountain": "Distribucion acumulada plegada de las diferencias.",
+    "bland_altman": "Diferencia contra promedio, con sesgo y límites de acuerdo.",
+    "regresion_metodos": "Recta de un método contra el otro, frente a la identidad.",
+    "mountain": "Distribución acumulada plegada de las diferencias.",
     "youden": "Un punto por laboratorio: sesgo en los dos niveles a la vez.",
     "polar": "Diferencias en coordenadas polares.",
     "waterfall": "Un caso por barra, ordenados de mayor a menor.",
-    "roc": "Sensibilidad contra 1-especificidad; el area es el rendimiento.",
-    "supervivencia": "Proporcion que sigue libre de evento a lo largo del tiempo.",
-    "contingencia": "Frecuencias por categoria en dos grupos.",
-    "cuadricula": "Tabla 2x2 de acuerdo entre dos clasificaciones.",
-    "bosque": "Un estudio por linea, con su IC y el resumen combinado.",
-    "bootstrap": "Distribucion de la remuestra, con el IC del percentil.",
-    "tamano": "Cuanto n hace falta segun el tamano del efecto.",
+    "roc": "Sensibilidad contra 1 − especificidad; el área es el rendimiento.",
+    "supervivencia": "Proporción que sigue libre de evento a lo largo del tiempo.",
+    "contingencia": "Frecuencias por categoría en dos grupos.",
+    "cuadricula": "Tabla 2×2 de acuerdo entre dos clasificaciones.",
+    "bosque": "Un estudio por línea, con su IC y el resumen combinado.",
+    "bootstrap": "Distribución de las remuestras, con su IC.",
+    "tamano": "Cuánto n hace falta según el tamaño del efecto.",
     "importancia": "Peso de cada variable en el modelo.",
     "serie": "Mediciones repetidas en el tiempo.",
-    "tabla": "Salida numerica: este analisis no dibuja un grafico.",
+    "tabla": "Salida numérica: este análisis no dibuja un gráfico.",
 }
 
 
@@ -283,19 +283,19 @@ DIBUJOS = {
 # --------------------------------------------------------------------------
 # Por grupo del menu (src/ui/menus.py); las excepciones van en POR_ANALISIS.
 POR_GRUPO = {
-    "Resumen y distribucion": "histograma",
-    "Correlacion": "dispersion",
-    "Regresion": "ajuste",
-    "Comparacion de medias": "caja",
+    "Resumen y distribución": "histograma",
+    "Correlación": "dispersion",
+    "Regresión": "ajuste",
+    "Comparación de medias": "caja",
     "ANOVA": "caja",
-    "Pruebas no parametricas": "caja",
+    "Pruebas no paramétricas": "caja",
     "Proporciones y tablas de contingencia": "contingencia",
     "Concordancia y confiabilidad": "cuadricula",
-    "Comparacion de metodos": "bland_altman",
+    "Comparación de métodos": "bland_altman",
     "Curvas ROC": "roc",
-    "Analisis de supervivencia": "supervivencia",
+    "Análisis de supervivencia": "supervivencia",
     "Valores de referencia": "histograma",
-    "Tamano de muestra y poder": "tamano",
+    "Tamaño de muestra y poder": "tamano",
     "Remuestreo (bootstrap)": "bootstrap",
     "Machine learning": "importancia",
 }
@@ -400,10 +400,11 @@ def pixmap(analisis):
 
 
 def tooltip(analisis, ayuda=""):
+    from src.ui.menus import nombre_visible
     """Tooltip enriquecido: la miniatura arriba y el texto abajo."""
     ruta = ruta_png(analisis).replace("\\", "/")
     texto = ayuda or ""
     if len(texto) > 260:
         texto = texto[:259] + "…"
     return (f"<div style='max-width:320px'><img src='file:///{ruta}'><br>"
-            f"<b>{analisis}</b><br>{texto}</div>")
+            f"<b>{nombre_visible(analisis)}</b><br>{texto}</div>")

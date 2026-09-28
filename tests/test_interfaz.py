@@ -134,3 +134,67 @@ def test_editar_una_celda_con_coma_guarda_un_numero(qt_app):
     d.table.setItem(0, 0, QTableWidgetItem("99,75"))
     assert d.data.iloc[0, 0] == 99.75
     assert d.table.item(1, 0).text() == str(_hoja().iloc[1, 0])   # el valor entero, sin redondear
+
+
+# ---------------- el diálogo ----------------
+
+_COLS = ["Glucosa_A", "Glucosa_B", "Grupo", "Edad", "Día 1", "Día 2", "Día 3"]
+
+
+def _dialogo(nombre):
+    from src.ui.dialogs import DialogoAnalisis
+    return DialogoAnalisis(nombre, _COLS, columnas_numericas=[c for c in _COLS if c != "Grupo"])
+
+
+def test_validar_un_metodo_entra_en_la_pantalla(qt_app):
+    """Medía 1150 px: en una notebook los botones quedaban afuera."""
+    d = _dialogo("Validar un método")
+    d.show()
+    limite = d.screen().availableGeometry().height()
+    assert d.height() <= limite
+    d.close()
+
+
+def test_validar_un_metodo_va_por_secciones(qt_app):
+    d = _dialogo("Validar un método")
+    assert list(d.secciones) == [
+        "Criterio del veredicto", "Niveles de decisión médica", "Recta de Deming",
+        "Precisión por EP15 (opcional)", "Lo que declara el fabricante",
+        "Valor asignado del material"]
+    caja = d.secciones["Criterio del veredicto"]
+    assert d.inputs_parametro["tea"].parent() is caja
+
+
+def test_lo_de_ep15_se_prende_al_tildar_una_corrida(qt_app):
+    from PyQt6.QtCore import Qt
+    d = _dialogo("Validar un método")
+    fabricante = d.secciones["Lo que declara el fabricante"]
+    asignado = d.secciones["Valor asignado del material"]
+    assert not fabricante.isEnabled() and not asignado.isEnabled()
+    d.lista_columnas.item(3).setCheckState(Qt.CheckState.Checked)
+    assert fabricante.isEnabled() and asignado.isEnabled()
+    d.lista_columnas.item(3).setCheckState(Qt.CheckState.Unchecked)
+    assert not fabricante.isEnabled()
+
+
+def test_cada_campo_de_una_seccion_existe_y_ninguno_queda_afuera():
+    from src.ui.analysis_specs import SECCIONES, multi, opciones, parametros
+    for analisis, secs in SECCIONES.items():
+        claves = [c for s in secs for c in s.claves]
+        propias = ([o.clave for o in opciones(analisis)] + [p.clave for p in parametros(analisis)]
+                   + (["multi"] if multi(analisis) else []))
+        assert sorted(claves) == sorted(propias), analisis
+        assert len(claves) == len(set(claves)), analisis
+
+
+def test_la_seleccion_sigue_igual_con_secciones(qt_app):
+    d = _dialogo("Validar un método")
+    d.inputs_parametro["tea"].setText("10")
+    sel = d.seleccion()
+    assert sel["parametros"]["tea"] == "10"
+    assert sel["columnas"] == []          # sin tildar: sin corridas
+
+
+def test_el_titulo_es_el_nombre_en_castellano(qt_app):
+    d = _dialogo("Diagnostic test")
+    assert d.windowTitle() == "Evaluación de una prueba diagnóstica"

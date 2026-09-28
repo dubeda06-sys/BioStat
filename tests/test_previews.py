@@ -76,3 +76,12 @@ def test_el_tooltip_recorta_la_ayuda_larga():
     html = previews.tooltip("Bland-Altman", "x" * 900)
     assert "…" in html
     assert "x" * 900 not in html
+
+
+def test_todo_submenu_tiene_su_familia():
+    """POR_GRUPO busca por el NOMBRE del submenú. Al ponerle tildes a los menús
+    (27 sep) dejó de encontrarlos y casi todo cayó a «salida numérica» sin que
+    nada fallara."""
+    from src.ui.menus import MENU_ESTADISTICAS
+    faltan = [grupo for grupo, _ in MENU_ESTADISTICAS if grupo not in previews.POR_GRUPO]
+    assert faltan == []

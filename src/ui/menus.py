@@ -18,44 +18,44 @@ analisis inexistente y que ningun analisis quede sin entrada de menu.
 
 # Menu "Estadisticas": (submenu, [(etiqueta, texto_del_combo), ...])
 MENU_ESTADISTICAS = [
-    ("Resumen y distribucion", [
-        ("Estadisticas descriptivas", "Estadisticas descriptivas"),
-        ("Asimetria y curtosis", "Asimetria y curtosis"),
+    ("Resumen y distribución", [
+        ("Estadísticas descriptivas", "Estadisticas descriptivas"),
+        ("Asimetría y curtosis", "Asimetria y curtosis"),
         ("Tabla de percentiles", "Tabla de percentiles"),
         ("Media recortada", "Media recortada"),
-        ("Media geometrica", "Media geometrica"),
-        ("Media armonica", "Media armonica"),
+        ("Media geométrica", "Media geometrica"),
+        ("Media armónica", "Media armonica"),
         ("Prueba de normalidad (Shapiro-Wilk)", "Shapiro-Wilk"),
-        ("Valores atipicos - Grubbs", "Outliers (Grubbs)"),
-        ("Valores atipicos - Tukey (IQR)", "Outliers (Tukey)"),
-        ("Valores atipicos - ESD generalizado", "Outliers (ESD)"),
+        ("Valores atípicos - Grubbs", "Outliers (Grubbs)"),
+        ("Valores atípicos - Tukey (IQR)", "Outliers (Tukey)"),
+        ("Valores atípicos - ESD generalizado", "Outliers (ESD)"),
     ]),
-    ("Correlacion", [
-        ("Correlacion de Pearson", "Correlacion de Pearson"),
-        ("Correlacion de Spearman", "Correlacion de Spearman"),
-        ("Correlacion parcial", "Correlacion parcial"),
+    ("Correlación", [
+        ("Correlación de Pearson", "Correlacion de Pearson"),
+        ("Correlación de Spearman", "Correlacion de Spearman"),
+        ("Correlación parcial", "Correlacion parcial"),
     ]),
-    ("Regresion", [
-        ("Regresion lineal", "Regresion lineal"),
-        ("Regresion multiple", "Regresion multiple"),
-        ("Regresion logistica", "Regresion logistica"),
-        ("Regresion probit", "Probit regression"),
+    ("Regresión", [
+        ("Regresión lineal", "Regresion lineal"),
+        ("Regresión múltiple", "Regresion multiple"),
+        ("Regresión logística", "Regresion logistica"),
+        ("Regresión probit", "Probit regression"),
     ]),
-    ("Comparacion de medias", [
+    ("Comparación de medias", [
         ("t de Student - 1 muestra", "t-test 1 muestra"),
         ("t de Student - muestras pareadas", "t-test pareado"),
         ("t de Student - muestras independientes", "t-test independiente"),
         ("Comparar 2 medias (resumidas)", "Comparar 2 medias"),
-        ("Razon de varianzas (F)", "F-test (varianzas)"),
+        ("Razón de varianzas (F)", "F-test (varianzas)"),
     ]),
     ("ANOVA", [
-        ("ANOVA de una via", "ANOVA una via"),
-        ("ANOVA de una via (core)", "ANOVA una via (core)"),
-        ("ANOVA de dos vias", "ANOVA dos vias"),
+        ("ANOVA de una vía", "ANOVA una via"),
+        ("ANOVA de una vía (core)", "ANOVA una via (core)"),
+        ("ANOVA de dos vías", "ANOVA dos vias"),
         ("ANCOVA", "ANCOVA"),
         ("Medidas repetidas", "Medidas repetidas"),
     ]),
-    ("Pruebas no parametricas", [
+    ("Pruebas no paramétricas", [
         ("Mann-Whitney U", "Mann-Whitney U"),
         ("Wilcoxon pareado", "Wilcoxon pareado"),
         ("Kruskal-Wallis", "Kruskal-Wallis"),
@@ -75,64 +75,64 @@ MENU_ESTADISTICAS = [
     ("Concordancia y confiabilidad", [
         ("Kappa de Cohen", "Kappa"),
         ("Kappa ponderado", "Kappa ponderado"),
-        ("Coeficiente de correlacion intraclase (ICC)", "ICC"),
+        ("Coeficiente de correlación intraclase (ICC)", "ICC"),
         ("Alfa de Cronbach", "Cronbach alfa"),
         ("CV a partir de duplicados", "CV duplicatas"),
     ]),
-    ("Comparacion de metodos", [
+    ("Comparación de métodos", [
         ("Validar un método (asistente EP09c + EP15)", "Validar un método"),
         ("Bland-Altman", "Bland-Altman"),
         ("Bland-Altman múltiple", "Bland-Altman múltiple"),
-        ("Regresion de Passing-Bablok", "Passing-Bablok"),
-        ("Regresion de Deming", "Deming regression"),
+        ("Regresión de Passing-Bablok", "Passing-Bablok"),
+        ("Regresión de Deming", "Deming regression"),
         ("Precisión y veracidad (EP15)", "Precisión EP15"),
         ("Mountain plot", "Mountain plot"),
-        ("Grafico de Youden", "Youden plot"),
-        ("Grafico polar", "Polar plot"),
-        ("Grafico de cascada", "Waterfall chart"),
+        ("Gráfico de Youden", "Youden plot"),
+        ("Gráfico polar", "Polar plot"),
+        ("Gráfico de cascada", "Waterfall chart"),
     ]),
     ("Curvas ROC", [
         ("Curva ROC", "Curva ROC"),
         ("Comparar 2 curvas ROC (AUC)", "Comparar 2 AUC"),
     ]),
-    ("Analisis de supervivencia", [
+    ("Análisis de supervivencia", [
         ("Kaplan-Meier", "Kaplan-Meier"),
         ("Log-rank", "Log-rank test"),
-        ("Regresion de Cox", "Cox regression"),
+        ("Regresión de Cox", "Cox regression"),
     ]),
     ("Valores de referencia", [
         ("Intervalos de referencia", "Intervalos de referencia"),
         ("Intervalos por edad", "Edad-relacionada"),
     ]),
-    ("Tamano de muestra y poder", [
-        ("Tamano muestral - 1 media", "Tamano muestral (1 media)"),
-        ("Tamano muestral - 2 medias", "Tamano muestral (2 medias)"),
-        ("Tamano muestral - 2 proporciones", "Tamano muestral (2 proporciones)"),
-        ("Tamaño muestral - correlacion", "Tamaño muestral (correlacion)"),
-        ("Poder estadistico", "Poder estadistico"),
+    ("Tamaño de muestra y poder", [
+        ("Tamaño muestral - 1 media", "Tamano muestral (1 media)"),
+        ("Tamaño muestral - 2 medias", "Tamano muestral (2 medias)"),
+        ("Tamaño muestral - 2 proporciones", "Tamano muestral (2 proporciones)"),
+        ("Tamaño muestral - correlación", "Tamaño muestral (correlacion)"),
+        ("Poder estadístico", "Poder estadistico"),
     ]),
     ("Remuestreo (bootstrap)", [
         ("Bootstrap de la media", "Bootstrap (media)"),
         ("Bootstrap de la mediana", "Bootstrap (mediana)"),
         ("Bootstrap de la diferencia", "Bootstrap (diferencia)"),
-        ("Bootstrap de la correlacion", "Bootstrap (correlacion)"),
-        ("Bootstrap de la regresion", "Bootstrap (regresion)"),
+        ("Bootstrap de la correlación", "Bootstrap (correlacion)"),
+        ("Bootstrap de la regresión", "Bootstrap (regresion)"),
     ]),
     ("Machine learning", [
-        ("Random Forest - clasificacion", "Random Forest (clasificacion)"),
-        ("Random Forest - regresion", "Random Forest (regresion)"),
+        ("Random Forest - clasificación", "Random Forest (clasificacion)"),
+        ("Random Forest - regresión", "Random Forest (regresion)"),
     ]),
 ]
 
 # Analisis que no pertenecen a ninguna familia: van sueltos al pie del menu.
 ESTADISTICAS_SUELTAS = [
-    ("Meta-analisis", "Meta-analisis"),
+    ("Meta-análisis", "Meta-analisis"),
     ("Mediciones seriales", "Mediciones seriales"),
 ]
 
 # Menu "Pruebas diagnosticas" (el menu "Tests" de MedCalc).
 MENU_PRUEBAS = [
-    ("Evaluacion de una prueba diagnostica", "Diagnostic test"),
+    ("Evaluación de una prueba diagnóstica", "Diagnostic test"),
     ("Razones de verosimilitud", "Likelihood Ratios"),
 ]
 
@@ -140,8 +140,8 @@ MENU_PRUEBAS = [
 MENU_GRAFICOS = [
     ("Histograma", "Histograma"),
     ("Diagrama de caja", "Diagrama de caja"),
-    ("Diagrama de dispersion", "Dispersion"),
-    ("Grafico de barras", "Barras"),
+    ("Diagrama de dispersión", "Dispersion"),
+    ("Gráfico de barras", "Barras"),
     ("Serie temporal", "Serie temporal"),
 ]
 
@@ -152,3 +152,18 @@ def analisis_referenciados():
     nombres += [combo for _, combo in ESTADISTICAS_SUELTAS]
     nombres += [combo for _, combo in MENU_PRUEBAS]
     return nombres
+
+
+def nombre_visible(combo_text):
+    """El nombre que lee el usuario: la etiqueta del menú, con tildes. La clave
+    del combo («Diagnostic test», «Tamano muestral (1 media)») es interna; antes
+    era el título del diálogo y de la ventana del informe."""
+    for _, items in MENU_ESTADISTICAS:
+        for etiqueta, combo in items:
+            if combo == combo_text:
+                return etiqueta
+    for etiqueta, combo in ESTADISTICAS_SUELTAS + MENU_PRUEBAS + MENU_GRAFICOS:
+        if combo == combo_text:
+            return etiqueta
+    return combo_text
+
