@@ -125,6 +125,122 @@ def test_escribir_con_coma_deja_la_columna_numerica(qt_app):
     assert df["Var1"].tolist()[:2] == [12.5, 13.0] and df["Var1"].tolist()[-1] == 14.25
 
 
+@pytest.mark.parametrize("valores, rotulo", [
+    ([1.5, 2.25, np.nan, 3.75, 4.5, 5.0, 6.5, 7.25, 8.0, 9.5, 10.25, 11.0, 12.75], "numérica · 1 vacía"),
+    ([1, 2, 3, 1, 2, 3, 1, 2, 3, 1.0], "códigos 1–3"),
+    (["05/01/2026", "06/01/2026", "07/01/2026"], "fecha"),
+    (["Control", "Diabetes", "Otro", None, None], "categórica · 2 vacías"),
+    (["Sí", "No", "Sí"], "binaria"),
+])
+def test_el_tipo_de_columna_es_el_del_omnianalisis(valores, rotulo):
+    from src.ui.data_panel import tipo_en_la_hoja
+    corto, ayuda = tipo_en_la_hoja(pd.Series(valores))
+    assert corto == rotulo
+    assert "Omnianálisis" in ayuda
+
+
+def test_una_columna_vacia_no_lleva_tipo():
+    from src.ui.data_panel import tipo_en_la_hoja
+    assert tipo_en_la_hoja(pd.Series([np.nan, np.nan])) is None
+
+
+def _hoja_con_huecos():
+    df = _hoja()
+    df.loc[[2, 5], "Glucosa_B"] = np.nan
+    return df
+
+
+def _cargada(qt_app, df):
+    from src.ui.data_panel import DataPanel
+    d = DataPanel()
+    d.data = df
+    d._populate_table()
+    return d
+
+
+def test_el_encabezado_dice_el_tipo_y_los_vacios_sin_ensuciar_el_nombre(qt_app):
+    d = _cargada(qt_app, _hoja_con_huecos())
+    textos = [d.table.horizontalHeaderItem(i).text() for i in range(4)]
+    assert textos[0] == "A  Glucosa_A\nnumérica"
+    assert textos[1] == "B  Glucosa_B\nnumérica · 2 vacías"
+    assert textos[2] == "C  Grupo\nbinaria"
+    assert d.nombres_de_columna() == ["Glucosa_A", "Glucosa_B", "Grupo", "Edad"]
+    assert "Omnianálisis" in d.table.horizontalHeaderItem(1).toolTip()
+
+
+def test_las_celdas_vacias_se_ven(qt_app):
+    from PyQt6.QtCore import Qt
+    from src.ui.data_panel import FONDO_FALTANTE
+    d = _cargada(qt_app, _hoja_con_huecos())
+    assert d.table.item(2, 1).background().color() == FONDO_FALTANTE
+    assert d.table.item(3, 1).background().style() == Qt.BrushStyle.NoBrush
+    d.table.item(2, 1).setText("101,5")                          # se completa
+    assert d.data.iloc[2, 1] == 101.5
+    assert d.table.item(2, 1).background().style() == Qt.BrushStyle.NoBrush
+    assert d.table.horizontalHeaderItem(1).text().endswith("numérica · 1 vacía")
+
+
+def test_con_el_tema_puesto_la_celda_vacia_se_pinta(qt_app):
+    """La regla `QTableWidget::item` del tema hace que Qt no pinte el fondo de
+    la celda: sin el delegado, el fondo quedaba en el modelo y no en pantalla."""
+    from src.ui.data_panel import FONDO_FALTANTE
+    from src.ui.styles import MAIN_STYLE
+    d = _cargada(qt_app, _hoja_con_huecos())
+    d.setStyleSheet(MAIN_STYLE)
+    d.resize(900, 500)
+    d.show()
+    qt_app.processEvents()
+    centro = d.table.visualItemRect(d.table.item(2, 1)).center()
+    assert d.table.viewport().grab().toImage().pixelColor(centro) == FONDO_FALTANTE
+    d.close()
+
+
+def test_vaciar_una_celda_deja_un_faltante_y_la_columna_numerica(qt_app):
+    """Antes quedaba "" y la columna entera pasaba a texto."""
+    d = _cargada(qt_app, _hoja())
+    d.table.item(0, 0).setText("")
+    assert np.isnan(d.data.iloc[0, 0])
+    assert d.data["Glucosa_A"].dtype == float
+    assert d.table.item(0, 0).background().color().name() == "#fbeccc"
+
+
+def test_un_texto_en_una_columna_numerica_se_ve_en_el_encabezado(qt_app):
+    import warnings
+    d = _cargada(qt_app, _hoja())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")                 # pandas 3 falla donde 2 avisa
+        d.table.item(0, 3).setText("ochenta")
+    assert d.table.horizontalHeaderItem(3).text().endswith("categórica")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        d.table.item(0, 3).setText("80")               # se corrige
+    assert d.data["Edad"].dtype == float
+    assert "numérica" in d.table.horizontalHeaderItem(3).text()
+
+
+def test_lo_escrito_en_una_fila_agregada_no_se_pierde(qt_app):
+    from PyQt6.QtWidgets import QTableWidgetItem
+    d = _cargada(qt_app, _hoja())
+    d._add_row()
+    d.table.setItem(40, 0, QTableWidgetItem("123"))
+    assert len(d.data) == 41 and d.data.iloc[40, 0] == 123.0
+    assert np.isnan(d.data.iloc[40, 1])
+
+
+def test_escrita_a_mano_una_celda_vacia_es_un_faltante(qt_app):
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from src.ui.data_panel import DataPanel
+    d = DataPanel()
+    for fila, (a, b) in enumerate([("1,5", "x"), ("2", ""), ("3,25", "y")]):
+        d.table.setItem(fila, 0, QTableWidgetItem(a))
+        d.table.setItem(fila, 1, QTableWidgetItem(b))
+    df = d.get_data()
+    assert df["Var2"].isna().tolist() == [False, True, False]
+    # Tres valores distintos: el Omnianálisis pide confirmar si es numérica.
+    assert d.table.horizontalHeaderItem(0).text() == "A  Var1\na confirmar"
+    assert d.table.horizontalHeaderItem(2).text() == "C  Var3"      # vacía: sin tipo
+
+
 def test_editar_una_celda_con_coma_guarda_un_numero(qt_app):
     from PyQt6.QtWidgets import QTableWidgetItem
     from src.ui.data_panel import DataPanel

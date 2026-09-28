@@ -170,6 +170,16 @@ def _classify_column(series: pd.Series, cfg: OmniConfig) -> dict:
     return info
 
 
+def tipo_de_columna(serie: pd.Series, cfg: OmniConfig | None = None) -> dict:
+    """El tipo que el Omnianálisis le da a una columna, con n, vacíos y nota.
+
+    Lo muestra la hoja de datos en cada encabezado: así se ve antes de correr
+    nada que un Grupo 1/2/3 se va a leer como códigos, o que una columna con un
+    texto suelto dejó de ser numérica.
+    """
+    return _classify_column(serie, cfg or DEFAULT_CONFIG)
+
+
 def _a_fechas(serie: pd.Series) -> pd.Series:
     """Fechas desde el tipo fecha o desde texto día/mes/año (el orden local)."""
     if pd.api.types.is_datetime64_any_dtype(serie):
