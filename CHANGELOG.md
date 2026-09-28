@@ -17,6 +17,31 @@ Versionado [semántico](https://semver.org/lang/es/).
 
 ---
 
+## [Sin publicar]
+
+### Interfaz
+- **El informe empieza por la conclusión**: «Cómo se lee» y «Qué NO se puede
+  concluir», después las advertencias, y recién ahí los números, el método, lo
+  verificado, la fórmula y las referencias. Antes la lectura quedaba abajo,
+  fuera de la vista en el panel. Recuadros que Qt sí dibuja (tablas, no `div`).
+- **La hoja de datos dice el tipo de cada columna** (el mismo que usa el
+  Omnianálisis: numérica, categórica, fecha, «códigos 1–3», «a confirmar») y
+  cuántas celdas vacías tiene; las vacías se pintan.
+- **Tema renovado, igual de denso**: tarjetas blancas con el título en el
+  acento teal, pestañas planas, botón principal con relleno, bordes suaves; el
+  Omnianálisis deja su azul propio. Los combos vuelven a tener flecha.
+- Cambiar de pestaña ya no borra las variables elegidas; la misma columna dos
+  veces se rechaza; «12,5» con coma se lee como número; el diálogo de «Validar
+  un método» entra en una notebook; tildes en menús y títulos.
+
+### Corregido
+- Vaciar una celda guardaba "" y la columna dejaba de ser numérica; lo escrito
+  en una fila agregada con «Fila» se perdía.
+- El recuadro «Fórmula» del panel pegaba todas las líneas en un párrafo.
+- El rótulo del eje Y del Bland-Altman en % salía cortado.
+
+---
+
 ## [1.1.0] — 2026-09-27
 
 Una segunda auditoría, esta vez de las fórmulas, de qué columnas y filas llega a

@@ -27,7 +27,7 @@ git tag -n                                                          # versiones 
 Antes de compilar, correr las pruebas:
 
 ```bash
-python -m pytest tests/ -q     # 1650 (27 sep); el número crece
+python -m pytest tests/ -q     # 1669 (27 sep); el número crece
 python scripts/smoke_ui.py     # 78/78
 ```
 
@@ -169,8 +169,10 @@ para una apariencia profesional y consistente en toda la aplicación.
 
 ## Tema Visual
 
-BioStat utiliza el tema **Clean Clinical**:
-- Fondos claros (#F3F5F9, #FFFFFF)
-- Acento azul médico (#2B579A) para elementos interactivos
-- Verde institucional (#107C41) para acciones de éxito
+BioStat usa el tema **Clínico Clásico** (`src/ui/styles.py`), denso al modo de
+MedCalc: mucha información por pantalla, tipografía de 12 px.
+- Fondo gris claro (#F2F4F7); tarjetas, tablas y campos blancos con borde suave
+- Acento teal (#0E7490): títulos de recuadro, pestaña elegida, foco, botón
+  principal; el informe usa el mismo acento
+- Ámbar para lo que condiciona un resultado (advertencias, celdas vacías)
 - Sin colores oscuros ni neón — diseñado para uso prolongado en laboratorio

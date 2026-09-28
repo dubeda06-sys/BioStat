@@ -7,7 +7,9 @@
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
 > Versión actual: **v1.1.0** (27 sep; `master` y la etiqueta, al día con esa
 > versión).
-> Última puesta al día: **27 sep, noche** — las deudas que quedaban, cerradas:
+> Última puesta al día: **27 sep, noche** — la interfaz en dos tandas (defectos
+> y diseño: informe con la conclusión arriba, tipo de cada columna, tema).
+> Antes, esa misma noche, las deudas que quedaban, cerradas:
 > sin control de calidad, K10 y Deming ponderado arreglados, score calibrado,
 > series temporales, TEa en el asistente y **el mixin borrado** (paso 5).
 > Antes, el mismo día, el paso 4 (los 78 análisis en `Resultado`) y el
@@ -52,7 +54,7 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 1650 verdes (27 sep)
+python -m pytest tests/ -q        # esperar 1669 verdes (27 sep)
 python scripts/smoke_ui.py        # esperar 78/78, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
@@ -82,8 +84,41 @@ Defectos vistos en capturas reales, no preferencias de estilo
   un test lo ata ahora. Barra de estado con lo cargado; el panel ya no repite
   la descripción ni muestra la fórmula vieja escrita a mano (`27fee06`).
 
-Suite: **1650**; smoke 78/78. Pendiente, tanda 2 (diseño, a elegir): informe
-con la conclusión arriba, tema visual, hoja con el tipo de cada columna.
+Suite: **1650**; smoke 78/78.
+
+## Interfaz, tanda 2: diseño (27 sep, noche)
+
+Pedido: «sigue trabajando en la tanda 2». Sin plugins de diseño (se miró
+Impeccable y 21st.dev: el primero es solo para web, el segundo pide API key y
+genera React). Un commit por parte:
+
+- **Informe con la conclusión arriba** (`6b42624`, `src/resultado/render_html.py`).
+  Orden nuevo: título, «Cómo se lee» + «Qué NO se puede concluir», advertencias
+  y descartes, resultados, método, supuestos, fórmula, referencias, partes.
+  **QTextEdit no toma `padding` ni bordes en un `div`**: cada recuadro es una
+  tabla de una fila con una celda angosta de color como filete. De paso: el
+  recuadro «Fórmula» del panel pegaba las líneas; el eje Y del Bland-Altman en
+  % se cortaba; se borraron `_h`, `_r`, `_ok` del panel (restos del mixin).
+- **Tipo de cada columna en la hoja** (`6bc53c8`). Segundo renglón del
+  encabezado con el tipo del Omnianálisis (`omni_analyzer.tipo_de_columna`,
+  público) y los vacíos; ayuda con la nota del clasificador. Vacías pintadas
+  **desde el delegado**: la regla `QTableWidget::item` del tema hace que Qt
+  ignore el fondo de la celda (un test lo mira con el tema puesto). El nombre
+  de la variable va en `UserRole`, no se lee del texto. Arreglados: vaciar una
+  celda guardaba "", la fila agregada con «Fila» se perdía, texto en columna
+  numérica (pandas 3 falla).
+- **Tema** (`styles.py`). Mismo espíritu MedCalc, misma densidad: tarjetas
+  blancas con título teal, pestañas planas, botón principal `#primario` con
+  relleno (Ejecutar, Generar, Ejecutar Omnianálisis, el Aceptar de los
+  diálogos), bordes suaves, barras finas, selección en el tono del acento.
+  **Los combos no tenían flecha** (la regla de `::drop-down` la borraba): QSS
+  solo la acepta como imagen y el triángulo de bordes sale como una barra en
+  Qt 6, así que `styles._flecha` la dibuja con QImage en un PNG temporal al
+  importar (sin archivos dentro del .exe). Listas con `height: 22px` (el
+  estilo `windows11` hace renglones de 30). El Omnianálisis perdió su azul
+  `#2b579a` y sus estilos en línea; `Icons.PRIMARY` pasó a teal.
+
+Suite: **1669**; smoke 78/78.
 
 ## 27 sep (noche): las deudas que quedaban, cerradas
 
@@ -862,7 +897,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 1650 verdes (27 sep); el número crece
+python -m pytest tests/ -q                       # 1669 verdes (27 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 78/78
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```
