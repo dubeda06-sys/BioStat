@@ -1,8 +1,10 @@
 """Panel de datos - Importacion, entrada manual y visualizacion."""
+import re
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
     QTableWidgetItem, QPushButton, QLabel, QFileDialog,
-    QHeaderView, QGroupBox, QMessageBox, QInputDialog
+    QHeaderView, QGroupBox, QMessageBox, QInputDialog, QStyledItemDelegate
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import pandas as pd
@@ -21,6 +23,40 @@ def letra_columna(indice):
         indice, resto = divmod(indice - 1, 26)
         letras = chr(65 + resto) + letras
     return letras
+
+
+_NUMERO = re.compile(r"^[+-]?(\d+([.,]\d*)?|[.,]\d+)([eE][+-]?\d+)?$")
+
+
+def numero(texto):
+    """El número escrito en una celda, con punto o con coma decimal; None si
+    no es un número. Antes «12,5» escrito a mano quedaba como texto y la
+    columna entera dejaba de ser numérica (27 sep)."""
+    t = str(texto).strip()
+    if not _NUMERO.match(t):
+        return None
+    return float(t.replace(",", "."))
+
+
+def para_mostrar(texto):
+    """Cómo se ve un número en la hoja: sin la cola de decimales de coma
+    flotante (181.115415006832 → 181.1154) y los enteros sin «.0». Solo es la
+    vista: el valor guardado no cambia, y al editar la celda aparece entero."""
+    v = numero(texto)
+    if v is None:
+        return str(texto)
+    if v == int(v) and abs(v) < 1e15:
+        return str(int(v))
+    if abs(v) < 0.01 or abs(v) >= 1e7:
+        return f"{v:.4g}"
+    return f"{v:.4f}".rstrip("0").rstrip(".")
+
+
+class _Numeros(QStyledItemDelegate):
+    """Muestra los números con `para_mostrar`; la edición usa el texto entero."""
+
+    def displayText(self, value, locale):  # noqa: N802 (nombre de Qt)
+        return para_mostrar(value) if value is not None else ""
 
 
 def encabezado(indice, nombre):
@@ -42,7 +78,7 @@ class DataPanel(QWidget):
         layout.setSpacing(2)
         layout.setContentsMargins(10, 4, 10, 4)
 
-        tip = QLabel("Importa CSV/Excel o escribe en la tabla.")
+        tip = QLabel("Importá un CSV o un Excel, o escribí en la tabla (el decimal puede ir con coma).")
         tip.setObjectName("subtitle")
         layout.addWidget(tip)
 
@@ -111,17 +147,18 @@ class DataPanel(QWidget):
         self.table.horizontalHeader().setDefaultSectionSize(110)
         self.table.horizontalHeader().sectionDoubleClicked.connect(self._renombrar_columna)
         self.table.cellChanged.connect(self._on_cell_changed)
+        self.table.setItemDelegate(_Numeros(self.table))
         self.table.setToolTip(
-            "Escribe directamente aqui o importa un archivo. Doble clic en el "
+            "Escribí directamente acá o importá un archivo. Doble clic en el "
             "encabezado para renombrar la variable."
         )
         self._nombres_por_defecto()
         layout.addWidget(self.table)
 
-        stats_group = QGroupBox(f"    Estadisticas automaticas")
+        stats_group = QGroupBox("    Estadísticas automáticas")
         stats_layout = QVBoxLayout()
         stats_layout.setContentsMargins(10, 6, 10, 6)
-        self.lbl_stats = QLabel("Al cargar o escribir datos numericos, aqui apareceran: media, desviacion estandar, min, max y n.")
+        self.lbl_stats = QLabel("Al cargar o escribir datos numéricos, aquí aparecen: media, desviación estándar, mínimo, máximo y n.")
         self.lbl_stats.setObjectName("subtitle")
         self.lbl_stats.setWordWrap(True)
         stats_layout.addWidget(self.lbl_stats)
@@ -218,10 +255,8 @@ class DataPanel(QWidget):
             item = self.table.item(row, col)
             if item:
                 cn = self.data.columns[col]
-                try:
-                    self.data.at[self.data.index[row], cn] = float(item.text())
-                except ValueError:
-                    self.data.at[self.data.index[row], cn] = item.text()
+                v = numero(item.text())
+                self.data.at[self.data.index[row], cn] = item.text() if v is None else v
         self._update_stats()
 
     def _add_column(self):
@@ -236,7 +271,7 @@ class DataPanel(QWidget):
 
     def _clear_data(self):
         if QMessageBox.question(
-            self, "Confirmar", "Borrar todos los datos?",
+            self, "Confirmar", "¿Borrar todos los datos?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         ) == QMessageBox.StandardButton.Yes:
             self.data = None
@@ -247,7 +282,7 @@ class DataPanel(QWidget):
             self._nombres_por_defecto()
             self.table.blockSignals(False)
             self.lbl_info.setText("")
-            self.lbl_stats.setText("Al cargar datos numericos aqui apareceran estadisticas automaticas.")
+            self.lbl_stats.setText("Al cargar datos numéricos, aquí aparecen las estadísticas automáticas.")
             self.dataChanged.emit(None)
 
     def _update_stats(self):
@@ -256,7 +291,7 @@ class DataPanel(QWidget):
             return
         nums = df.select_dtypes(include="number").columns
         if len(nums) == 0:
-            self.lbl_stats.setText("Sin columnas numericas detectadas.")
+            self.lbl_stats.setText("No hay columnas numéricas.")
             return
         parts = []
         for col in nums[:5]:
@@ -289,8 +324,8 @@ class DataPanel(QWidget):
             return None
         df = pd.DataFrame(rows, columns=headers)
         for col in df.columns:
-            try:
-                df[col] = pd.to_numeric(df[col])
-            except (ValueError, TypeError):
-                pass
+            # Numérica si todo lo escrito es un número, con punto o con coma.
+            valores = [numero(v) if v != "" else np.nan for v in df[col]]
+            if all(v is not None for v in valores):
+                df[col] = pd.Series(valores, index=df.index, dtype=float)
         return df

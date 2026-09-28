@@ -91,3 +91,46 @@ def test_la_variable_3_repetida_tambien(qt_app):
     from src.ui import entradas
     res = entradas.correr("ANCOVA", entradas.Eleccion(_hoja(), "Glucosa_A", "Grupo", "Grupo"))
     assert not res.ok and "«Grupo»" in res.error
+
+
+# ---------------- la hoja de datos ----------------
+
+@pytest.mark.parametrize("texto, valor", [
+    ("12,5", 12.5), ("12.5", 12.5), ("-3", -3.0), (",5", 0.5), ("1e3", 1000.0),
+    ("abc", None), ("1.234,5", None), ("", None), ("12,5 mg", None),
+])
+def test_numero_acepta_coma_decimal(texto, valor):
+    from src.ui.data_panel import numero
+    assert numero(texto) == valor
+
+
+@pytest.mark.parametrize("texto, visto", [
+    ("181.115415006832", "181.1154"), ("44.0", "44"), ("0.000123456", "0.0001235"),
+    ("2.5", "2.5"), ("Control", "Control"), ("12345678.9", "1.235e+07"),
+])
+def test_la_vista_redondea_sin_tocar_el_valor(texto, visto):
+    from src.ui.data_panel import para_mostrar
+    assert para_mostrar(texto) == visto
+
+
+def test_escribir_con_coma_deja_la_columna_numerica(qt_app):
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from src.ui.data_panel import DataPanel
+    d = DataPanel()
+    for fila, texto in enumerate(["12,5", "13", "", "14,25"]):
+        d.table.setItem(fila, 0, QTableWidgetItem(texto))
+    d.table.setItem(0, 1, QTableWidgetItem("a"))
+    df = d.get_data()
+    assert df["Var1"].dtype == float
+    assert df["Var1"].tolist()[:2] == [12.5, 13.0] and df["Var1"].tolist()[-1] == 14.25
+
+
+def test_editar_una_celda_con_coma_guarda_un_numero(qt_app):
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from src.ui.data_panel import DataPanel
+    d = DataPanel()
+    d.data = _hoja()
+    d._populate_table()
+    d.table.setItem(0, 0, QTableWidgetItem("99,75"))
+    assert d.data.iloc[0, 0] == 99.75
+    assert d.table.item(1, 0).text() == str(_hoja().iloc[1, 0])   # el valor entero, sin redondear
