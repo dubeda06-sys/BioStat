@@ -76,7 +76,6 @@ class ComparisonConfirmDialog(QDialog):
 
         for cand in candidates:
             box = QGroupBox(f"{cand['col1']}  ↔  {cand['col2']}")
-            box.setStyleSheet("QGroupBox { font-weight:bold; color:#2b579a; margin-top:6px; }")
             bl = QVBoxLayout(box)
             reasons = "<br>".join(f"• {r}" for r in cand.get("reasons", []))
             lbl = QLabel(f"Puntaje={cand['score']} | r={cand.get('corr')}<br>{reasons}")
@@ -163,49 +162,34 @@ class OmniPanel(QWidget):
         ll.setSpacing(8)
 
         lbl = QLabel("Variables a analizar:")
-        lbl.setStyleSheet("font-weight: bold; font-size: 13px; color: #2c3e50;")
+        lbl.setStyleSheet("font-weight: 600; color: #0e7490;")
         ll.addWidget(lbl)
         hint = QLabel("Ctrl+clic para selección múltiple")
-        hint.setStyleSheet("font-size: 11px; color: #7f8c8d;")
+        hint.setStyleSheet("font-size: 11px; color: #5b6573;")
         ll.addWidget(hint)
 
         self.list_vars = QListWidget()
         self.list_vars.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.list_vars.setStyleSheet(
-            "QListWidget { border: 1px solid #d8dbe3; border-radius: 6px; background: #ffffff; font-size: 13px; }"
-            "QListWidget::item:selected { background: #2b579a; color: white; }"
-            "QListWidget::item:hover { background: #e8eef6; }"
-        )
         ll.addWidget(self.list_vars)
 
         ll.addWidget(QLabel("Variable objetivo (regresión múltiple, opcional):"))
         self.cmb_target = QComboBox()
-        self.cmb_target.setStyleSheet("QComboBox { padding:4px; border:1px solid #d8dbe3; border-radius:5px; }")
         ll.addWidget(self.cmb_target)
 
         self.btn_run = QPushButton("Ejecutar Omnianálisis")
+        self.btn_run.setObjectName("primario")
         self.btn_run.setEnabled(False)
-        self.btn_run.setMinimumHeight(38)
-        self.btn_run.setStyleSheet(
-            "QPushButton { background-color: #2b579a; color: white; border-radius: 6px; font-size: 13px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #1e3f73; }"
-            "QPushButton:disabled { background-color: #b0bec5; }"
-        )
+        self.btn_run.setMinimumHeight(34)
         self.btn_run.clicked.connect(self._run)
         ll.addWidget(self.btn_run)
 
         self.btn_manual = QPushButton("Marcar par como comparable…")
-        self.btn_manual.setMinimumHeight(32)
-        self.btn_manual.setStyleSheet(
-            "QPushButton { background-color: #f3f5f9; color: #2c3e50; border: 1px solid #d8dbe3; border-radius: 6px; font-size: 12px; }"
-            "QPushButton:hover { background-color: #e8eef6; }"
-        )
+        self.btn_manual.setMinimumHeight(30)
         self.btn_manual.clicked.connect(self._mark_manual)
         ll.addWidget(self.btn_manual)
 
         btn_clear = QPushButton("Limpiar informe")
-        btn_clear.setMinimumHeight(32)
-        btn_clear.setStyleSheet(self.btn_manual.styleSheet())
+        btn_clear.setMinimumHeight(30)
         btn_clear.clicked.connect(self._clear)
         ll.addWidget(btn_clear)
 
@@ -213,10 +197,6 @@ class OmniPanel(QWidget):
 
         # --- Derecha: pestañas ---
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet(
-            "QTabBar::tab { padding: 6px 12px; font-size: 12px; }"
-            "QTabBar::tab:selected { color: #0e7490; font-weight: bold; }"
-        )
         self.tabs.addTab(self._tab_resumen(), "Resumen")
         self.tabs.addTab(self._tab_arbol(), "Árbol de decisión")
         self.tabs.addTab(self._tab_auditoria(), "Auditoría")
@@ -288,10 +268,6 @@ class OmniPanel(QWidget):
         barra.addWidget(self.cmb_filtro)
 
         btn_csv = QPushButton("Exportar CSV")
-        btn_csv.setStyleSheet(
-            "QPushButton { background:#f3f5f9; border:1px solid #d8dbe3; border-radius:5px; padding:4px 10px; font-size:12px; }"
-            "QPushButton:hover { background:#e8eef6; }"
-        )
         btn_csv.clicked.connect(self._exportar_auditoria)
         barra.addWidget(btn_csv)
         v.addLayout(barra)
@@ -310,10 +286,6 @@ class OmniPanel(QWidget):
         cab.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        self.tbl_auditoria.setStyleSheet(
-            "QTableWidget { font-size:12px; gridline-color:#e2e8f0; }"
-            "QHeaderView::section { background:#e0f2fe; color:#0c4a6e; padding:4px; border:none; }"
-        )
         v.addWidget(self.tbl_auditoria)
 
         pie = QLabel(

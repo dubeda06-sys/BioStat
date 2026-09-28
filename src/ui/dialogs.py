@@ -163,6 +163,7 @@ class DialogoAnalisis(QDialog):
             caja = QGroupBox(seccion.titulo)
             forma = QFormLayout(caja)
             forma.setSpacing(6)
+            forma.setContentsMargins(8, 4, 8, 6)
             if seccion.ayuda:
                 forma.addRow(self._pie(seccion.ayuda))
             for clave in seccion.claves:

@@ -208,7 +208,7 @@ class DataPanel(QWidget):
         self._nombres_por_defecto()
         layout.addWidget(self.table)
 
-        stats_group = QGroupBox("    Estadísticas automáticas")
+        stats_group = QGroupBox("Estadísticas automáticas")
         stats_layout = QVBoxLayout()
         stats_layout.setContentsMargins(10, 6, 10, 6)
         self.lbl_stats = QLabel("Al cargar o escribir datos numéricos, aquí aparecen: media, desviación estándar, mínimo, máximo y n.")

@@ -6,6 +6,8 @@ de varios métodos contra una referencia.
 """
 from __future__ import annotations
 
+import textwrap
+
 import numpy as np
 
 from src.core.agreement import (
@@ -404,8 +406,8 @@ def _figura_bland(res, centro, lim_inf, lim_sup, rotulo_centro, elegido, c1, c2,
     ax.set_xlabel(etiqueta_x)
     if res.get("escala") == "porcentaje":
         base = nombre_eje or "promedio"
-        # En dos renglones: en uno era más largo que el eje y salía cortado.
-        ax.set_ylabel(f'Diferencia (%)\n100·({c1} − {c2}) / {base}')
+        # En renglones: en uno era más largo que el eje y salía cortado.
+        ax.set_ylabel('Diferencia (%)\n' + textwrap.fill(f'100·({c1} − {c2}) / {base}', 26))
     else:
         ax.set_ylabel(f'Diferencia ({c1} − {c2})')
     ax.set_title(f'Bland-Altman {_nombre_modo(elegido)} — {c1} vs {c2}', fontweight='bold')

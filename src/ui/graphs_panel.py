@@ -50,7 +50,7 @@ class GraphsPanel(QWidget):
         left_l.setContentsMargins(0, 0, 0, 0)
         left_l.setSpacing(4)
 
-        cfg = QGroupBox("    Configuración")
+        cfg = QGroupBox("Configuración")
         cl = QFormLayout()
         cl.setSpacing(4)
         cl.setContentsMargins(6, 6, 6, 6)
@@ -81,7 +81,8 @@ class GraphsPanel(QWidget):
 
         br = QHBoxLayout()
         br.setSpacing(4)
-        self.btn_plot = QPushButton(f" Generar")
+        self.btn_plot = QPushButton(" Generar")
+        self.btn_plot.setObjectName("primario")
         self.btn_plot.setMinimumHeight(30)
         self.btn_plot.clicked.connect(self._plot)
         br.addWidget(self.btn_plot)
@@ -102,7 +103,7 @@ class GraphsPanel(QWidget):
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
 
-        gb = QGroupBox(f"    Vista previa")
+        gb = QGroupBox("Vista previa")
         gl = QVBoxLayout()
         gl.setContentsMargins(4, 2, 4, 2)
         self.scroll = QScrollArea()

@@ -47,7 +47,7 @@ class AnalysisPanel(QWidget):
         left_l.setContentsMargins(0, 0, 0, 0)
         left_l.setSpacing(4)
 
-        cfg = QGroupBox("    Configuración")
+        cfg = QGroupBox("Configuración")
         cl = QFormLayout()
         cl.setSpacing(4)
         cl.setContentsMargins(6, 6, 6, 6)
@@ -92,7 +92,8 @@ class AnalysisPanel(QWidget):
         br = QHBoxLayout()
         br.setSpacing(4)
         self.btn_run = QPushButton("Ejecutar")
-        self.btn_run.setIcon(Icons.RUN())
+        self.btn_run.setObjectName("primario")
+        self.btn_run.setIcon(Icons.RUN_CLARO())
         self.btn_run.setMinimumHeight(30)
         self.btn_run.clicked.connect(self._run)
         br.addWidget(self.btn_run)
@@ -125,7 +126,7 @@ class AnalysisPanel(QWidget):
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
 
-        rg = QGroupBox(f"    Resultados")
+        rg = QGroupBox("Resultados")
         rl = QVBoxLayout()
         rl.setContentsMargins(4, 2, 4, 2)
         self.txt_results = QTextEdit()
@@ -135,7 +136,7 @@ class AnalysisPanel(QWidget):
         rg.setLayout(rl)
         right_l.addWidget(rg, stretch=2)
 
-        pg = QGroupBox("    Gráfico")
+        pg = QGroupBox("Gráfico")
         pl = QVBoxLayout()
         pl.setContentsMargins(4, 2, 4, 2)
         self.graph_scroll = QScrollArea()

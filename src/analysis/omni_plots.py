@@ -8,6 +8,8 @@ Construye figuras matplotlib a partir del diccionario `_plot` que produce
 
 Las funciones devuelven objetos `Figure`; la UI los pinta con FigureCanvas.
 """
+import textwrap
+
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -63,8 +65,8 @@ def bland_altman_figure(plot_data: dict):
                   else f"Promedio de los métodos  ({nx} + {ny})/2")
     if en_pct:
         base = nx if contra_ref else "promedio"
-        # En dos renglones: en uno era más largo que el eje y salía cortado.
-        ax.set_ylabel(f"Diferencia (%)\n100·({ny} − {nx}) / {base}")
+        # En renglones: en uno era más largo que el eje y salía cortado.
+        ax.set_ylabel("Diferencia (%)\n" + textwrap.fill(f"100·({ny} − {nx}) / {base}", 26))
     else:
         ax.set_ylabel(f"Diferencia  ({ny} − {nx})")
     ax.set_title(f"Bland-Altman ({tipo}) — {nx} vs {ny}", fontweight="bold", color=_INK)

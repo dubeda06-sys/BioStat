@@ -343,6 +343,33 @@ def test_la_formula_del_panel_va_una_linea_por_renglon(qt_app):
         "Fórmula: Bland-Altman", "d = x1 − x2", "LoA = d̄ ± 1,96·s", "x < y & z"]
 
 
+# ---------------- el tema ----------------
+
+def test_los_combos_tienen_flecha():
+    """La regla de `::drop-down` la borraba: quedaba un recuadro gris vacío."""
+    import os
+    import re
+    from src.ui.styles import MAIN_STYLE
+    assert "@FLECHA@" not in MAIN_STYLE
+    rutas = re.findall(r'url\("([^"]+)"\)', MAIN_STYLE)
+    assert len(rutas) == 2 and all(os.path.exists(r) for r in rutas)
+
+
+def test_los_titulos_de_recuadro_no_se_indentan_con_espacios(qt_app):
+    from PyQt6.QtWidgets import QGroupBox
+    from src.ui.main_window import MainWindow
+    titulos = [g.title() for g in MainWindow().findChildren(QGroupBox)]
+    assert titulos and [t for t in titulos if t != t.strip()] == []
+
+
+def test_el_boton_principal_de_cada_panel_se_distingue(qt_app):
+    from src.ui.main_window import MainWindow
+    w = MainWindow()
+    for boton in (w.analysis_panel.btn_run, w.graphs_panel.btn_plot, w.omni_panel.btn_run):
+        assert boton.objectName() == "primario"
+        assert boton.styleSheet() == ""       # sin estilo propio que tape el del tema
+
+
 # ---------------- el informe ----------------
 
 def _informe_completo():

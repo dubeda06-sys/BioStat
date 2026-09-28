@@ -10,8 +10,8 @@ class Icons:
     FontAwesome 5 (fa5s/fa5b) and Material Design (mdi6).
     """
 
-    # Theme colors — Clean Clinical
-    PRIMARY = "#2b579a"
+    # Colores del tema (src/ui/styles.py): PRIMARY es el acento teal.
+    PRIMARY = "#0e7490"
     SUCCESS = "#107c41"
     WARNING = "#bf8700"
     DANGER = "#c23040"
@@ -42,6 +42,11 @@ class Icons:
     @staticmethod
     def RUN():
         return qta.icon("fa5s.play-circle", color=Icons.SUCCESS)
+
+    @staticmethod
+    def RUN_CLARO():
+        """Para el botón principal, que tiene relleno del acento."""
+        return qta.icon("fa5s.play-circle", color="#ffffff")
 
     @staticmethod
     def CLEAR():
