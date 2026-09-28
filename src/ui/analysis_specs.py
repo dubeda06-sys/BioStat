@@ -333,19 +333,27 @@ PARAMETROS["Precisión EP15"] = (
     Parametro("n_muestras", "Materiales (niveles) en el estudio", 1, 1, 20, entero=True),
     Parametro("valor_asignado", "Valor asignado del material (vacío = no hay)", None),
     Parametro("u", "Incertidumbre del valor asignado (u, U o DE del grupo)", None, 0.0),
-    Parametro("k", "Factor de cobertura k (si es U)", 2.0, 0.1, 10),
+    Parametro("k", "Factor de cobertura k (solo con «U, con su factor k»)", None, 0.1, 10),
     Parametro("n_lab", "Laboratorios del grupo de pares", 0, 0, 100_000, entero=True),
 )
+# EP15-A3 §3.3: de dónde sale se_RM según cómo viene el valor asignado.
+_INCERTIDUMBRE = (
+    ("ninguna", "Sin incertidumbre: valor convencional (D) o control comercial "
+                "sin error estándar (E)"),
+    ("u", "Incertidumbre estándar u o combinada u_c (A)"),
+    ("U", "Incertidumbre expandida U, con su factor k (A)"),
+    ("U95", "U con cobertura del 95 %, o IC 95 % con U = (superior − inferior)/2 (A)"),
+    ("U99", "U con cobertura del 99 %, o IC 99 % con U = (superior − inferior)/2 (A)"),
+    ("pares", "Ensayo de aptitud o grupo de pares: DE y número de laboratorios (B, C)"),
+)
+
 OPCIONES["Precisión EP15"] = (
     Opcion("declaracion", "La declaración del fabricante viene como",
            (("de", "DE, en unidades del analito"),
             ("cv", "CV %")),
            "Se compara en la misma escala: DE con DE, CV con CV."),
     Opcion("incertidumbre", "Incertidumbre del valor asignado",
-           (("ninguna", "No se conoce — control comercial o valor convencional (D, E)"),
-            ("u", "Incertidumbre estándar u (material de referencia, A)"),
-            ("U", "Incertidumbre expandida U, con su k (A)"),
-            ("pares", "Grupo de pares: DE y número de laboratorios (B, C)")),
+           _INCERTIDUMBRE,
            "Escenarios de EP15-A3 §3.3. Solo cuenta si hay valor asignado."),
 )
 
@@ -372,7 +380,7 @@ PARAMETROS["Validar un método"] = (
     Parametro("valor_asignado", "Valor asignado del material de EP15 (vacío = no hay)",
               None),
     Parametro("u", "Incertidumbre del valor asignado (u, U o DE del grupo)", None, 0.0),
-    Parametro("k", "Factor de cobertura k (si es U)", 2.0, 0.1, 10),
+    Parametro("k", "Factor de cobertura k (solo con «U, con su factor k»)", None, 0.1, 10),
     Parametro("n_lab", "Laboratorios del grupo de pares", 0, 0, 100_000, entero=True),
 )
 OPCIONES["Validar un método"] = (
@@ -384,10 +392,7 @@ OPCIONES["Validar un método"] = (
            (("de", "DE, en unidades del analito"), ("cv", "CV %")),
            "Solo cuenta si se tildaron corridas de EP15."),
     Opcion("incertidumbre", "Incertidumbre del valor asignado",
-           (("ninguna", "No se conoce — control comercial o valor convencional (D, E)"),
-            ("u", "Incertidumbre estándar u (material de referencia, A)"),
-            ("U", "Incertidumbre expandida U, con su k (A)"),
-            ("pares", "Grupo de pares: DE y número de laboratorios (B, C)")),
+           _INCERTIDUMBRE,
            "Escenarios de EP15-A3 §3.3. Solo cuenta si hay valor asignado y corridas."),
 )
 

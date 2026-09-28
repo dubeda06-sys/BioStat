@@ -18,7 +18,11 @@ from src.resultado.citas import ficha
 from src.resultado.datos import columnas_faltantes
 from src.resultado.modelo import Entrada, Figura, Metodo, Resultado, Supuesto, Valor
 
-INCERTIDUMBRES = ("ninguna", "u", "U", "pares")
+INCERTIDUMBRES = ("ninguna", "u", "U", "U95", "U99", "pares")
+# EP15-A3 §3.3, escenario A: una U con cobertura del 95 % se divide por 1,96 y
+# una del 99 %, por 2,58. Los límites de un IC entran igual: la norma divide
+# (superior − inferior) por 2·1,96 (o 2·2,58), que es U/1,96 con U = media anchura.
+_COBERTURA = {"U95": 1.96, "U99": 2.58}
 
 
 def _f(x, dec=4) -> str:
@@ -203,7 +207,7 @@ def _veracidad(res, va, opciones, n_muestras):
         return None, f"Tipo de incertidumbre desconocido: «{tipo}»."
     try:
         u = _numero(opciones, "u")
-        k = _numero(opciones, "k") or 2.0
+        k = _numero(opciones, "k")
         n_lab = int(opciones.get("n_lab") or 0)
     except (TypeError, ValueError):
         return None, "La incertidumbre del valor asignado tiene que ser un número."
@@ -214,9 +218,16 @@ def _veracidad(res, va, opciones, n_muestras):
         if tipo == "u":
             se_rm = u
         elif tipo == "U":
+            # Sin k no se adivina: antes el diálogo traía 2,0 cargado y una U
+            # «al 95 %» se dividía por 2 en vez de 1,96.
+            if k is None:
+                return None, ("Con U hace falta el factor de cobertura k; si el "
+                              "fabricante da la cobertura (95 % o 99 %), elegí esa opción.")
             if k <= 0:
                 return None, "El factor de cobertura k tiene que ser positivo."
             se_rm = u / k
+        elif tipo in _COBERTURA:
+            se_rm = u / _COBERTURA[tipo]
         else:
             if n_lab < 2:
                 return None, "Con un grupo de pares hacen falta al menos 2 laboratorios."
@@ -288,6 +299,8 @@ def _paso_veracidad(v) -> Supuesto:
     escenarios = {"ninguna": "sin incertidumbre del valor asignado (escenarios D y E)",
                   "u": "incertidumbre estándar u (escenario A)",
                   "U": "incertidumbre expandida U/k (escenario A)",
+                  "U95": "U con cobertura del 95 %, U/1,96 (escenario A)",
+                  "U99": "U con cobertura del 99 %, U/2,58 (escenario A)",
                   "pares": "grupo de pares, DE/√laboratorios (escenarios B y C)"}
     lo, hi = v["intervalo"]
     return Supuesto(

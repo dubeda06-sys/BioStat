@@ -27,6 +27,11 @@ Versionado [semántico](https://semver.org/lang/es/).
   muestras, 1,307 contra 1,31) y en un caso al límite podía dar otro veredicto.
   Fuera de la tabla (gl < 5 o > 34, más de 6 muestras) se usa la fórmula, y el
   informe dice cuál se usó.
+- **EP15, veracidad, escenario A completo (§3.3)**: nuevas opciones «U con
+  cobertura del 95 %» (se_RM = U/1,96) y «del 99 %» (U/2,58); los límites de un
+  IC entran por ahí con U = (superior − inferior)/2. El factor k ya no viene
+  cargado con 2: con «U, con su factor k» hay que escribirlo, y sin él el
+  análisis lo pide. Antes una U «al 95 %» sin k se dividía por 2 en vez de 1,96.
 
 ---
 

@@ -111,6 +111,35 @@ def test_veracidad_con_incertidumbre_expandida():
     assert con_U.crudo["veracidad"]["intervalo"] == con_u.crudo["veracidad"]["intervalo"]
 
 
+@pytest.mark.parametrize("tipo, U", [("U95", 1.96), ("U99", 2.58)])
+def test_veracidad_con_cobertura_declarada(tipo, U):
+    """EP15-A3 §3.3, escenario A: cobertura del 95 % → U/1,96; del 99 % → U/2,58.
+    Los límites de un IC entran igual, con U = (superior − inferior)/2."""
+    con_u = precision_ep15(HOJA, COLS, {"valor_asignado": 142.5, "incertidumbre": "u", "u": 1})
+    con_cob = precision_ep15(HOJA, COLS, {"valor_asignado": 142.5, "incertidumbre": tipo,
+                                          "u": U})
+    assert con_cob.crudo["veracidad"]["intervalo"] == pytest.approx(
+        con_u.crudo["veracidad"]["intervalo"], rel=1e-12)
+    assert f"/{str(U).replace('.', ',')}" in _paso(con_cob, "sesgo se distingue").medicion
+
+
+def test_U_sin_k_no_se_adivina():
+    """Antes el diálogo traía k = 2 cargado: una U «al 95 %» se dividía por 2."""
+    res = precision_ep15(HOJA, COLS, {"valor_asignado": 142.5, "incertidumbre": "U", "u": 2})
+    assert not res.ok and "factor de cobertura k" in res.error
+
+
+def test_el_escenario_d_no_lleva_incertidumbre():
+    """§3.3: valor convencional (D) → se_RM = 0, gl = ∞; igual que E."""
+    from src.ui.analysis_specs import opciones
+    ninguna = dict(next(o for o in opciones("Precisión EP15")
+                        if o.clave == "incertidumbre").valores)["ninguna"]
+    assert "(D)" in ninguna and "(E)" in ninguna
+    res = precision_ep15(HOJA, COLS, {"valor_asignado": 142.5, "incertidumbre": "ninguna"})
+    v = res.crudo["veracidad"]
+    assert v["se_rm"] == 0 and v["df_c"] == 4
+
+
 def test_sesgo_fuera_del_intervalo():
     res = precision_ep15(HOJA, COLS, {"valor_asignado": 150.0})
     assert not res.crudo["veracidad"]["dentro"]
