@@ -56,6 +56,7 @@ from src.resultado.constructores.tamano import (
 )
 from src.resultado.modelo import Resultado
 from src.ui.analysis_specs import parametros as spec_parametros
+from src.ui.analysis_specs import variables as spec_variables
 
 
 @dataclass
@@ -414,6 +415,16 @@ ENTRADAS: dict[str, tuple[str, Callable[[Eleccion], Resultado]]] = {
 def correr(nombre: str, e: Eleccion) -> Resultado:
     """El análisis `nombre` (texto del combo) con lo elegido en `e`."""
     analisis, armar = ENTRADAS[nombre]
+    # Una columna contra sí misma no es un análisis: un Bland-Altman de A
+    # contra A daba «concordancia casi perfecta» con todo en cero.
+    usadas = [getattr(e, v) for v in spec_variables(nombre) if v in ("c1", "c2", "c3")]
+    usadas = [c for c in usadas if c is not None]
+    repetidas = [c for i, c in enumerate(usadas) if c in usadas[:i]]
+    if repetidas:
+        return Resultado.rechazo(
+            analisis, nombre,
+            f"La columna «{repetidas[0]}» está elegida dos veces: cada variable del "
+            "análisis tiene que ser una columna distinta.")
     try:
         return armar(e)
     except ParametroInvalido as err:

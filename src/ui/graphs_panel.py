@@ -125,12 +125,12 @@ class GraphsPanel(QWidget):
         self.combo_col2.setEnabled(t in ("Dispersion",))
 
     def set_data(self, data):
+        """Sin perder lo elegido al volver a la pestaña (ver `combos.rellenar`)."""
+        from src.ui.combos import rellenar
         self.data = data
         if data is not None:
-            self.combo_col1.clear()
-            self.combo_col2.clear()
-            self.combo_col1.addItems(data.columns.tolist())
-            self.combo_col2.addItems(data.columns.tolist())
+            rellenar(self.combo_col1, data.columns.tolist(), 0)
+            rellenar(self.combo_col2, data.columns.tolist(), 1)
 
     def _plot(self):
         if self.data is None:

@@ -368,14 +368,28 @@ class OmniPanel(QWidget):
 
     # ---------- Datos ----------
     def set_data(self, df: pd.DataFrame):
+        """Se llama cada vez que se entra a la pestaña. Con la misma hoja se
+        conservan las variables tildadas, el objetivo y los pares marcados a
+        mano: antes se borraban al mirar otra pestaña. Con otra hoja, todo
+        vuelve a cero."""
+        columnas = [str(c) for c in df.columns]
+        misma_hoja = columnas == getattr(self, "_columnas", None)
+        elegidas = set(self._selected_cols()) if misma_hoja else set()
+        objetivo = self.cmb_target.currentText() if misma_hoja else ""
         self._df = df
-        self._manual_pairs = []
+        self._columnas = columnas
+        if not misma_hoja:
+            self._manual_pairs = []
         self.list_vars.clear()
         self.cmb_target.clear()
         self.cmb_target.addItem("(ninguna)")
-        for col in df.columns:
-            self.list_vars.addItem(QListWidgetItem(col))
+        for col in columnas:
+            item = QListWidgetItem(col)
+            self.list_vars.addItem(item)
+            item.setSelected(col in elegidas)
             self.cmb_target.addItem(col)
+        indice = self.cmb_target.findText(objetivo) if objetivo else -1
+        self.cmb_target.setCurrentIndex(max(indice, 0))
         self.btn_run.setEnabled(True)
 
     def _selected_cols(self) -> list[str]:

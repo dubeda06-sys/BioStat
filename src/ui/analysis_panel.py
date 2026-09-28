@@ -22,6 +22,7 @@ plt.rcParams.update({
 
 from src.ui.help_text import ANALYSIS_HELP
 from src.ui import entradas
+from src.ui.combos import rellenar
 
 ANALYSIS_LEGENDS = {
     "Estadisticas descriptivas": {
@@ -479,15 +480,16 @@ class AnalysisPanel(QWidget):
             self.lbl_legend.setText("")
 
     def set_data(self, data):
+        """Carga las columnas sin perder lo elegido: se llama cada vez que se
+        entra a la pestaña. La Variable 2 arranca en la segunda columna; si
+        arrancaba en la primera, igual que la 1, un Bland-Altman salía de una
+        columna contra sí misma."""
         self.data = data
         if data is not None:
             cols = data.columns.tolist()
-            self.combo_col1.clear()
-            self.combo_col2.clear()
-            self.combo_col3.clear()
-            self.combo_col1.addItems(cols)
-            self.combo_col2.addItems(cols)
-            self.combo_col3.addItems(["(ninguna)"] + cols)
+            rellenar(self.combo_col1, cols, 0)
+            rellenar(self.combo_col2, cols, 1)
+            rellenar(self.combo_col3, ["(ninguna)"] + cols, 0)
 
     # Decisiones de metodo que deja el dialogo (ver analysis_specs.OPCIONES).
     # Vacio = cada analisis usa sus valores por defecto.
