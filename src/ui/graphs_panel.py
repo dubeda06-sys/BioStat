@@ -50,7 +50,7 @@ class GraphsPanel(QWidget):
         left_l.setContentsMargins(0, 0, 0, 0)
         left_l.setSpacing(4)
 
-        cfg = QGroupBox(f"    Configuracion")
+        cfg = QGroupBox("    Configuración")
         cl = QFormLayout()
         cl.setSpacing(4)
         cl.setContentsMargins(6, 6, 6, 6)

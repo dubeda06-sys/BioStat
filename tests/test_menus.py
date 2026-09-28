@@ -69,7 +69,7 @@ def test_control_de_calidad_eliminado_y_los_atajos_llegan_a_su_panel():
 
     w = MainWindow()
     pestañas = [w.tabs.tabText(i) for i in range(w.tabs.count())]
-    assert pestañas == ["Datos", "Analisis", "Graficos", "Omnianálisis"]
+    assert pestañas == ["Datos", "Análisis", "Gráficos", "Omnianálisis"]
     menus = {m.text(): m.menu() for m in w.menuBar().actions()}
     assert "Control de Calidad" not in menus
     for accion in menus["Ver"].actions():

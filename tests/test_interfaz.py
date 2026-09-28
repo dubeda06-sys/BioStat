@@ -198,3 +198,21 @@ def test_la_seleccion_sigue_igual_con_secciones(qt_app):
 def test_el_titulo_es_el_nombre_en_castellano(qt_app):
     d = _dialogo("Diagnostic test")
     assert d.windowTitle() == "Evaluación de una prueba diagnóstica"
+
+
+# ---------------- la ventana ----------------
+
+def test_la_barra_de_estado_dice_que_hay_cargado(qt_app):
+    from src.ui.main_window import MainWindow
+    w = MainWindow()
+    w._on_data_changed(_hoja())
+    assert w.statusBar().currentMessage() == "Datos: 40 filas × 4 columnas (3 numéricas)"
+    w._on_data_changed(None)
+    assert w.statusBar().currentMessage().startswith("Sin datos")
+
+
+def test_el_panel_no_repite_la_descripcion_ni_una_formula_vieja(qt_app):
+    from src.ui import analysis_panel
+    from src.ui.analysis_panel import AnalysisPanel
+    assert not hasattr(analysis_panel, "ANALYSIS_LEGENDS")
+    assert not hasattr(AnalysisPanel(), "lbl_legend")

@@ -14,7 +14,7 @@ from src.ui.analysis_panel import AnalysisPanel
 from src.ui.graphs_panel import GraphsPanel
 from src.ui.omni_panel import OmniPanel
 from src.ui.menus import (
-    MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS,
+    MENU_ESTADISTICAS, ESTADISTICAS_SUELTAS, MENU_GRAFICOS, MENU_PRUEBAS, nombre_visible,
 )
 from src.ui.dialogs import DialogoAnalisis
 from src.ui import previews
@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         a.triggered.connect(self.close)
         fm.addAction(a)
 
-        em = mb.addMenu("Edicion")
+        em = mb.addMenu("Edición")
         copy = QAction("Copiar resultados", self)
         copy.setShortcut("Ctrl+C")
         copy.triggered.connect(self._copy_results)
@@ -78,8 +78,8 @@ class MainWindow(QMainWindow):
         # (27 sep) un indice fijo habria mandado "Omnianálisis" al vacio.
         vm = mb.addMenu("Ver")
         for nombre, atajo, panel in [
-            ("Datos", "Ctrl+1", "data_panel"), ("Analisis", "Ctrl+2", "analysis_panel"),
-            ("Graficos", "Ctrl+3", "graphs_panel"), ("Omnianálisis", "Ctrl+4", "omni_panel"),
+            ("Datos", "Ctrl+1", "data_panel"), ("Análisis", "Ctrl+2", "analysis_panel"),
+            ("Gráficos", "Ctrl+3", "graphs_panel"), ("Omnianálisis", "Ctrl+4", "omni_panel"),
         ]:
             act = QAction(nombre, self)
             act.setShortcut(atajo)
@@ -90,7 +90,7 @@ class MainWindow(QMainWindow):
         # Menu "Estadisticas": los 78 analisis agrupados por familia, como en
         # MedCalc. La tabla vive en src/ui/menus.py y tests/test_menus.py
         # comprueba que cada entrada apunte a un analisis que existe.
-        sm = mb.addMenu("Estadisticas")
+        sm = mb.addMenu("Estadísticas")
         sm.setToolTipsVisible(True)
         for grupo, items in MENU_ESTADISTICAS:
             sub = sm.addMenu(grupo)
@@ -101,13 +101,13 @@ class MainWindow(QMainWindow):
         for label, combo_text in ESTADISTICAS_SUELTAS:
             sm.addAction(self._accion_analisis(label, combo_text))
 
-        gm = mb.addMenu("Graficos")
+        gm = mb.addMenu("Gráficos")
         for label, combo_text in MENU_GRAFICOS:
             act = QAction(label, self)
             act.triggered.connect(lambda _checked, t=combo_text: self._goto_graph(t))
             gm.addAction(act)
 
-        pm = mb.addMenu("Pruebas diagnosticas")
+        pm = mb.addMenu("Pruebas diagnósticas")
         pm.setToolTipsVisible(True)
         for label, combo_text in MENU_PRUEBAS:
             pm.addAction(self._accion_analisis(label, combo_text))
@@ -191,7 +191,8 @@ class MainWindow(QMainWindow):
 
     def _create_status_bar(self):
         self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("BioStat listo — Importa datos o ingresa manualmente para comenzar")
+        self.statusBar().showMessage(
+            "BioStat listo — importá un CSV o un Excel, o escribí en la tabla")
 
     def _create_central_widget(self):
         self.tabs = QTabWidget()
@@ -205,8 +206,8 @@ class MainWindow(QMainWindow):
 
         tabs_config = [
             (self.data_panel, "Datos"),
-            (self.analysis_panel, "Analisis"),
-            (self.graphs_panel, "Graficos"),
+            (self.analysis_panel, "Análisis"),
+            (self.graphs_panel, "Gráficos"),
             (self.omni_panel, "Omnianálisis"),
         ]
         for panel, name in tabs_config:
@@ -219,10 +220,16 @@ class MainWindow(QMainWindow):
         """Propaga los datos a todos los paneles al importar/limpiar, sin esperar
         a cambiar de pestaña."""
         if data is None:
+            self.statusBar().showMessage(
+                "Sin datos — importá un CSV o un Excel, o escribí en la tabla")
             return
         self.analysis_panel.set_data(data)
         self.graphs_panel.set_data(data)
         self.omni_panel.set_data(data)
+        numericas = len(data.select_dtypes(include="number").columns)
+        self.statusBar().showMessage(
+            f"Datos: {len(data)} filas × {len(data.columns)} columnas "
+            f"({numericas} numéricas)")
 
     def _on_tab_changed(self, index):
         data = self.data_panel.get_data()
@@ -276,8 +283,9 @@ class MainWindow(QMainWindow):
         html = self.analysis_panel.txt_results.toHtml()
         # El grafico se muda a la ventana de informe; el panel repone su cartel.
         canvas = self.analysis_panel.tomar_grafico()
-        report_window.abrir(combo_text, html, canvas, self)
-        self.statusBar().showMessage(f"{combo_text} — informe abierto en su ventana")
+        report_window.abrir(nombre_visible(combo_text), html, canvas, self)
+        self.statusBar().showMessage(
+            f"{nombre_visible(combo_text)} — informe abierto en su ventana")
 
     def _armar_menu_ventana(self):
         """Rehace el menu Ventana con los informes abiertos en este momento."""
