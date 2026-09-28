@@ -17,7 +17,10 @@ Versionado [semántico](https://semver.org/lang/es/).
 
 ---
 
-## [Sin publicar]
+## [1.2.0] — 2026-09-27
+
+Versión de interfaz: los números son los de la 1.1.0. Lo que cambia es cómo se
+cargan los datos, cómo se lee el informe y cómo se ve la aplicación.
 
 ### Interfaz
 - **El informe empieza por la conclusión**: «Cómo se lee» y «Qué NO se puede

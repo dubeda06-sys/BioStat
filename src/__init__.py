@@ -6,5 +6,7 @@
 # 1.1.0 marca la segunda auditoria, del 26 de septiembre: 42 defectos mas,
 # entre ellos los pares desalineados con una sola celda vacia, y la envoltura
 # Resultado en los 78 analisis.
+# 1.2.0 es de interfaz (los calculos son los de 1.1.0): el informe empieza por
+# la conclusion, la hoja dice el tipo de cada columna y el tema se renovo.
 # Ver CHANGELOG.md.
-__version__ = "1.1.0"
+__version__ = "1.2.0"
