@@ -89,6 +89,91 @@ def test_la_tabla_7_es_la_formula_redondeada():
             assert round(factor_uvl_formula(gl, m), 2) == impreso, (gl, m)
 
 
+def test_la_tabla_b4_es_grubbs_al_99_por_ciento():
+    """Las 98 filas de la tabla B4 (N = 3 a 100) son la fórmula de Grubbs de dos
+    colas con α = 0,01 a tres decimales. Con α = 0,05, como usaba BioStat hasta
+    el 28 sep, no coincide ninguna."""
+    from src.core.ep15 import TABLA_B4, g_grubbs_formula
+    assert sorted(TABLA_B4) == list(range(3, 101))
+    for n, g in TABLA_B4.items():
+        assert round(g_grubbs_formula(n, 0.01), 3) == g, n
+    assert all(round(g_grubbs_formula(n, 0.05), 3) != g for n, g in TABLA_B4.items())
+
+
+def test_grubbs_del_ejemplo_de_ferritina():
+    """§2.3.4.2: N = 25, G = 3,135; límites 140,1 ± 3,135 · 2,30 = 132,9 y 147,3."""
+    from src.core.ep15 import _grubbs
+    rng = np.random.default_rng(0)
+    g = _grubbs(rng.normal(140.1, 2.3, 25))
+    assert g["g_critico"] == 3.135 and g["fuente"].startswith("tabla B4")
+    assert round(140.1 - 3.135 * 2.30, 1) == 132.9 and round(140.1 + 3.135 * 2.30, 1) == 147.3
+
+
+def test_un_resultado_entre_el_g_del_95_y_el_del_99_ya_no_es_atipico():
+    """Con N = 25, G = 3,0 pasaba el 2,82 del 95 % pero no el 3,135 de la norma."""
+    from src.core.ep15 import _grubbs
+    base = np.array([-1.0, 1.0] * 12)
+    # un valor extremo tal que su G quede en ~3,0
+    for extra in np.linspace(3, 8, 2001):
+        v = np.r_[base, extra]
+        z = abs(extra - v.mean()) / v.std(ddof=1)
+        if 2.95 < z < 3.05:
+            break
+    g = _grubbs(v)
+    assert 2.95 < g["g"] < 3.05 and not g["atipico"]
+    assert _grubbs(v, alpha=0.05)["atipico"]
+
+
+def test_las_filas_de_la_tabla_6_son_la_formula_del_apendice_b4():
+    from src.core.ep15 import TABLA_6
+    for corridas, filas in TABLA_6.items():
+        for rho, gl in filas:
+            assert df_intralab(rho, corridas, 5, 5 * corridas) == gl, (corridas, rho)
+
+
+def test_la_tabla_12_del_ejemplo_de_ferritina():
+    """Tabla 12 de EP15-A3: 5 corridas × 5 réplicas, 3 muestras. gl_R = 20 → F
+    = 1,34; gl_WL de la tabla 6 con la ρ de lo declarado, F de la tabla 7."""
+    from decimal import ROUND_HALF_UP, Decimal
+    from src.core.ep15 import gl_intralab
+
+    def como_la_norma(x, dec):
+        """Redondeo hacia arriba en el 5, como la tabla (1,50 · 23,7 = 35,55 → 35,6;
+        el round de Python da 35,5 porque 35,55 no es exacto en binario)."""
+        return float(Decimal(str(x)).quantize(Decimal(1).scaleb(-dec), ROUND_HALF_UP))
+
+    declarados = [(0.43, 0.70), (2.0, 3.5), (2.9, 5.1), (6.9, 12.0), (15.8, 23.7)]
+    esperado_gl, esperado_f = [8, 7, 7, 7, 9], [1.53, 1.56, 1.56, 1.56, 1.50]
+    uvl_r, uvl_wl = [0.58, 2.7, 3.9, 9.2, 21.2], [1.07, 5.5, 8.0, 18.7, 35.6]
+    for i, (s_r, s_wl) in enumerate(declarados):
+        assert factor_uvl(20, n_muestras=3) == 1.34
+        assert como_la_norma(Decimal("1.34") * Decimal(str(s_r)), 2 if s_r < 1 else 1) == uvl_r[i]
+        gl, fuente = gl_intralab(round(s_wl / s_r, 2), 5, 5, 5, 25)
+        assert gl == esperado_gl[i] and fuente.startswith("tabla 6")
+        f = factor_uvl(gl, n_muestras=3)
+        assert f == esperado_f[i]
+        assert como_la_norma(Decimal(str(f)) * Decimal(str(s_wl)),
+                             2 if s_wl < 1.5 else 1) == uvl_wl[i]
+
+
+@pytest.mark.parametrize("rho, corridas, replicas, esperado", [
+    (4.0, 5, 5, 5),        # por encima de la tabla: la fila más cercana (2,74)
+    (1.30, 5, 5, 12),      # empate entre 1,32 (12) y 1,28 (13): gana la primera
+    (1.0, 7, 5, 34),
+])
+def test_la_busqueda_en_la_tabla_6(rho, corridas, replicas, esperado):
+    from src.core.ep15 import gl_intralab
+    assert gl_intralab(rho, corridas, replicas, 5, corridas * 5)[0] == esperado
+
+
+@pytest.mark.parametrize("corridas, replicas", [(4, 5), (8, 5), (5, 3), (5, 6)])
+def test_fuera_de_la_tabla_6_se_usa_la_formula(corridas, replicas):
+    from src.core.ep15 import gl_intralab
+    n = corridas * replicas
+    gl, fuente = gl_intralab(1.6, corridas, replicas, replicas, n)
+    assert gl == df_intralab(1.6, corridas, replicas, n) and fuente.startswith("fórmula")
+
+
 def test_el_factor_sale_de_la_tabla_7():
     """A pedido del usuario: el F es el impreso en la tabla, no la fórmula."""
     assert factor_uvl(20, n_muestras=2) == 1.31

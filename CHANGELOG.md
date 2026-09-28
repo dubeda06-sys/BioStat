@@ -27,6 +27,16 @@ Versionado [semántico](https://semver.org/lang/es/).
   muestras, 1,307 contra 1,31) y en un caso al límite podía dar otro veredicto.
   Fuera de la tabla (gl < 5 o > 34, más de 6 muestras) se usa la fórmula, y el
   informe dice cuál se usó.
+- **EP15: atípicos por Grubbs al 99 %, como la norma** (tabla B4 y su recorte,
+  la tabla 3). BioStat usaba el 95 %: con N = 25, G crítico 2,82 en vez de
+  3,135, y marcaba como atípicos resultados que la norma no marca. Las 98 filas
+  de la B4 están en el código y un test las compara con la fórmula.
+- **EP15: gl de la precisión intralaboratorio de la tabla 6**, la fila con la ρ
+  declarada más cercana, como en el ejemplo de ferritina (tabla 12, que un test
+  reproduce entera: ρ, gl, F y UVL). Antes se redondeaba la fórmula del ap. B4,
+  que en cada fila impresa da lo mismo pero entre filas difiere en un gl en el
+  6 al 15 % de los casos (hasta 3 % en F). Fuera del diseño de la tabla (5 a 7
+  corridas de 5 réplicas), la fórmula.
 - **EP15, veracidad, escenario A completo (§3.3)**: nuevas opciones «U con
   cobertura del 95 %» (se_RM = U/1,96) y «del 99 %» (U/2,58); los límites de un
   IC entran por ahí con U = (superior − inferior)/2. El factor k ya no viene

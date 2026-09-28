@@ -11,7 +11,7 @@ import math
 import numpy as np
 
 from src.core.ep15 import (
-    CORRIDAS_NORMA, REPLICAS_NORMA, df_intralab, precision_ep15 as precision_core,
+    CORRIDAS_NORMA, REPLICAS_NORMA, gl_intralab, precision_ep15 as precision_core,
     verificar, veracidad,
 )
 from src.resultado.citas import ficha
@@ -120,11 +120,15 @@ def precision_ep15(df, corridas, opciones=None) -> Resultado:
             rho, de_donde = sigma_wl / sigma_r, "de lo declarado"
         else:
             rho, de_donde = res["s_wl"] / res["s_r"], "de lo observado (no se declaró σR)"
-        df_wl = df_intralab(max(rho, 1.0), D, res["n0"], N)
+        df_wl, fuente_gl = gl_intralab(max(rho, 1.0), D, max(res["replicas"]),
+                                       res["n0"], N)
         ver_wl = verificar(obs_wl, sigma_wl, df_wl, n_muestras)
         valores += [Valor("Intralaboratorio declarada", sigma_wl, unidad=u),
                     Valor("Límite de verificación (UVL) intralaboratorio", ver_wl["uvl"],
-                          unidad=u, nota=f"{_nota_factor(ver_wl)}; ρ = σWL/σR {de_donde}")]
+                          unidad=u, nota=(f"{_nota_factor(ver_wl)}; gl de la {fuente_gl}"
+                                          if fuente_gl.startswith("tabla") else
+                                          f"{_nota_factor(ver_wl)}; gl por la {fuente_gl}")
+                          + f", con ρ = σWL/σR = {_f(rho, 2)} {de_donde}")]
         supuestos.append(_paso_verificacion("precisión intralaboratorio", obs_wl, ver_wl, u))
     for nombre, ver in (("repetibilidad", ver_r), ("precisión intralaboratorio", ver_wl)):
         if ver is None:
@@ -260,7 +264,7 @@ def _paso_grubbs(res) -> Supuesto:
         return Supuesto(pregunta, "Grubbs: no evaluable (sin dispersión)", "No evaluable",
                         "No se pudo buscar atípicos.", ok=False)
     medicion = (f"Grubbs sobre los {res['n']} resultados: G = {_f(g['g'], 3)} para "
-                f"{_f(g['valor'])}, crítico {_f(g['g_critico'], 3)}")
+                f"{_f(g['valor'])}, crítico {_f(g['g_critico'], 3)} ({g['fuente']})")
     if g["atipico"]:
         return Supuesto(
             pregunta, medicion, "Sí",

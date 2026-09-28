@@ -90,6 +90,34 @@ Defectos vistos en capturas reales, no preferencias de estilo
 
 Suite: **1650**; smoke 78/78.
 
+## EP15 contra la norma impresa (28 sep)
+
+El usuario (experto en EP15) pasó el PDF de CLSI EP15-A3 (2014): **usar las
+tablas de la norma, no solo sus fórmulas.** Revisadas todas las que tocan el
+cálculo, extraídas del PDF y comparadas número por número:
+
+| Tabla | Qué es | Estado |
+|---|---|---|
+| 7 | F del UVL por gl y nMuestras | `ep15.TABLA_7`, idéntica al PDF (`53dd4f0`) |
+| 6 | gl_WL por ρ declarada, 5-7 corridas × 5 | `ep15.TABLA_6`, búsqueda por ρ más cercana |
+| B4 / 3 | G de Grubbs, **99 %** | `ep15.TABLA_B4`; BioStat usaba el 95 % |
+| 12 | ejemplo de ferritina (UVL) | un test la reproduce entera |
+| 15A-C | gl_C de la veracidad, escenarios B y C | **se sigue con la fórmula** (ec. 11) |
+
+- Las fórmulas de BioStat reproducen exacto todas las filas impresas (tablas 6,
+  7, B4 y las ~400 de las 15A-C). Lo que cambia con la tabla es la búsqueda:
+  fila más cercana en vez de redondear.
+- 15A-C: la §3.5 las presenta como atajo de la ec. 11, no como el método. Con
+  menos de 10 laboratorios la búsqueda cae en la columna de 10 y da de más (5
+  laboratorios: 10 gl contra 4 exactos, t un 20 % menor). Si el usuario las
+  quiere igual, están extraídas en el scratchpad de la sesión del 28 sep.
+- §3.3 escenario D: se_RM = 0 (BioStat estaba bien; la mención de D junto a la
+  ec. 12 en §3.5 no cambia nada). Escenario A completado con cobertura 95/99 %
+  y k sin valor por defecto (`dc9b957`).
+- KaizenHub (otro repo): mismos puntos pendientes — F con una sola muestra,
+  gl_WL de lo observado (la norma usa la ρ declarada: tabla 6 y tabla 12),
+  veracidad con D − 1 (la norma: Satterthwaite) y **Grubbs al 95 %**.
+
 ## Interfaz, tanda 2: diseño (27 sep, noche)
 
 Pedido: «sigue trabajando en la tanda 2». Sin plugins de diseño (se miró

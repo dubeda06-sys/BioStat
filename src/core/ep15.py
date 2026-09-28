@@ -24,8 +24,38 @@ CORRIDAS_NORMA = 5      # EP15-A3: 5 días, una corrida por día
 REPLICAS_NORMA = 5      # y 5 réplicas por corrida
 
 
-def _grubbs(valores, alpha=0.05):
-    """El valor más alejado de la media y si pasa el límite de Grubbs (dos colas)."""
+# EP15-A3, tabla B4 (y su recorte, la tabla 3): factor G de Grubbs con 99 % de
+# confianza, por N total de resultados. Hasta el 28 sep BioStat usaba el 95 %
+# (G = 2,82 con N = 25 contra el 3,135 de la norma) y marcaba como atípicos
+# resultados que la norma no marca. Cada valor es la fórmula de Grubbs de dos
+# colas con α = 0,01, redondeada a tres decimales (test_ep15 lo comprueba).
+TABLA_B4 = {
+    3: 1.155, 4: 1.496, 5: 1.764, 6: 1.973, 7: 2.139, 8: 2.274, 9: 2.387, 10: 2.482,
+    11: 2.564, 12: 2.636, 13: 2.699, 14: 2.755, 15: 2.806, 16: 2.852, 17: 2.894, 18: 2.932,
+    19: 2.968, 20: 3.001, 21: 3.031, 22: 3.060, 23: 3.087, 24: 3.112, 25: 3.135, 26: 3.158,
+    27: 3.179, 28: 3.199, 29: 3.218, 30: 3.236, 31: 3.253, 32: 3.270, 33: 3.286, 34: 3.301,
+    35: 3.316, 36: 3.330, 37: 3.343, 38: 3.356, 39: 3.369, 40: 3.381, 41: 3.392, 42: 3.404,
+    43: 3.415, 44: 3.425, 45: 3.435, 46: 3.445, 47: 3.455, 48: 3.464, 49: 3.474, 50: 3.482,
+    51: 3.491, 52: 3.500, 53: 3.508, 54: 3.516, 55: 3.524, 56: 3.531, 57: 3.539, 58: 3.546,
+    59: 3.553, 60: 3.560, 61: 3.567, 62: 3.573, 63: 3.580, 64: 3.586, 65: 3.592, 66: 3.598,
+    67: 3.604, 68: 3.610, 69: 3.616, 70: 3.622, 71: 3.627, 72: 3.633, 73: 3.638, 74: 3.643,
+    75: 3.648, 76: 3.653, 77: 3.658, 78: 3.663, 79: 3.668, 80: 3.673, 81: 3.678, 82: 3.682,
+    83: 3.687, 84: 3.691, 85: 3.695, 86: 3.700, 87: 3.704, 88: 3.708, 89: 3.712, 90: 3.716,
+    91: 3.720, 92: 3.724, 93: 3.728, 94: 3.732, 95: 3.736, 96: 3.740, 97: 3.743, 98: 3.747,
+    99: 3.750, 100: 3.754,
+}
+
+
+def g_grubbs_formula(n: int, alpha: float = 0.01) -> float:
+    """G crítico de Grubbs, dos colas: (n−1)/√n · √(t²/(n−2+t²)), t = t(1−α/2n; n−2)."""
+    t = stats.t.ppf(1 - alpha / (2 * n), n - 2)
+    return (n - 1) / math.sqrt(n) * math.sqrt(t ** 2 / (n - 2 + t ** 2))
+
+
+def _grubbs(valores, alpha=0.01):
+    """El valor más alejado de la media y si pasa el límite de Grubbs (dos
+    colas). G de la tabla B4 de EP15-A3 (99 %) para N de 3 a 100; fuera de
+    ella, o con otro α, la fórmula de la que sale la tabla."""
     v = np.asarray(valores, dtype=float)
     n = len(v)
     de = float(np.std(v, ddof=1)) if n > 2 else 0.0
@@ -33,9 +63,10 @@ def _grubbs(valores, alpha=0.05):
         return None
     z = np.abs(v - v.mean()) / de
     i = int(np.argmax(z))
-    t = stats.t.ppf(1 - alpha / (2 * n), n - 2)
-    g_crit = (n - 1) / math.sqrt(n) * math.sqrt(t ** 2 / (n - 2 + t ** 2))
+    tabla = alpha == 0.01 and n in TABLA_B4
+    g_crit = TABLA_B4[n] if tabla else g_grubbs_formula(n, alpha)
     return {"indice": i, "valor": float(v[i]), "g": float(z[i]), "g_critico": float(g_crit),
+            "fuente": "tabla B4 de EP15-A3 (99 %)" if tabla else f"fórmula de Grubbs (α = {alpha:g})",
             "atipico": bool(z[i] > g_crit)}
 
 
@@ -51,7 +82,7 @@ def componentes(ms1: float, ms2: float, n0: float) -> dict:
             "s_r": math.sqrt(ms2), "s_b": math.sqrt(vb), "s_wl": math.sqrt(ms2 + vb)}
 
 
-def precision_ep15(corridas, alpha_grubbs=0.05) -> dict:
+def precision_ep15(corridas, alpha_grubbs=0.01) -> dict:
     """ANOVA de un factor (la corrida) y los componentes de varianza.
 
     `corridas`: una secuencia de arreglos, uno por corrida, con sus réplicas.
@@ -134,6 +165,38 @@ def df_intralab(rho: float, corridas: int, n0: float, n: int) -> float:
     num = (a1 * ms1 + a2 * ms2) ** 2
     den = (a1 * ms1) ** 2 / (corridas - 1) + (a2 * ms2) ** 2 / (n - corridas)
     return float(round(num / den))
+
+
+# EP15-A3, tabla 6: gl de s_WL según la ρ = σWL/σR declarada, para 5, 6 y 7
+# corridas con 5 réplicas. La norma manda buscar la fila con la ρ más cercana
+# (§2.3.6.2 y la tabla 12 del ejemplo de ferritina); en cada ρ impresa,
+# `df_intralab` da exactamente el gl de la tabla, pero entre filas la búsqueda
+# y el redondeo de la fórmula difieren en un gl en el 6 al 15 % de los casos.
+TABLA_6 = {
+    5: ((2.74, 5), (2.06, 6), (1.78, 7), (1.62, 8), (1.51, 9), (1.43, 10), (1.37, 11),
+        (1.32, 12), (1.28, 13), (1.24, 14), (1.21, 15), (1.19, 16), (1.16, 17), (1.14, 18),
+        (1.12, 19), (1.10, 20), (1.08, 21), (1.05, 22), (1.03, 23), (1.00, 24)),
+    6: ((3.02, 6), (2.25, 7), (1.93, 8), (1.74, 9), (1.62, 10), (1.52, 11), (1.46, 12),
+        (1.40, 13), (1.35, 14), (1.32, 15), (1.28, 16), (1.25, 17), (1.23, 18), (1.20, 19),
+        (1.18, 20), (1.16, 21), (1.14, 22), (1.12, 23), (1.11, 24), (1.09, 25), (1.07, 26),
+        (1.05, 27), (1.03, 28), (1.00, 29)),
+    7: ((3.27, 7), (2.42, 8), (2.06, 9), (1.85, 10), (1.71, 11), (1.61, 12), (1.54, 13),
+        (1.48, 14), (1.42, 15), (1.38, 16), (1.35, 17), (1.31, 18), (1.29, 19), (1.26, 20),
+        (1.24, 21), (1.22, 22), (1.20, 23), (1.18, 24), (1.16, 25), (1.14, 26), (1.13, 27),
+        (1.11, 28), (1.10, 29), (1.08, 30), (1.07, 31), (1.05, 32), (1.03, 33), (1.00, 34)),
+}
+
+
+def gl_intralab(rho: float, corridas: int, replicas: int, n0: float, n: int):
+    """(gl de s_WL, de dónde salen). De la tabla 6 si el diseño es el de la
+    tabla (5 a 7 corridas de 5 réplicas; una réplica perdida no cambia el
+    diseño): la fila con la ρ más cercana, recorriendo desde arriba como dice
+    la norma (en un empate gana la primera, la de ρ mayor). Si no, la fórmula
+    del apéndice B4 con n0 y N reales."""
+    filas = TABLA_6.get(corridas)
+    if filas is not None and replicas == 5:
+        return float(min(filas, key=lambda f: abs(f[0] - rho))[1]), "tabla 6 de EP15-A3"
+    return df_intralab(rho, corridas, n0, n), "fórmula del ap. B4 (diseño fuera de la tabla 6)"
 
 
 # CLSI EP15-A3 (2014), tabla 7: factor F del límite superior de verificación
