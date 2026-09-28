@@ -17,9 +17,11 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **27 sep a la noche** desde la **v1.1.0** (`12d13d0`, la
-etiqueta): la pantalla de carga dice `v1.1.0 · 2026-09-27 · develop · 12d13d0`.
-Tiene todo lo de abajo. El anterior (`4567002`) ya tenía las deudas
+Recompilado el **27 sep a la noche** desde `50373bb` (la v1.1.0 más la tanda 1
+de la interfaz): la pantalla de carga dice `v1.1.0 · 2026-09-27 · develop · 50373bb`.
+Tiene todo lo de abajo. El anterior (`12d13d0`, la etiqueta v1.1.0) no tenía la
+tanda 1: selecciones que se perdían, coma decimal, diálogo por secciones. El de
+antes (`4567002`) ya tenía las deudas
 de esa noche cerradas: sin control de calidad, el Omnianálisis con Welch, series
 temporales y el score calibrado, el asistente con TEa y el mixin borrado. El de
 la tarde (`c789807`) tenía el paso 4 entero: los 78 análisis en `Resultado`. El de la mañana (`466e298`) tenía las
