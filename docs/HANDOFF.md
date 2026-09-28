@@ -19,9 +19,11 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **27 sep a la noche** desde `50373bb` (la v1.1.0 más la tanda 1
-de la interfaz): la pantalla de carga dice `v1.1.0 · 2026-09-27 · develop · 50373bb`.
-Tiene todo lo de abajo. El anterior (`12d13d0`, la etiqueta v1.1.0) no tenía la
+Recompilado el **27 sep a la noche** desde `b83916e` (la v1.1.0 más las tandas
+1 y 2 de la interfaz): la pantalla de carga dice `v1.1.0 · 2026-09-27 · develop ·
+b83916e`. Tiene todo lo de abajo. El anterior (`50373bb`) tenía la tanda 1 pero
+no la 2 (informe con la conclusión arriba, tipo por columna, tema). El de antes
+(`12d13d0`, la etiqueta v1.1.0) no tenía la
 tanda 1: selecciones que se perdían, coma decimal, diálogo por secciones. El de
 antes (`4567002`) ya tenía las deudas
 de esa noche cerradas: sin control de calidad, el Omnianálisis con Welch, series
