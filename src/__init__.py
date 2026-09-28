@@ -8,5 +8,7 @@
 # Resultado en los 78 analisis.
 # 1.2.0 es de interfaz (los calculos son los de 1.1.0): el informe empieza por
 # la conclusion, la hoja dice el tipo de cada columna y el tema se renovo.
+# 1.2.1: EP15-A3 con las tablas impresas de la norma (7, 6 y B4; Grubbs al 99 %)
+# y el escenario A de la veracidad completo.
 # Ver CHANGELOG.md.
-__version__ = "1.2.0"
+__version__ = "1.2.1"

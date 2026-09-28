@@ -5,7 +5,7 @@
 > commits atrás, y como `origin/HEAD` apunta ahí, quien clonaba aterrizaba en
 > código viejo: así nació el clon abandonado). Al publicar, `master` se adelanta
 > desde `develop` y se etiqueta: `git tag -n` lista las versiones.
-> Versión actual: **v1.2.0** (27 sep; `master` y la etiqueta, al día con esa
+> Versión actual: **v1.2.1** (28 sep; `master` y la etiqueta, al día con esa
 > versión).
 > Última puesta al día: **27 sep, noche** — la interfaz en dos tandas (defectos
 > y diseño: informe con la conclusión arriba, tipo de cada columna, tema).
@@ -19,10 +19,12 @@
 
 ## El `.exe` del Escritorio ya está al día
 
-Recompilado el **27 sep a la noche** desde la **v1.2.0** (la etiqueta): la
-pantalla de carga dice `v1.2.0 · 2026-09-27 · develop · ` y el commit de la
-etiqueta (`git rev-parse --short v1.2.0`). Tiene todo lo de abajo. El anterior
-(`b83916e`) era el mismo código con el número de versión viejo, `v1.1.0`. El de
+Recompilado el **28 sep** desde la **v1.2.1** (la etiqueta): la pantalla de
+carga dice `v1.2.1 · 2026-09-28 · develop · ` y el commit de la etiqueta
+(`git rev-parse --short v1.2.1`). Tiene todo lo de abajo. El anterior
+(`3937c77`, la v1.2.0) no tenía EP15 con las tablas de la norma: F de la tabla
+7, gl_WL de la tabla 6, Grubbs al 99 % y el escenario A completo. El de antes
+(`b83916e`) era el código de la 1.2.0 con el número de versión viejo, `v1.1.0`. El de
 antes (`50373bb`) tenía la tanda 1 pero
 no la 2 (informe con la conclusión arriba, tipo por columna, tema). El de antes
 (`12d13d0`, la etiqueta v1.1.0) no tenía la
@@ -946,7 +948,7 @@ python build_exe.py                              # dist/BioStat.exe + copia al E
 | Rama | Estado |
 |---|---|
 | `develop` | **fuente de verdad** |
-| `master` | en v1.2.0 (27 sep). Se adelanta solo al publicar, así que entre versiones queda atrás: `origin/HEAD` apunta acá, por eso igual conviene `git clone -b develop` |
+| `master` | en v1.2.1 (28 sep). Se adelanta solo al publicar, así que entre versiones queda atrás: `origin/HEAD` apunta acá, por eso igual conviene `git clone -b develop` |
 | `feat/medcalc-informed-agreement` | fusionada, borrable |
 | `fix/correctness-and-refactor`, `optimización-de-código-d7fdb` | viejas |
 

@@ -17,7 +17,13 @@ Versionado [semántico](https://semver.org/lang/es/).
 
 ---
 
-## [Sin publicar]
+## [1.2.1] — 2026-09-28
+
+EP15-A3 revisado contra la norma impresa, con un experto en la norma: se usan
+sus tablas (7, 6 y B4), no solo las fórmulas de las que salen. **Si verificaste
+precisión con EP15 en la 1.1.0 o la 1.2.0**, conviene volver a correr los casos
+que quedaron al límite del UVL y los que marcaron un atípico: con Grubbs al
+95 % se marcaban de más.
 
 ### Cambiado
 - **EP15: el factor F del límite de verificación (UVL) sale de la tabla 7 de
