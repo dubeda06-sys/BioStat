@@ -63,7 +63,8 @@ def bland_altman_figure(plot_data: dict):
                   else f"Promedio de los métodos  ({nx} + {ny})/2")
     if en_pct:
         base = nx if contra_ref else "promedio"
-        ax.set_ylabel(f"Diferencia %  100·({ny} − {nx}) / {base}")
+        # En dos renglones: en uno era más largo que el eje y salía cortado.
+        ax.set_ylabel(f"Diferencia (%)\n100·({ny} − {nx}) / {base}")
     else:
         ax.set_ylabel(f"Diferencia  ({ny} − {nx})")
     ax.set_title(f"Bland-Altman ({tipo}) — {nx} vs {ny}", fontweight="bold", color=_INK)

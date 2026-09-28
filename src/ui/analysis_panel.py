@@ -1,4 +1,6 @@
 """Panel de analisis estadistico."""
+from html import escape
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
     QPushButton, QLabel, QTextEdit, QGroupBox,
@@ -279,38 +281,15 @@ class AnalysisPanel(QWidget):
             anterior.deleteLater()
         self.graph_scroll.setWidget(self.graph_ph)
 
-    def _h(self, t):
-        return f"<div style='border-bottom:2px solid #4f6ef7;padding-bottom:5px;margin-bottom:10px;'><b style='color:#2c3650;font-size:14px;'>{t}</b></div>"
+    def _set_formula(self, title, formula_text):
+        """La fórmula en el recuadro de la izquierda, una línea por renglón.
 
-    def _r(self, l, v):
-        return f"<tr><td style='padding:2px 12px 2px 0;color:#8892a4;'>{l}</td><td style='padding:2px 0;font-weight:600;'>{v}</td></tr>"
-
-    def _ok(self, yes, msg_yes="Se detectó diferencia", msg_no="No se detectó diferencia"):
-        """El veredicto de una prueba, en castellano llano.
-
-        Sin la palabra «significativo», que se lee como «importante»: lo mismo
-        que ya decidio el Omnianalisis (decision 2 de la propuesta de Resultado).
-        Y el caso negativo dice que no detectar no es probar que no hay.
+        Antes se pegaba sin convertir los saltos de línea y las ocho o diez
+        líneas de una fórmula salían como un solo párrafo corrido.
         """
-        if yes:
-            return (f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#ecfdf5;"
-                    f"border-left:3px solid #22c55e;'><b style='color:#16a34a;'>{msg_yes}</b> "
-                    f"(p &lt; α)<br><span style='font-size:11px;'>Que sea detectable no dice que "
-                    f"sea grande: el tamaño lo dan la diferencia y su intervalo.</span></div>")
-        return (f"<div style='margin-top:10px;padding:8px;border-radius:6px;background:#fef9ee;"
-                f"border-left:3px solid #f59e0b;'><b style='color:#d97706;'>{msg_no}</b> (p ≥ α)"
-                f"<br><span style='font-size:11px;'>No detectarlo no prueba que no exista: con "
-                f"pocos datos puede pasar desapercibido.</span></div>")
-
-    def _set_formula(self, title, formula_text, steps=None):
-        """Muestra formula y pasos en el recuadro de auditoria."""
-        html = f"<b style='color:#2c3650;'>{title}</b><br><br>"
-        html += f"<span style='font-family:Consolas,monospace; color:#4f6ef7;'>{formula_text}</span>"
-        if steps:
-            html += "<br><br><b>Pasos:</b><br>"
-            html += "<span style='font-family:Consolas,monospace; font-size:11px;'>"
-            html += steps.replace("\n", "<br>")
-            html += "</span>"
-        self.txt_formula.setText(html)
+        cuerpo = escape(formula_text).replace("\n", "<br>")
+        self.txt_formula.setHtml(
+            f"<p style='margin:0 0 6px 0;font-weight:700;color:#0e7490;'>{escape(title)}</p>"
+            f"<p style='margin:0;font-family:Consolas,monospace;color:#1a1a1a;'>{cuerpo}</p>")
 
     # --- Estadisticas descriptivas ---

@@ -1,8 +1,20 @@
 """El único renderizador de `Resultado` a HTML.
 
-Reproduce el estilo que tenía el panel antes de la migración (los recuadros de
-color del viejo mixin `analysis_methods`), para que el cambio no se notara en
-el informe. Rediseñar el informe es otra discusión.
+Lo primero es lo que se viene a buscar: cómo se lee el resultado y qué no se
+puede concluir, y enseguida las advertencias que lo condicionan. Después los
+números, el método, lo que se verificó, la fórmula y las referencias. Antes el
+orden era el del cálculo: quince filas de números arriba y la lectura en
+castellano abajo, fuera de la vista en el recuadro del panel (27 sep).
+
+Lo dibuja `QTextEdit`, que entiende un subconjunto de HTML: un `div` no toma
+`padding` ni bordes, así que los recuadros de antes se veían como texto pegado
+a un fondo. Acá cada recuadro es una tabla de una fila: una celda angosta de
+color hace de filete y la otra lleva el texto con su margen. Se ve igual en el
+panel, al imprimir y en el navegador (Guardar como HTML).
+
+Los colores son los del tema (`src/ui/styles.py`): el acento teal para lo que
+se lee primero, ámbar para lo que condiciona el resultado, verde y ámbar para
+cada supuesto según se cumplió o no.
 
 Todo texto que viene del `Resultado` se escapa: los nombres de columna los
 escribe el usuario, y una columna llamada `<b>` no puede romper el informe.
@@ -14,112 +26,124 @@ from html import escape
 from src.resultado.lenguaje import texto_descartes
 from src.resultado.modelo import Resultado
 
-_AZUL = "#4f6ef7"
-_TINTA = "#2c3650"
-_GRIS = "#8892a4"
+_ACENTO = "#0e7490"
+_TINTA = "#1a1a1a"
+_GRIS = "#5b6573"
+_CEBRA = "#f4f7f9"
+_MONO = "Consolas, 'Cascadia Mono', monospace"
+
+# (filete, fondo) de cada clase de recuadro.
+_TONOS = {
+    "lectura": (_ACENTO, "#edf6f8"),
+    "atencion": ("#c27803", "#fdf6e7"),
+    "ok": ("#15803d", "#f0f8f2"),
+    "rechazo": ("#b42318", "#fdf1f0"),
+    "formula": ("#b8c2cc", "#f6f8fa"),
+}
 
 
-def _recuadro(contenido: str, fondo: str, borde: str) -> str:
-    return (f"<div style='margin-top:8px;padding:8px 10px;border-radius:6px;"
-            f"background:{fondo};border-left:3px solid {borde};font-size:12px;'>"
-            f"{contenido}</div>")
+def _recuadro(contenido: str, tono: str, arriba: int = 8) -> str:
+    filete, fondo = _TONOS[tono]
+    return (f"<table width='100%' cellspacing='0' cellpadding='0' "
+            f"style='margin-top:{arriba}px;'><tr>"
+            f"<td width='3' style='background-color:{filete};'></td>"
+            f"<td style='background-color:{fondo};padding:7px 10px;'>{contenido}</td>"
+            f"</tr></table>")
 
 
-def _info(contenido):
-    return _recuadro(contenido, "#f0f9fb", "#0e7490")
+def _seccion(titulo: str) -> str:
+    return (f"<p style='margin:16px 0 5px 0;font-weight:700;color:{_ACENTO};'>"
+            f"{titulo}</p>")
 
 
-def _atencion(contenido):
-    return _recuadro(contenido, "#fdf6ec", "#d97706")
-
-
-def _encabezado(titulo: str) -> str:
-    return (f"<div style='border-bottom:2px solid {_AZUL};padding-bottom:5px;"
-            f"margin-bottom:10px;'><b style='color:{_TINTA};font-size:14px;'>"
-            f"{escape(titulo)}</b></div>")
-
-
-def _fila(rotulo: str, valor: str) -> str:
-    return (f"<tr><td style='padding:2px 12px 2px 0;color:{_GRIS};'>{rotulo}</td>"
-            f"<td style='padding:2px 0;font-weight:600;'>{valor}</td></tr>")
-
-
-def _entrada(res: Resultado) -> str:
+def _encabezado(res: Resultado, parte: bool) -> str:
+    tamano = 13 if parte else 16
+    h = (f"<p style='margin:0;font-size:{tamano}px;font-weight:700;color:{_TINTA};'>"
+         f"{escape(res.titulo)}</p>")
     e = res.entrada
-    if e is None:
-        return ""
-    cols = ", ".join(escape(c) for c in e.columnas)
-    return (f"<div style='font-size:12px;color:{_GRIS};margin-bottom:6px;'>"
-            f"n = {e.n} · {cols}</div>")
+    if e is not None:
+        cols = ", ".join(escape(c) for c in e.columnas)
+        h += f"<p style='margin:2px 0 0 0;color:{_GRIS};'>n = {e.n} · {cols}</p>"
+    return h
+
+
+def _conclusion(res: Resultado) -> str:
+    h = ""
+    if res.lectura:
+        h += (f"<p style='margin:0 0 3px 0;font-weight:700;color:{_ACENTO};'>Cómo se lee</p>"
+              f"<p style='margin:0;font-size:13px;color:{_TINTA};'>{escape(res.lectura)}</p>")
+    if res.matiz:
+        h += (f"<p style='margin:{6 if h else 0}px 0 0 0;color:{_GRIS};'>"
+              f"<b>Qué NO se puede concluir.</b> {escape(res.matiz)}</p>")
+    return _recuadro(h, "lectura", 12) if h else ""
+
+
+def _advertencias(res: Resultado) -> str:
+    return "".join(_recuadro(f"<b>Atención:</b> {escape(a)}", "atencion", 6)
+                   for a in res.advertencias)
 
 
 def _descartes(res: Resultado) -> str:
     if res.entrada is None or not res.entrada.descartadas:
         return ""
-    return _atencion(escape(texto_descartes(res.entrada.descartadas)))
+    return _recuadro(escape(texto_descartes(res.entrada.descartadas)), "atencion", 6)
 
 
 def _valores(res: Resultado) -> str:
     if not res.valores:
         return ""
-    h = "<table style='font-size:12px;'>"
-    for v in res.valores:
-        celda = escape(v.texto())
+    filas = []
+    for i, v in enumerate(res.valores):
+        celda = f"<b>{escape(v.texto())}</b>"
         ic = v.texto_ic()
         if ic:
-            celda += (f" <span style='font-weight:400;color:{_GRIS};'>"
-                      f"(IC {escape(v.nivel_ic)}: {escape(ic)})</span>")
+            celda += (f"&nbsp;&nbsp;<span style='color:{_GRIS};'>"
+                      f"IC {escape(v.nivel_ic)}: {escape(ic)}</span>")
         if v.nota:
-            celda += f" <span style='font-weight:400;font-style:italic;'>{escape(v.nota)}</span>"
-        h += _fila(escape(v.nombre), celda)
-    return h + "</table>"
+            celda += (f"<br><span style='color:{_GRIS};font-style:italic;'>"
+                      f"{escape(v.nota)}</span>")
+        fondo = f"background-color:{_CEBRA};" if i % 2 else ""
+        filas.append(f"<tr style='{fondo}'>"
+                     f"<td style='padding:3px 16px 3px 6px;color:{_GRIS};'>{escape(v.nombre)}</td>"
+                     f"<td style='padding:3px 6px;'>{celda}</td></tr>")
+    return (_seccion("Resultados")
+            + f"<table cellspacing='0' cellpadding='0'>{''.join(filas)}</table>")
 
 
 def _metodo(res: Resultado) -> str:
     m = res.metodo
     if m is None:
         return ""
-    texto = f"<b>Método:</b> {escape(m.nombre)}."
+    texto = f"<b>{escape(m.nombre)}.</b>"
     if m.porque:
         texto += f" {escape(m.porque)}"
-    return _info(texto)
+    return _seccion("Método") + f"<p style='margin:0;'>{texto}</p>"
 
 
 def _supuestos(res: Resultado) -> str:
     if not res.supuestos:
         return ""
-    h = "<div style='margin-top:10px;font-size:12px;'><b>Qué se verificó y qué se decidió</b>"
-    for s in res.supuestos:
-        color = "#16a34a" if s.ok else "#d97706"
-        h += (f"<div style='margin-top:6px;padding-left:8px;border-left:3px solid {color};'>"
-              f"<b>{escape(s.pregunta)}</b> {escape(s.medicion)} → "
-              f"<b style='color:{color};'>{escape(s.respuesta)}</b><br>"
-              f"{escape(s.consecuencia)}")
+    h = _seccion("Qué se verificó y qué se decidió")
+    for i, s in enumerate(res.supuestos):
+        tono = "ok" if s.ok else "atencion"
+        color = _TONOS[tono][0]
+        texto = (f"<b>{escape(s.pregunta)}</b> {escape(s.medicion)} → "
+                 f"<b style='color:{color};'>{escape(s.respuesta)}</b><br>"
+                 f"{escape(s.consecuencia)}")
         if s.alternativa:
-            h += f"<br><i>Si hubiera dado al revés: {escape(s.alternativa)}</i>"
-        h += "</div>"
-    return h + "</div>"
-
-
-def _lectura(res: Resultado) -> str:
-    h = ""
-    if res.lectura:
-        h += _atencion(f"<b>Cómo se lee.</b> {escape(res.lectura)}")
-    if res.matiz:
-        h += _info(f"<b>Qué NO se puede concluir.</b> {escape(res.matiz)}")
+            texto += (f"<br><span style='color:{_GRIS};font-style:italic;'>"
+                      f"Si hubiera dado al revés: {escape(s.alternativa)}</span>")
+        h += _recuadro(texto, tono, 0 if i == 0 else 6)
     return h
-
-
-def _advertencias(res: Resultado) -> str:
-    return "".join(_atencion(f"<b>Atención:</b> {escape(a)}") for a in res.advertencias)
 
 
 def _formula(res: Resultado) -> str:
     if not res.formula:
         return ""
     cuerpo = escape(res.formula).replace("\n", "<br>")
-    return (f"<div style='margin-top:10px;font-size:12px;'><b>Fórmula</b><br>"
-            f"<span style='font-family:Consolas,monospace;color:{_AZUL};'>{cuerpo}</span></div>")
+    return (_seccion("Fórmula")
+            + _recuadro(f"<span style='font-family:{_MONO};color:{_TINTA};'>{cuerpo}</span>",
+                        "formula", 0))
 
 
 def _citas(res: Resultado) -> str:
@@ -129,30 +153,32 @@ def _citas(res: Resultado) -> str:
     for c in res.citas:
         texto = escape(c.texto)
         if c.url:
-            texto = f"<a href='{escape(c.url, quote=True)}'>{texto}</a>"
+            texto = f"<a href='{escape(c.url, quote=True)}' style='color:{_ACENTO};'>{texto}</a>"
         items.append(f"<li>{texto}</li>")
-    return (f"<div style='margin-top:10px;font-size:11px;color:{_GRIS};'><b>Referencias</b>"
-            f"<ul style='margin:2px 0 0 0;'>{''.join(items)}</ul></div>")
+    return (_seccion("Referencias")
+            + f"<ul style='margin:0;font-size:11px;color:{_GRIS};'>{''.join(items)}</ul>")
 
 
 def _partes(res: Resultado) -> str:
     """Cada análisis que corrió el asistente, con su informe entero debajo."""
     if not res.partes:
         return ""
-    h = (f"<div style='margin-top:18px;font-size:12px;color:{_GRIS};'><b>De dónde sale: "
-         f"el informe de cada análisis</b></div>")
+    h = _seccion("De dónde sale: el informe de cada análisis")
     for parte in res.partes:
-        h += ("<div style='margin-top:10px;padding-top:6px;border-top:1px dashed #cbd5e1;'>"
-              f"{render_html(parte)}</div>")
+        h += "<hr>" + _informe(parte, parte=True)
     return h
+
+
+def _informe(res: Resultado, parte: bool) -> str:
+    h = _encabezado(res, parte)
+    if not res.ok:
+        return (h + _recuadro(f"<b>No se puede calcular:</b> {escape(res.error)}", "rechazo", 10)
+                + _descartes(res))
+    return (h + _conclusion(res) + _advertencias(res) + _descartes(res)
+            + _valores(res) + _metodo(res) + _supuestos(res)
+            + _formula(res) + _citas(res) + _partes(res))
 
 
 def render_html(res: Resultado) -> str:
     """El informe completo. Un rechazo muestra el motivo del core, nada más."""
-    h = _encabezado(res.titulo)
-    if not res.ok:
-        h += f"<b>No se puede calcular:</b> {escape(res.error)}"
-        return h + _descartes(res)
-    return (h + _entrada(res) + _valores(res) + _metodo(res) + _supuestos(res)
-            + _lectura(res) + _advertencias(res) + _descartes(res)
-            + _formula(res) + _citas(res) + _partes(res))
+    return _informe(res, parte=False)

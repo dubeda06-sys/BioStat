@@ -216,3 +216,53 @@ def test_el_panel_no_repite_la_descripcion_ni_una_formula_vieja(qt_app):
     from src.ui.analysis_panel import AnalysisPanel
     assert not hasattr(analysis_panel, "ANALYSIS_LEGENDS")
     assert not hasattr(AnalysisPanel(), "lbl_legend")
+
+
+def test_la_formula_del_panel_va_una_linea_por_renglon(qt_app):
+    """Se pegaba sin los saltos de línea: diez líneas en un párrafo corrido."""
+    from src.ui.analysis_panel import AnalysisPanel
+    p = AnalysisPanel()
+    p._set_formula("Fórmula: Bland-Altman", "d = x1 − x2\nLoA = d̄ ± 1,96·s\nx < y & z")
+    assert p.txt_formula.toPlainText().splitlines() == [
+        "Fórmula: Bland-Altman", "d = x1 − x2", "LoA = d̄ ± 1,96·s", "x < y & z"]
+
+
+# ---------------- el informe ----------------
+
+def _informe_completo():
+    from src.resultado import Cita, Entrada, Metodo, Resultado, Supuesto, Valor
+    return Resultado(
+        analisis="prueba", titulo="Prueba — A vs B",
+        entrada=Entrada(("A", "B"), n=19, descartadas=2),
+        valores=[Valor("Sesgo", 0.03, ic=(-0.5, 0.6))],
+        metodo=Metodo("Bland-Altman paramétrico", "Las diferencias son normales."),
+        supuestos=[Supuesto("¿Normales?", "p=0.41", "Sí", "Límites ± 1,96·DE.")],
+        formula="LoA = d̄ ± 1,96·s", citas=[Cita("Bland JM, Altman DG. Lancet 1986")],
+        lectura="LECTURA", matiz="MATIZ", advertencias=["ADVERTENCIA"])
+
+
+def test_el_informe_empieza_por_la_conclusion():
+    """Antes lo primero eran 15 filas de números y la lectura quedaba abajo,
+    fuera de la vista en el recuadro del panel."""
+    from src.resultado import render_html
+    html = render_html(_informe_completo())
+    orden = ["Prueba — A vs B", "LECTURA", "MATIZ", "ADVERTENCIA", "2 filas incompletas",
+             "Resultados", "Sesgo", "Método", "Qué se verificó", "Fórmula", "Referencias"]
+    posiciones = [html.index(t) for t in orden]
+    assert posiciones == sorted(posiciones)
+
+
+def test_en_el_panel_la_conclusion_se_ve_sin_desplazar(qt_app):
+    """Con el recuadro de Resultados del alto que tiene en la ventana."""
+    from src.resultado import Valor, render_html
+    from PyQt6.QtWidgets import QTextEdit
+    res = _informe_completo()
+    res.valores = [Valor(f"Valor {i}", float(i)) for i in range(15)]
+    t = QTextEdit()
+    t.resize(900, 330)
+    t.setHtml(render_html(res))
+    t.show()
+    qt_app.processEvents()
+    visible = t.cursorForPosition(t.viewport().rect().bottomLeft()).position()
+    assert t.toPlainText().index("MATIZ") < visible
+    t.close()
