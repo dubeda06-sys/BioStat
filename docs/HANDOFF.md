@@ -50,12 +50,38 @@ app igual.
 **Después de tocar el core, recompilar:**
 
 ```bash
-python -m pytest tests/ -q        # esperar 1614 verdes (27 sep)
+python -m pytest tests/ -q        # esperar 1650 verdes (27 sep)
 python scripts/smoke_ui.py        # esperar 78/78, 0 bugs
 python build_exe.py               # deja dist/BioStat.exe y lo copia al Escritorio
 ```
 
 Qt sin pantalla: `QT_QPA_PLATFORM=offscreen`.
+
+## Interfaz, tanda 1 (después de la v1.1.0)
+
+Defectos vistos en capturas reales, no preferencias de estilo
+(`tests/test_interfaz.py`):
+
+- **Cambiar de pestaña borraba las variables elegidas** en Análisis, Gráficos
+  y Omnianálisis (este perdía también los pares marcados a mano), y la Variable
+  2 arrancaba igual a la 1: Bland-Altman de A contra A, todo en cero,
+  «concordancia casi perfecta». `src/ui/combos.rellenar` conserva la elección;
+  `entradas.correr` rechaza la misma columna dos veces (`5b62a3c`).
+- **«12,5» escrito a mano quedaba como texto** y la columna dejaba de ser
+  numérica; la hoja muestra los números sin la cola de decimales, solo en la
+  vista (`9752c90`).
+- **El diálogo de «Validar un método» medía 1150 px**: en una notebook los
+  botones quedaban afuera. Ahora va por secciones (`analysis_specs.SECCIONES`),
+  con desplazamiento y tope del 90 % de la pantalla; lo de EP15 se prende al
+  tildar una corrida (`59fb131`).
+- Tildes en menús, pestañas y títulos; el diálogo y el informe se titulan con
+  el nombre del menú (`menus.nombre_visible`), no con la clave interna. **Ojo**:
+  `previews.POR_GRUPO` busca por nombre de submenú; las tildes lo rompieron y
+  un test lo ata ahora. Barra de estado con lo cargado; el panel ya no repite
+  la descripción ni muestra la fórmula vieja escrita a mano (`27fee06`).
+
+Suite: **1650**; smoke 78/78. Pendiente, tanda 2 (diseño, a elegir): informe
+con la conclusión arriba, tema visual, hoja con el tipo de cada columna.
 
 ## 27 sep (noche): las deudas que quedaban, cerradas
 
@@ -834,7 +860,7 @@ calidad. Ver su `LEEME.md`.
 
 ```bash
 python main.py                                   # la app
-python -m pytest tests/ -q                       # 1614 verdes (27 sep); el número crece
+python -m pytest tests/ -q                       # 1650 verdes (27 sep); el número crece
 python scripts/smoke_ui.py                       # smoke de UI, 78/78
 python build_exe.py                              # dist/BioStat.exe + copia al Escritorio
 ```

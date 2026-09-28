@@ -27,7 +27,7 @@ git tag -n                                                          # versiones 
 Antes de compilar, correr las pruebas:
 
 ```bash
-python -m pytest tests/ -q     # 1614 (27 sep); el número crece
+python -m pytest tests/ -q     # 1650 (27 sep); el número crece
 python scripts/smoke_ui.py     # 78/78
 ```
 
