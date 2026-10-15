@@ -33,7 +33,7 @@ def _distribucion(estadistico, muestras, B, seed, pareado=False):
         if pareado:
             partes.append(estadistico(*(m[idx[0]] for m in muestras)))
         else:
-            partes.append(estadistico(*(m[i] for m, i in zip(muestras, idx))))
+            partes.append(estadistico(*(m[i] for m, i in zip(muestras, idx, strict=True))))
     return np.concatenate(partes)
 
 

@@ -17,6 +17,25 @@ Versionado [semántico](https://semver.org/lang/es/).
 
 ---
 
+## [Sin publicar]
+
+Auditoría de octubre de 2026: los cálculos estadísticos se contrastaron contra
+scipy, statsmodels, pingouin, lifelines y fórmulas publicadas (115 de 119
+resultados coinciden; los otros 4 son convenciones). No hay cambios de cálculo.
+
+### Corregido
+- **Exportar HTML salía vacío:** el informe se descartaba y quedaba solo el
+  título. Ahora incluye el resultado.
+- **Exportar HTML no escapaba** títulos, secciones ni celdas.
+- **CSV y Excel exportados** ya no pueden ejecutar fórmulas: un texto que
+  empieza con `=`, `+`, `-` o `@` (y no es un número) se exporta con comilla.
+- **Tablas 2x2:** `diagnostic_test` y `odds_ratio` rechazan conteos negativos,
+  decimales o no finitos, en vez de devolver una sensibilidad de -0,5.
+- **Post-hoc, meta-análisis y ANCOVA:** una lista de etiquetas de distinto largo
+  que los grupos da error en vez de recortar en silencio.
+- `from src.resultado.constructores import *` fallaba por un `__all__` con un id
+  de ensayo que no es nombre de función.
+
 ## [1.2.1] — 2026-09-28
 
 EP15-A3 revisado contra la norma impresa, con un experto en la norma: se usan

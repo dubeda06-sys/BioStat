@@ -637,7 +637,7 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         "k_grupos": k,
         "etiquetas": labels,
         "tamanos": [int(len(g)) for g in groups],
-        "normalidad_por_grupo": {lab: nn for lab, nn in zip(labels, norms)},
+        "normalidad_por_grupo": {lab: nn for lab, nn in zip(labels, norms, strict=True)},
         "todas_normales": all_normal,
         "levene": lev,
     }
@@ -1667,8 +1667,8 @@ def _multiple_regression(df, target, predictors, cfg: OmniConfig) -> dict:
         "r2": round(float(model.rsquared), 4),
         "r2_adj": round(float(model.rsquared_adj), 4),
         "f_p": round(float(model.f_pvalue), 4),
-        "coef": {n: round(float(c), 4) for n, c in zip(["const"] + predictors, model.params)},
-        "coef_p": {n: round(float(p), 4) for n, p in zip(["const"] + predictors, model.pvalues)},
+        "coef": {n: round(float(c), 4) for n, c in zip(["const"] + predictors, model.params, strict=True)},
+        "coef_p": {n: round(float(p), 4) for n, p in zip(["const"] + predictors, model.pvalues, strict=True)},
         "vif": vif,
         "residuos_normales": norm_resid["normal"],
         "diagnostico": (
@@ -1773,7 +1773,7 @@ def run_omnianalysis(df: pd.DataFrame, selected_cols: list[str],
         _descartar(report, "fdr_bh",
                    "una sola prueba bivariada: no hay multiplicidad que corregir"
                    if branch == "B" else "menos de 2 pruebas bivariadas con p calculable")
-    for b, p_adj in zip(familia, corregidos):
+    for b, p_adj in zip(familia, corregidos, strict=True):
         _decidir(b, float(p_adj), n_familia, cfg)
 
     # --- Detección de comparación de métodos (pares numéricos) ---

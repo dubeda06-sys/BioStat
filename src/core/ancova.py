@@ -54,7 +54,7 @@ def ancova(dependent, group, covariate):
     xbar = float(df["x"].mean())
     niveles = sorted(df["g"].unique())
     pred = modelo.predict(pd.DataFrame({"g": niveles, "x": [xbar] * len(niveles)}))
-    medias_ajustadas = {nivel: float(v) for nivel, v in zip(niveles, pred)}
+    medias_ajustadas = {nivel: float(v) for nivel, v in zip(niveles, pred, strict=True)}
 
     # Paralelismo: si la covariable pesa distinto en cada grupo, "ajustar" por
     # ella no tiene un solo sentido y la comparacion de medias ajustadas depende

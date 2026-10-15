@@ -3,8 +3,22 @@ import numpy as np
 from scipy import stats
 
 
+def _validar_conteos(*celdas):
+    """Una tabla 2x2 son conteos: enteros y no negativos.
+
+    Con un conteo negativo las formulas siguen calculando y devuelven una
+    sensibilidad de -0,5 o un OR negativo como si fueran resultados.
+    """
+    for v in celdas:
+        if not np.isfinite(v) or v < 0 or abs(v - round(v)) > 1e-9:
+            raise ValueError(
+                f"Los conteos de una tabla 2x2 tienen que ser enteros no negativos "
+                f"(llegó {v!r}).")
+
+
 def odds_ratio(a, b, c, d):
     """Odds Ratio con IC 95% (tabla 2x2)."""
+    _validar_conteos(a, b, c, d)
     if min(a, b, c, d) == 0:
         table = np.array([[a, b], [c, d]]) + 0.5
         a2, b2, c2, d2 = table[0, 0], table[0, 1], table[1, 0], table[1, 1]
@@ -179,6 +193,7 @@ def diagnostic_test(a, b, c, d):
     a = verdaderos positivos, b = falsos positivos,
     c = falsos negativos, d = verdaderos negativos.
     """
+    _validar_conteos(a, b, c, d)
     n_enfermos, n_sanos = a + c, b + d
     n_pos, n_neg = a + b, c + d
     total = a + b + c + d

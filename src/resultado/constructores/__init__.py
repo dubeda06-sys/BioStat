@@ -211,4 +211,7 @@ from src.resultado.constructores.tamano import EJEMPLOS as _EJ_TAMANO  # noqa: E
 
 EJEMPLOS = {**EJEMPLOS, **_EJ_TABLAS, **_EJ_ROC, **_EJ_TAMANO}
 
-__all__ = ["CONSTRUCTORES", "EJEMPLOS", "FIRMAS", *sorted(CONSTRUCTORES)]
+# Las claves de CONSTRUCTORES son ids de ensayo ("intervalos_edad"), no nombres de
+# funciones ("intervalos_por_edad"): `import *` necesita los nombres del modulo.
+__all__ = ["CONSTRUCTORES", "EJEMPLOS", "FIRMAS",
+           *sorted({f.__name__ for f in CONSTRUCTORES.values()})]

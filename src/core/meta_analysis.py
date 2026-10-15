@@ -32,11 +32,10 @@ def meta_analysis(effects, se_effects, labels=None, model="random"):
     if labels is None:
         labels = [f"Estudio {i+1}" for i in range(k)]
     else:
-        labels = [l for l, v in zip(labels, valid) if v]
+        labels = [l for l, v in zip(labels, valid, strict=True) if v]
 
     weights_fixed = 1 / se**2
     effect_fixed = np.sum(weights_fixed * effects) / np.sum(weights_fixed)
-    se_fixed = np.sqrt(1 / np.sum(weights_fixed))
 
     q = np.sum(weights_fixed * (effects - effect_fixed)**2)
     df = k - 1

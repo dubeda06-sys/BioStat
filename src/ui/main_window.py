@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction
 
+from src.core.export import neutralizar_formulas
 from src.ui.styles import MAIN_STYLE
 from src.ui.icons import Icons
 from src.ui.data_panel import DataPanel
@@ -362,9 +363,9 @@ class MainWindow(QMainWindow):
             data = self.data_panel.get_data()
             if data is not None:
                 if path.endswith(".csv"):
-                    data.to_csv(path, index=False)
+                    neutralizar_formulas(data).to_csv(path, index=False)
                 else:
-                    data.to_excel(path, index=False)
+                    neutralizar_formulas(data).to_excel(path, index=False)
                 self.statusBar().showMessage(f"Guardado: {path.split('/')[-1]}")
 
     def _show_about(self):
@@ -386,7 +387,7 @@ class MainWindow(QMainWindow):
         if path:
             data = self.data_panel.get_data()
             if data is not None:
-                data.to_csv(path, index=False)
+                neutralizar_formulas(data).to_csv(path, index=False)
                 self.statusBar().showMessage(f"CSV exportado: {path.split('/')[-1]}")
             else:
                 QMessageBox.warning(self, "Error", "No hay datos para exportar.")
@@ -399,7 +400,7 @@ class MainWindow(QMainWindow):
         if path:
             data = self.data_panel.get_data()
             if data is not None:
-                data.to_excel(path, index=False, engine='openpyxl')
+                neutralizar_formulas(data).to_excel(path, index=False, engine='openpyxl')
                 self.statusBar().showMessage(f"Excel exportado: {path.split('/')[-1]}")
             else:
                 QMessageBox.warning(self, "Error", "No hay datos para exportar.")

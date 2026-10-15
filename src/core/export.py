@@ -2,6 +2,42 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
+from html import escape
+
+_INICIO_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _es_numero(texto):
+    try:
+        float(texto.strip().replace(",", "."))
+        return True
+    except ValueError:
+        return False
+
+
+def neutralizar_celda(valor):
+    """Un valor de celda: si es texto que Excel leeria como formula, con comilla."""
+    if (isinstance(valor, str) and valor.startswith(_INICIO_FORMULA)
+            and not _es_numero(valor)):
+        return "'" + valor
+    return valor
+
+
+def neutralizar_formulas(dataframe):
+    """Copia del DataFrame en que ningun texto puede ejecutarse como formula.
+
+    Excel y LibreOffice interpretan como formula una celda de texto que empieza
+    con = + - @ (o tabulador/retorno): un CSV o un .xlsx exportado con
+    `=HYPERLINK(...)` o `=cmd|...` la ejecuta al abrirse. Se antepone una comilla
+    simple, que el programa de planilla no muestra. Los numeros escritos como
+    texto («-5», «+3,2») no se tocan: no son formulas.
+    """
+    limpio = dataframe.copy()
+    for col in limpio.columns:
+        if limpio[col].dtype != object:
+            continue
+        limpio[col] = limpio[col].map(neutralizar_celda)
+    return limpio
 
 
 def export_results_to_html(results_dict, title="Resultados BioStat"):
@@ -19,7 +55,7 @@ def export_results_to_html(results_dict, title="Resultados BioStat"):
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>{title}</title>
+    <title>{escape(str(title))}</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 20px; color: #333; }}
         h1 {{ color: #2c3650; border-bottom: 2px solid #4f6ef7; padding-bottom: 10px; }}
@@ -34,24 +70,28 @@ def export_results_to_html(results_dict, title="Resultados BioStat"):
     </style>
 </head>
 <body>
-    <h1>{title}</h1>
+    <h1>{escape(str(title))}</h1>
     <p>Generado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
 """
     for section, data in results_dict.items():
-        html += f"<h2>{section}</h2>\n"
-        if isinstance(data, dict):
+        html += f"<h2>{escape(str(section))}</h2>\n"
+        if isinstance(data, str):
+            # HTML ya renderizado por la propia app (el panel de resultados):
+            # va tal cual. Antes un texto se descartaba y el informe salia vacio.
+            html += data + "\n"
+        elif isinstance(data, dict):
             html += "<table>\n"
             html += "<tr><th>Estadística</th><th>Valor</th></tr>\n"
             for key, value in data.items():
                 if isinstance(value, float):
                     value = f"{value:.6f}"
-                html += f"<tr><td>{key}</td><td>{value}</td></tr>\n"
+                html += f"<tr><td>{escape(str(key))}</td><td>{escape(str(value))}</td></tr>\n"
             html += "</table>\n"
         elif isinstance(data, list):
             html += "<table>\n"
-            html += "<tr>" + "".join(f"<th>{col}</th>" for col in data[0].keys()) + "</tr>\n"
+            html += "<tr>" + "".join(f"<th>{escape(str(col))}</th>" for col in data[0].keys()) + "</tr>\n"
             for row in data:
-                html += "<tr>" + "".join(f"<td>{v}</td>" for v in row.values()) + "</tr>\n"
+                html += "<tr>" + "".join(f"<td>{escape(str(v))}</td>" for v in row.values()) + "</tr>\n"
             html += "</table>\n"
 
     html += """
@@ -76,7 +116,7 @@ def export_data_to_csv(dataframe, filepath):
         bool: True if successful
     """
     try:
-        dataframe.to_csv(filepath, index=False, encoding='utf-8')
+        neutralizar_formulas(dataframe).to_csv(filepath, index=False, encoding='utf-8')
         return True
     except Exception as e:
         print(f"Error exporting to CSV: {e}")
@@ -95,7 +135,7 @@ def export_data_to_excel(dataframe, filepath):
         bool: True if successful
     """
     try:
-        dataframe.to_excel(filepath, index=False, engine='openpyxl')
+        neutralizar_formulas(dataframe).to_excel(filepath, index=False, engine='openpyxl')
         return True
     except Exception as e:
         print(f"Error exporting to Excel: {e}")

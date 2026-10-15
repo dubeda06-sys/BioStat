@@ -393,7 +393,7 @@ def dunn_test(groups, labels=None):
     groups = [g[np.isfinite(g)] for g in groups]
     if labels is None:
         labels = [str(i + 1) for i in range(len(groups))]
-    pares = [(g, lab) for g, lab in zip(groups, labels) if len(g) > 0]
+    pares = [(g, lab) for g, lab in zip(groups, labels, strict=True) if len(g) > 0]
     if len(pares) < 2:
         return None
     groups = [g for g, _ in pares]
@@ -415,7 +415,7 @@ def dunn_test(groups, labels=None):
             p = float(2 * stats.norm.sf(abs(z)))
             comparaciones.append({"par": f"{labels[i]} vs {labels[j]}", "z": float(z),
                                   "p": p, "p_adj": min(p * m, 1.0)})
-    return {"metodo": "Dunn (Bonferroni)", "rangos_medios": dict(zip(labels, medios)),
+    return {"metodo": "Dunn (Bonferroni)", "rangos_medios": dict(zip(labels, medios, strict=True)),
             "comparaciones": comparaciones, "n_comparaciones": m}
 
 
@@ -469,7 +469,7 @@ def tukey_hsd(groups, labels=None, alpha=0.05):
             "comparaciones": [{"par": f"{a} vs {b}", "diferencia": -float(d),
                                "ic95": (-float(hi), -float(lo)), "p_adj": float(p)}
                               for (a, b), d, (lo, hi), p in
-                              zip(pares, res.meandiffs, ic, res.pvalues)]}
+                              zip(pares, res.meandiffs, ic, res.pvalues, strict=True)]}
 
 
 def games_howell(groups, labels=None):
@@ -484,7 +484,7 @@ def games_howell(groups, labels=None):
     groups = [g[np.isfinite(g)] for g in groups]
     if labels is None:
         labels = [str(i + 1) for i in range(len(groups))]
-    pares = [(g, str(lab)) for g, lab in zip(groups, labels) if len(g) > 1]
+    pares = [(g, str(lab)) for g, lab in zip(groups, labels, strict=True) if len(g) > 1]
     if len(pares) < 2:
         return None
     datos = pd.DataFrame({"y": np.concatenate([g for g, _ in pares]),

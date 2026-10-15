@@ -317,7 +317,7 @@ def _caso_grupos(b: dict) -> Caso:
     if etiquetas:
         caso.pasos.append(Paso(
             pregunta="¿Qué grupos se comparan, y con cuántos casos cada uno?",
-            medicion="; ".join(f"{e}: n={n}" for e, n in zip(etiquetas, tamanos)),
+            medicion="; ".join(f"{e}: n={n}" for e, n in zip(etiquetas, tamanos, strict=True)),
             respuesta=f"{k} grupo(s)",
             consecuencia=(
                 "Con 2 grupos se comparan de a uno; con 3 o más hace falta una "

@@ -25,6 +25,7 @@ matplotlib.use("Agg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
+from src.core.export import neutralizar_celda
 from src.analysis.omni_analyzer import run_omnianalysis
 from src.analysis.omni_plots import comparison_figures, serie_figure
 from src.ui.grafico_editable import GraficoEditable
@@ -544,9 +545,10 @@ class OmniPanel(QWidget):
             w.writerow(["id", "ensayo", "etapa", "estado", "veces",
                         "detalles", "motivos", "ambitos", "gatillo", "norma"])
             for f in filas:
-                w.writerow([f["id"], f["nombre"], f["etapa"], f["estado"], f["veces"],
-                            " | ".join(f["detalles"]), " | ".join(f["motivos"]),
-                            " | ".join(f["ambitos"]), f["gatillo"], f["norma"]])
+                w.writerow([neutralizar_celda(c) for c in (
+                    f["id"], f["nombre"], f["etapa"], f["estado"], f["veces"],
+                    " | ".join(f["detalles"]), " | ".join(f["motivos"]),
+                    " | ".join(f["ambitos"]), f["gatillo"], f["norma"])])
         self.lbl_auditoria.setText(f"Auditoría exportada a {ruta}")
 
     # ---------- Gráficos ----------
