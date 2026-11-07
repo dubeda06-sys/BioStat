@@ -2,10 +2,10 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget,
     QToolBar, QStatusBar, QFileDialog, QMessageBox, QApplication,
-    QLabel, QWidget, QSizePolicy,
+    QLabel, QWidget, QSizePolicy, QDockWidget, QMenu,
 )
-from PyQt6.QtCore import QSize
-from PyQt6.QtGui import QAction
+from PyQt6.QtCore import QSize, Qt, QTimer
+from PyQt6.QtGui import QAction, QActionGroup
 
 from src.core.export import neutralizar_formulas
 from src.ui.styles import MAIN_STYLE
@@ -21,6 +21,15 @@ from src.ui.dialogs import DialogoAnalisis
 from src.ui import previews
 from src.ui.help_text import ANALYSIS_HELP
 from src.ui import report_window
+from src.ui.guia.modos import INFO_MODOS, Modo, guardar_modo, modo_guardado
+from src.ui.guia.panel_guia import PanelGuia
+from src.ui.guia.reflector import Reflector
+from src.ui.guia.selector import SelectorModo
+from src.ui.guia.rueditas import AsistenteRueditas
+from src.ui.guia.ejemplos import OBJETIVOS, dataset
+from src.ui.guia.analisis_datos import a_formato_largo
+from src.analysis.omni_catalogo import POR_ID
+from src.ui.formula_dialog import abrir_formula
 
 
 class MainWindow(QMainWindow):
@@ -34,6 +43,7 @@ class MainWindow(QMainWindow):
         self._create_toolbar()
         self._create_status_bar()
         self._create_central_widget()
+        self._crear_guia()
 
     def _create_menu_bar(self):
         mb = self.menuBar()
@@ -143,6 +153,7 @@ class MainWindow(QMainWindow):
         tb.setMovable(False)
         tb.setIconSize(QSize(16, 16))
         self.addToolBar(tb)
+        self.toolbar = tb
 
         # Open button with SVG icon
         a = QAction(Icons.OPEN(), "Abrir", self)
@@ -417,3 +428,194 @@ class MainWindow(QMainWindow):
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(html)
             self.statusBar().showMessage(f"HTML exportado: {path.split('/')[-1]}")
+
+    # ================================================================
+    #  Modos guía: Asistente, Docencia, Rueditas
+    # ================================================================
+    def _crear_guia(self):
+        self._auditoria_guia = {}
+        self._rueditas = None
+        self._ultimo_ejemplo = None
+
+        # Selector en la barra, pegado a la derecha.
+        relleno = QWidget()
+        relleno.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.toolbar.addWidget(relleno)
+        self.selector_modo = SelectorModo()
+        self.selector_modo.modoCambiado.connect(self._aplicar_modo)
+        self.toolbar.addWidget(self.selector_modo)
+
+        # Panel lateral.
+        self.panel_guia = PanelGuia()
+        self.dock_guia = QDockWidget("Guía", self)
+        self.dock_guia.setObjectName("dock_guia")
+        self.dock_guia.setWidget(self.panel_guia)
+        self.dock_guia.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea
+                                       | Qt.DockWidgetArea.RightDockWidgetArea)
+        self.dock_guia.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable
+                                   | QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock_guia)
+        self.resizeDocks([self.dock_guia], [380], Qt.Orientation.Horizontal)
+
+        self.reflector = Reflector(self)
+
+        p = self.panel_guia
+        p.irAPestana.connect(self.tabs.setCurrentIndex)
+        p.resaltar.connect(self._resaltar)
+        p.cargarEjemplo.connect(self._cargar_ejemplo)
+        p.abrirRueditas.connect(self._abrir_rueditas)
+        p.cambiarModo.connect(self._aplicar_modo)
+        p.abrirFormula.connect(self._formula_desde_guia)
+        p.convertirLargo.connect(self._convertir_largo)
+        self.tabs.currentChanged.connect(p.set_pestana)
+        self.data_panel.dataChanged.connect(self._datos_para_guia)
+        self.omni_panel.analisisTerminado.connect(self._analisis_para_guia)
+
+        self._menu_guia()
+
+        modo = modo_guardado()
+        if modo is None:
+            # Primera vez: el panel abierto ofrece elegir, sin diálogo que bloquee.
+            self.selector_modo.set_modo(Modo.NORMAL)
+            self.panel_guia.set_modo(Modo.NORMAL, eligiendo=True)
+            self.dock_guia.show()
+        else:
+            self._aplicar_modo(modo.value, guardar=False, abrir=False)
+
+    def _menu_guia(self):
+        menu = QMenu("Guía", self)
+        ayuda = next((a for a in self.menuBar().actions() if a.text() == "Ayuda"), None)
+        if ayuda is not None:
+            self.menuBar().insertMenu(ayuda, menu)
+        else:
+            self.menuBar().addMenu(menu)
+        grupo = QActionGroup(self)
+        self._acciones_modo = {}
+        for modo, info in INFO_MODOS.items():
+            a = QAction(f"Modo {info['nombre']}", self, checkable=True)
+            a.setToolTip(info["lema"])
+            a.triggered.connect(lambda _=False, m=modo: self._aplicar_modo(m.value))
+            grupo.addAction(a)
+            menu.addAction(a)
+            self._acciones_modo[modo] = a
+        menu.addSeparator()
+        a = QAction("Elegir modo…", self)
+        a.triggered.connect(self._elegir_modo)
+        menu.addAction(a)
+        a = QAction("Mostrar el panel guía", self)
+        a.triggered.connect(self.dock_guia.show)
+        menu.addAction(a)
+        a = QAction("Rueditas: hacerle una pregunta a mis datos", self)
+        a.setShortcut("Ctrl+Shift+R")
+        a.triggered.connect(self._abrir_rueditas)
+        menu.addAction(a)
+        menu.addSeparator()
+        sub = menu.addMenu("Cargar un ejemplo")
+        for clave, obj in OBJETIVOS.items():
+            a = QAction(obj.titulo, self)
+            a.triggered.connect(lambda _=False, k=clave: self._cargar_ejemplo(k))
+            sub.addAction(a)
+
+    def _aplicar_modo(self, modo, guardar=True, abrir=True):
+        modo = Modo(modo)
+        self.selector_modo.set_modo(modo)
+        if modo in getattr(self, "_acciones_modo", {}):
+            self._acciones_modo[modo].setChecked(True)
+        self.panel_guia.set_modo(modo)
+        self.dock_guia.setVisible(modo != Modo.NORMAL)
+        info = INFO_MODOS[modo]
+        self.dock_guia.setWindowTitle(f"Guía — {info['nombre']}")
+        if guardar:
+            guardar_modo(modo)
+            self.statusBar().showMessage(f"Modo {info['nombre']}: {info['lema']}", 5000)
+        if modo == Modo.RUEDITAS and abrir:
+            QTimer.singleShot(150, self._abrir_rueditas)
+
+    def _elegir_modo(self):
+        self.panel_guia.set_modo(self.panel_guia.modo, eligiendo=True)
+        self.dock_guia.show()
+
+    # ---------- estado hacia la guía ----------
+    def _datos_para_guia(self, df):
+        self.panel_guia.set_datos(df)
+        if self._rueditas is not None and self._rueditas.isVisible():
+            ejemplo, self._ultimo_ejemplo = self._ultimo_ejemplo, None
+            self._rueditas.set_datos(df, ejemplo)
+
+    def _analisis_para_guia(self, report, auditoria, casos):
+        self._auditoria_guia = auditoria or {}
+        self.panel_guia.set_analisis(casos)
+
+    # ---------- acciones pedidas por la guía ----------
+    def _resaltar(self, clave, titulo, texto):
+        # Esperar a que la pestaña pedida termine de mostrarse antes de medir.
+        QTimer.singleShot(80, lambda: self._resaltar_ahora(clave, titulo, texto))
+
+    def _resaltar_ahora(self, clave, titulo, texto):
+        from PyQt6.QtCore import QPoint, QRect
+        omni = self.omni_panel
+        objetivos = {
+            "tabla": getattr(self.data_panel, "table", None),
+            "omni_variables": getattr(omni, "list_vars", None),
+            "omni_objetivo": getattr(omni, "cmb_target", None),
+            "omni_ejecutar": getattr(omni, "btn_run", None),
+            "omni_pestanas": getattr(omni, "tabs", None),
+            "selector_modo": self.selector_modo,
+        }
+        color = INFO_MODOS[self.panel_guia.modo]["color"]
+        if clave == "importar":
+            a, b = self.data_panel.btn_csv, self.data_panel.btn_xlsx
+            r1 = QRect(a.mapTo(self, QPoint(0, 0)), a.size())
+            r2 = QRect(b.mapTo(self, QPoint(0, 0)), b.size())
+            self.reflector.mostrar(r1.united(r2), titulo, texto, color)
+            return
+        w = objetivos.get(clave)
+        if w is not None:
+            self.reflector.mostrar(w, titulo, texto, color)
+
+    def _cargar_ejemplo(self, clave):
+        self._ultimo_ejemplo = clave
+        self.data_panel.cargar_dataframe(dataset(clave),
+                                         nombre=f"Ejemplo — {OBJETIVOS[clave].titulo}")
+        if self._rueditas is None or not self._rueditas.isVisible():
+            self._ultimo_ejemplo = None
+            self.tabs.setCurrentIndex(0)
+
+    def _convertir_largo(self, columnas):
+        df = self.data_panel.get_data()
+        if df is None:
+            return
+        r = QMessageBox.question(
+            self, "Pasar a formato largo",
+            "Voy a reemplazar la tabla por una con dos columnas:\n"
+            "«grupo» (el nombre de cada columna original) y «valor».\n\n"
+            f"Columnas que se apilan: {', '.join(columnas)}\n\n"
+            "Si querés conservar la original, guardala antes. ¿Sigo?")
+        if r == QMessageBox.StandardButton.Yes:
+            self.data_panel.cargar_dataframe(a_formato_largo(df, columnas),
+                                             nombre="tabla en formato largo")
+
+    def _formula_desde_guia(self, ensayo_id):
+        fila = next((f for f in self._auditoria_guia.get("filas", [])
+                     if f["id"] == ensayo_id), {})
+        ens = POR_ID.get(ensayo_id)
+        abrir_formula(self, ensayo_id, nombre=ens.nombre if ens else ensayo_id,
+                      estado=fila.get("estado"), ejecuciones=fila.get("ejecuciones"),
+                      motivos=fila.get("motivos"))
+
+    def _abrir_rueditas(self):
+        if self._rueditas is not None and self._rueditas.isVisible():
+            self._rueditas.raise_()
+            self._rueditas.activateWindow()
+            return
+        dlg = AsistenteRueditas(self.data_panel.get_data(), self)
+        dlg.pedirEjemplo.connect(self._cargar_ejemplo)
+        dlg.pedirArchivo.connect(self._open_file)
+        dlg.verDetalle.connect(self._detalle_rueditas)
+        self._rueditas = dlg
+        dlg.show()
+
+    def _detalle_rueditas(self, columnas, pares):
+        self.tabs.setCurrentWidget(self.omni_panel)
+        self.omni_panel.set_data(self.data_panel.get_data())
+        self.omni_panel.ejecutar_con(columnas, [tuple(p) for p in pares])
