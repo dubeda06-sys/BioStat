@@ -31,6 +31,7 @@ from src.analysis.omni_plots import comparison_figures, serie_figure
 from src.ui.grafico_editable import GraficoEditable
 from src.analysis import omni_arbol
 from src.analysis.omni_caso import casos as construir_casos
+from src.ui.arbol_interactivo import ArbolInteractivoWidget
 from src.analysis.omni_auditoria import (
     DESCARTADO, EJECUTADO, NO_APLICA, auditar, resumen_en_una_linea,
 )
@@ -474,8 +475,12 @@ class OmniPanel(QWidget):
         self.lbl_leyenda.setText(omni_render.leyenda_caso())
         widgets = []
         for c in casos_a_dibujar:
-            f = omni_arbol.figura_caso(c)
-            widgets.append(self._lienzo(f, alto=int(f.get_size_inches()[1] * 96)))
+            arbol = ArbolInteractivoWidget()
+            arbol.mostrar_caso(c)
+            # Alto segun la cantidad de pasos: la vista interna encuadra sola,
+            # pero necesita espacio en el scroll externo para no quedar apretada.
+            arbol.setMinimumHeight(min(620, 300 + 70 * max(1, c.n_pasos)))
+            widgets.append(arbol)
             for a in c.advertencias:
                 aviso = QLabel("⚠ " + a)
                 aviso.setWordWrap(True)
