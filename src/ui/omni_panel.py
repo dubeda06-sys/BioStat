@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog,
 )
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -142,6 +142,9 @@ class ComparisonConfirmDialog(QDialog):
 
 
 class OmniPanel(QWidget):
+    # (informe, auditoría, casos) al terminar cada corrida: lo escuchan los modos guía.
+    analisisTerminado = pyqtSignal(object, object, object)
+
     def __init__(self):
         super().__init__()
         self._df: pd.DataFrame | None = None
@@ -418,6 +421,25 @@ class OmniPanel(QWidget):
         self._render_auditoria()
         self._render_plots(report)
         self.tabs.setCurrentIndex(0)
+        self.analisisTerminado.emit(report, self._auditoria, self._casos)
+
+    def ejecutar_con(self, columnas, pares=None):
+        """Tilda esas columnas, suma los pares de comparación de métodos y corre.
+
+        Lo usa el modo Rueditas para «Ver cómo lo calculé»: abre el mismo análisis
+        que respondió la pregunta, con su árbol y sus fórmulas.
+        """
+        if self._df is None:
+            return
+        for par in pares or []:
+            par = tuple(par)
+            if par not in self._manual_pairs:
+                self._manual_pairs.append(par)
+        elegidas = set(columnas)
+        for i in range(self.list_vars.count()):
+            item = self.list_vars.item(i)
+            item.setSelected(item.text() in elegidas)
+        self._run()
 
     # ---------- Árbol ----------
     VISTA_GENERAL = "Vista general — qué ensayos corrió el motor"

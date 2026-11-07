@@ -152,6 +152,8 @@ class DataPanel(QWidget):
         btn_xlsx.clicked.connect(self._import_excel)
         btn_xlsx.setMinimumHeight(32)
         btn_layout.addWidget(btn_xlsx)
+        # Referencias para los modos guía («mostrame dónde se importa»).
+        self.btn_csv, self.btn_xlsx = btn_csv, btn_xlsx
 
         btn_layout.addSpacing(8)
 
@@ -314,6 +316,15 @@ class DataPanel(QWidget):
             self.dataChanged.emit(self.data)
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error al cargar:\n{str(e)}")
+
+    def cargar_dataframe(self, df, nombre="datos de ejemplo"):
+        """Carga una tabla ya armada (p. ej. los ejemplos de los modos guía)."""
+        self.data = df.copy()
+        self.lbl_info.setText(
+            f"{nombre}  •  {len(self.data)} filas × {len(self.data.columns)} cols")
+        self._populate_table()
+        self._update_stats()
+        self.dataChanged.emit(self.data)
 
     def _populate_table(self):
         if self.data is None:
