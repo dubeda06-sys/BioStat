@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 
 from src.ui.icons import Icons
+from src.io.importers import read_table
 
 MAX_VISIBLE_ROWS = 500
 
@@ -103,30 +104,44 @@ class DataPanel(QWidget):
         layout.addWidget(stats_group)
 
     def _import_csv(self):
-        path, _ = QFileDialog.getOpenFileName(self, "CSV", "", "CSV (*.csv);;Todos (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Importar tabla", "",
+            "Tablas (*.csv *.tsv *.txt *.dat);;CSV (*.csv);;Todos (*)")
         if path:
             self.load_file(path)
 
     def _import_excel(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Excel", "", "Excel (*.xlsx *.xls);;Todos (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Excel / SPSS", "",
+            "Excel (*.xlsx *.xls);;SPSS (*.sav);;Todos (*)")
         if path:
             self.load_file(path)
 
     def load_file(self, file_path):
         try:
-            if file_path.endswith(".csv"):
-                self.data = pd.read_csv(file_path)
-            elif file_path.endswith((".xlsx", ".xls")):
-                self.data = self._read_excel_smart(file_path)
-            else:
-                return
-            self._clean_data()
-            name = file_path.split("/")[-1].split("\\")[-1]
-            self.lbl_info.setText(f"{name}  •  {len(self.data)} filas × {len(self.data.columns)} cols")
-            self._populate_table()
-            self._update_stats()
+            result = read_table(file_path)
+        except ValueError:
+            return  # extension no reconocida
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error al cargar:\n{str(e)}")
+            return
+        self.data = result["df"]
+        rep = result["report"]
+        name = file_path.split("/")[-1].split("\\")[-1]
+        detail = []
+        if rep.get("delimiter") == "\t":
+            detail.append("sep=tab")
+        elif rep.get("delimiter"):
+            detail.append(f"sep={rep['delimiter']}")
+        if rep.get("encoding"):
+            detail.append(rep["encoding"])
+        if rep.get("european_decimal"):
+            detail.append("coma decimal")
+        extra = ("  ·  " + ", ".join(detail)) if detail else ""
+        self.lbl_info.setText(
+            f"{name}  •  {rep['n_rows']} filas × {rep['n_cols']} cols{extra}")
+        self._populate_table()
+        self._update_stats()
 
     def _read_excel_smart(self, file_path):
         raw = pd.read_excel(file_path, header=None)
