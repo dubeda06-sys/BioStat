@@ -658,3 +658,69 @@ def normality_test(data):
         data = np.random.RandomState(42).choice(data, 5000, replace=False)
     w, p = stats.shapiro(data)
     return {"w": w, "statistic": w, "p": p, "n": len(data), "normal": p >= 0.05}
+
+
+def kendall_tau(d1, d2, n_boot=2000, seed=42):
+    """Correlacion de rangos de Kendall (tau-b).
+
+    Complementa a spearman_rho cuando hay muchos empates o n pequeno. Devuelve
+    tau y p exactos (scipy), la z de contraste bajo H0: tau=0, y un IC95 por
+    bootstrap con semilla fija (determinista, coherente con el motor).
+    """
+    d1 = np.asarray(d1, dtype=float)
+    d2 = np.asarray(d2, dtype=float)
+    valid = np.isfinite(d1) & np.isfinite(d2)
+    d1, d2 = d1[valid], d2[valid]
+    n = len(d1)
+    if n < 3:
+        return None
+    tau, p = stats.kendalltau(d1, d2)
+    se0 = np.sqrt((2.0 * (2 * n + 5)) / (9.0 * n * (n - 1)))
+    z = tau / se0 if se0 > 0 else np.nan
+    rng = np.random.default_rng(seed)
+    idx = np.arange(n)
+    boots = []
+    for _ in range(int(n_boot)):
+        s = rng.choice(idx, n, replace=True)
+        t, _ = stats.kendalltau(d1[s], d2[s])
+        if np.isfinite(t):
+            boots.append(t)
+    ci = ((float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5)))
+          if len(boots) >= 100 else (np.nan, np.nan))
+    return {"tau": float(tau), "z": float(z), "p": float(p), "n": n, "ci95": ci}
+
+
+def compare_correlations(r1, n1, r2, n2):
+    """Compara dos correlaciones INDEPENDIENTES (z de Fisher, dos muestras).
+
+    H0: rho1 == rho2. Para correlaciones dependientes (mismas observaciones,
+    p.ej. r(x,y) vs r(x,z)) se necesita el metodo de Steiger, que no es este caso.
+    """
+    n1, n2 = int(n1), int(n2)
+    if n1 < 4 or n2 < 4 or not (-1 < r1 < 1 and -1 < r2 < 1):
+        return None
+    ee = np.sqrt(1.0 / (n1 - 3) + 1.0 / (n2 - 3))
+    z = (np.arctanh(r1) - np.arctanh(r2)) / ee
+    p = 2 * stats.norm.sf(abs(z))
+    return {"z": float(z), "p": float(p), "r1": float(r1), "r2": float(r2),
+            "n1": n1, "n2": n2, "diff": float(r1 - r2)}
+
+
+def bartlett_test(groups):
+    """Prueba de Bartlett de homogeneidad de varianzas (k grupos).
+
+    Mas potente que Levene con datos normales, pero sensible a la no-normalidad;
+    por eso el motor sigue usando Levene por defecto. Se ofrece como complemento
+    para datos verificadamente normales.
+    """
+    clean = []
+    for g in groups:
+        g = np.asarray(g, dtype=float)
+        g = g[np.isfinite(g)]
+        if len(g) >= 2:
+            clean.append(g)
+    if len(clean) < 2:
+        return None
+    stat, p = stats.bartlett(*clean)
+    return {"statistic": float(stat), "p": float(p), "k": len(clean),
+            "equal_var": bool(p >= 0.05)}
