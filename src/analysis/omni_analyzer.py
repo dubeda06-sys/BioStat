@@ -53,11 +53,69 @@ _fmt_p = fmt_p
 _p = p_token
 
 
-def _marcar(destino: dict, id_: str, detalle: str = ""):
-    """Anota que el ensayo `id_` se ejecuto en este bloque."""
-    destino.setdefault("ensayos", []).append(
-        {"id": id_, "estado": EJECUTADO, "detalle": detalle}
-    )
+def _marcar(destino: dict, id_: str, detalle: str = "", valores: dict | None = None):
+    """Anota que el ensayo `id_` se ejecuto en este bloque.
+
+    `valores` (opcional) guarda los numeros crudos del calculo, para que la UI
+    muestre la formula con la sustitucion real. No cambia ninguna decision.
+    """
+    marca = {"id": id_, "estado": EJECUTADO, "detalle": detalle}
+    if valores:
+        marca["valores"] = {k: _num(v) for k, v in valores.items()}
+    destino.setdefault("ensayos", []).append(marca)
+
+
+def _num(v):
+    """Numero plano y serializable (numpy -> float/int; listas recursivas)."""
+    if isinstance(v, (list, tuple)):
+        return [_num(x) for x in v]
+    try:
+        if isinstance(v, (bool, np.bool_)):
+            return bool(v)
+        if isinstance(v, (int, np.integer)):
+            return int(v)
+        return float(v)
+    except (TypeError, ValueError):
+        return v
+
+
+# ---- Insumos para mostrar la sustitucion en la UI (no deciden nada) ----
+def _valores_t(g1, g2, t, p, igual_var):
+    g1 = np.asarray(g1, dtype=float)
+    g2 = np.asarray(g2, dtype=float)
+    n1, n2 = len(g1), len(g2)
+    v1, v2 = g1.var(ddof=1), g2.var(ddof=1)
+    out = {"n1": n1, "n2": n2, "m1": g1.mean(), "m2": g2.mean(),
+           "s1": np.sqrt(v1), "s2": np.sqrt(v2), "t": t, "p": p}
+    if igual_var:
+        sp2 = ((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2)
+        out.update(sp=np.sqrt(sp2), gl=n1 + n2 - 2)
+    else:
+        a, b = v1 / n1, v2 / n2
+        out.update(gl=(a + b) ** 2 / (a ** 2 / (n1 - 1) + b ** 2 / (n2 - 1)))
+    return out
+
+
+def _valores_anova(groups, f, p):
+    gs = [np.asarray(g, dtype=float) for g in groups]
+    todos = np.concatenate(gs)
+    gran = todos.mean()
+    ssb = sum(len(g) * (g.mean() - gran) ** 2 for g in gs)
+    ssw = sum(((g - g.mean()) ** 2).sum() for g in gs)
+    k, n_tot = len(gs), len(todos)
+    return {"k": k, "N": n_tot, "ssb": ssb, "ssw": ssw, "glb": k - 1, "glw": n_tot - k,
+            "msb": ssb / (k - 1), "msw": ssw / (n_tot - k), "F": f, "p": p}
+
+
+def _valores_rangos(groups, nombre, estadistico, p):
+    gs = [np.asarray(g, dtype=float) for g in groups]
+    rangos = stats.rankdata(np.concatenate(gs))
+    sumas, i = [], 0
+    for g in gs:
+        sumas.append(float(rangos[i:i + len(g)].sum()))
+        i += len(g)
+    return {"N": len(rangos), "ns": [len(g) for g in gs], "R": sumas,
+            "k": len(gs), nombre: estadistico, "p": p}
 
 
 def _detecta_pendiente(s: dict) -> bool:
@@ -311,7 +369,12 @@ def _univariate(col: str, series: pd.Series, tipo: str, cfg: OmniConfig) -> dict
         desc = _fmt_desc(arr)
         block["resultados"]["descriptivos"] = desc
         block["traza"].append(f"Descriptivos calculados (n={desc.get('n')}).")
-        _marcar(block, "desc_numericos", f"n={int(desc.get('n') or 0)}")
+        _fin = arr[np.isfinite(arr)]
+        _marcar(block, "desc_numericos", f"n={int(desc.get('n') or 0)}", valores={
+            "n": len(_fin), "suma": float(_fin.sum()) if len(_fin) else 0.0,
+            "media": desc.get("mean"), "ds": desc.get("std"),
+            "ss": float(((_fin - _fin.mean()) ** 2).sum()) if len(_fin) else 0.0,
+        })
 
         norm = _normality(arr, cfg)
         block["resultados"]["normalidad"] = norm
@@ -320,7 +383,8 @@ def _univariate(col: str, series: pd.Series, tipo: str, cfg: OmniConfig) -> dict
             f"{'normal' if norm['normal'] else 'NO normal'}."
         )
         if norm["test"] == "Shapiro-Wilk":
-            _marcar(block, "shapiro", f"W={norm['stat']}, {_p(norm['p'])}")
+            _marcar(block, "shapiro", f"W={norm['stat']}, {_p(norm['p'])}",
+                    valores={"W": norm["stat"], "p": norm["p"], "n": len(arr)})
             _descartar(block, "anderson", f"n={len(arr)} ≤ SHAPIRO_MAX ({cfg.SHAPIRO_MAX})")
         elif norm["test"] == "Anderson-Darling":
             _marcar(block, "anderson", f"A²={norm['stat']}, crítico 5%={norm.get('critico_5pct')}")
@@ -328,7 +392,9 @@ def _univariate(col: str, series: pd.Series, tipo: str, cfg: OmniConfig) -> dict
 
         if norm["normal"]:
             block["resultados"]["tendencia_central"] = f"MEDIA ± DS = {desc.get('mean')} ± {desc.get('std')}"
-            _marcar(block, "central_media", f"{desc.get('mean')} ± {desc.get('std')}")
+            _marcar(block, "central_media", f"{desc.get('mean')} ± {desc.get('std')}",
+                    valores={"media": desc.get("mean"), "ds": desc.get("std"),
+                             "n": desc.get("n")})
             _descartar(block, "central_mediana",
                        f"la distribución no se aparta de la normal ({_p(norm['p'])})")
             block["conclusion"] = (
@@ -340,7 +406,9 @@ def _univariate(col: str, series: pd.Series, tipo: str, cfg: OmniConfig) -> dict
                 f"MEDIANA + IQR = {desc.get('median')} [{desc.get('q25')}–{desc.get('q75')}]"
             )
             _marcar(block, "central_mediana",
-                    f"{desc.get('median')} [{desc.get('q25')}–{desc.get('q75')}]")
+                    f"{desc.get('median')} [{desc.get('q25')}–{desc.get('q75')}]",
+                    valores={"mediana": desc.get("median"), "q1": desc.get("q25"),
+                             "q3": desc.get("q75"), "n": desc.get("n")})
             _descartar(block, "central_media",
                        f"la distribución se aparta de la normal ({_p(norm['p'])}): "
                        "la media sería engañosa")
@@ -443,12 +511,17 @@ def _bivariate(c1: str, s1: pd.Series, t1: str,
         if both_normal:
             block["pruebas"].append({"prueba": "Pearson", "r": round(float(r["r"]), 4),
                                      "r2": round(float(r["r2"]), 4), "p": round(float(r["p"]), 4)})
-            _marcar(block, "pearson", f"r={round(float(r['r']), 4)}, {_p(r['p'])}")
+            _n_r = int(r.get("n") or 0)
+            _t_r = (float(r["r"]) * np.sqrt(_n_r - 2) / np.sqrt(1 - float(r["r"]) ** 2)
+                    if _n_r > 2 and abs(float(r["r"])) < 1 else None)
+            _marcar(block, "pearson", f"r={round(float(r['r']), 4)}, {_p(r['p'])}",
+                    valores={"r": r["r"], "p": r["p"], "n": _n_r, "t": _t_r})
             _descartar(block, "spearman", "ambas variables pasaron la prueba de normalidad")
         else:
             block["pruebas"].append({"prueba": "Spearman", "rho": round(float(r["rho"]), 4),
                                      "p": round(float(r["p"]), 4)})
-            _marcar(block, "spearman", f"rho={round(float(r['rho']), 4)}, {_p(r['p'])}")
+            _marcar(block, "spearman", f"rho={round(float(r['rho']), 4)}, {_p(r['p'])}",
+                    valores={"rho": r["rho"], "p": r["p"], "n": r.get("n")})
             _descartar(block, "pearson",
                        f"normalidad incumplida ({c1}: {'sí' if norm1['normal'] else 'no'}, "
                        f"{c2}: {'sí' if norm2['normal'] else 'no'})")
@@ -632,7 +705,9 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         f"varianzas {'iguales' if lev['equal_var'] else 'distintas'}."
     )
     _marcar(block, "levene", f"{_p(lev['p'])} → varianzas "
-                             f"{'iguales' if lev['equal_var'] else 'distintas'}")
+                             f"{'iguales' if lev['equal_var'] else 'distintas'}",
+            valores={"W": lev.get("stat"), "p": lev.get("p"), "k": len(groups),
+                     "N": int(sum(len(g) for g in groups))})
     block["resultados"]["supuestos"] = {
         "k_grupos": k,
         "etiquetas": labels,
@@ -672,7 +747,8 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
                                      "p": round(float(t_p), 4)})
             elegido = "t_student" if equal_var else "t_welch"
             rival = "t_welch" if equal_var else "t_student"
-            _marcar(block, elegido, f"t={round(float(t_stat), 4)}, {_p(t_p)}")
+            _marcar(block, elegido, f"t={round(float(t_stat), 4)}, {_p(t_p)}",
+                    valores=_valores_t(groups[0], groups[1], t_stat, t_p, equal_var))
             _descartar(block, rival,
                        f"Levene {_p(lev['p'])}: varianzas "
                        f"{'iguales' if equal_var else 'distintas'}")
@@ -686,7 +762,8 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
             block["traza"].append("2 grupos, alguno no normal, varianzas iguales → Mann-Whitney U.")
             block["pruebas"].append({"prueba": "Mann-Whitney U", "estadístico": round(float(u_stat), 4),
                                      "p": round(float(u_p), 4)})
-            _marcar(block, "mann_whitney", f"U={round(float(u_stat), 4)}, {_p(u_p)}")
+            _marcar(block, "mann_whitney", f"U={round(float(u_stat), 4)}, {_p(u_p)}",
+                    valores=_valores_rangos(groups[:2], "U", u_stat, u_p))
             _descartar(block, "t_student", "normalidad incumplida en al menos un grupo")
             _descartar(block, "t_welch",
                        f"Levene {_p(lev['p'])}: dispersión pareja, y con algún grupo no "
@@ -700,7 +777,8 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         block["traza"].append(f"{k} grupos normales y con varianzas iguales → ANOVA.")
         block["pruebas"].append({"prueba": "ANOVA una vía", "estadístico": round(float(av["f"]), 4),
                                  "p": round(float(av["p"]), 4)})
-        _marcar(block, "anova", f"F={round(float(av['f']), 4)}, {_p(av['p'])}")
+        _marcar(block, "anova", f"F={round(float(av['f']), 4)}, {_p(av['p'])}",
+                valores=_valores_anova(groups, av["f"], av["p"]))
         _descartar(block, "anova_welch",
                    f"Levene {_p(lev['p'])}: varianzas iguales, y así el ANOVA clásico "
                    "tiene más potencia")
@@ -727,7 +805,9 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         block["pruebas"].append({"prueba": "ANOVA de Welch", "estadístico": round(float(wa["f"]), 4),
                                  "gl": (round(float(wa["df1"]), 2), round(float(wa["df2"]), 2)),
                                  "p": round(float(wa["p"]), 4)})
-        _marcar(block, "anova_welch", f"F={round(float(wa['f']), 4)}, {_p(wa['p'])}")
+        _marcar(block, "anova_welch", f"F={round(float(wa['f']), 4)}, {_p(wa['p'])}",
+                valores={"F": wa["f"], "p": wa["p"], "k": len(groups),
+                         "N": int(sum(len(g) for g in groups))})
         _descartar(block, "anova",
                    f"Levene {_p(lev['p'])}: varianzas distintas, y el ANOVA clásico las "
                    "supone iguales")
@@ -742,7 +822,8 @@ def _compare_groups(num_name: str, num_s: pd.Series, cat_s: pd.Series,
         block["traza"].append(f"{k} grupos, alguno no normal, varianzas iguales → Kruskal-Wallis.")
         block["pruebas"].append({"prueba": "Kruskal-Wallis", "estadístico": round(float(kw["h"]), 4),
                                  "p": round(float(kw["p"]), 4)})
-        _marcar(block, "kruskal", f"H={round(float(kw['h']), 4)}, {_p(kw['p'])}")
+        _marcar(block, "kruskal", f"H={round(float(kw['h']), 4)}, {_p(kw['p'])}",
+                valores=_valores_rangos(groups, "H", kw["h"], kw["p"]))
         _descartar(block, "anova", "normalidad incumplida en al menos un grupo")
         _descartar(block, "anova_welch",
                    f"Levene {_p(lev['p'])}: dispersión pareja, y con algún grupo no "
@@ -853,7 +934,9 @@ def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:
         block["pruebas"].append({"prueba": "Test exacto de Fisher", "p": round(float(fe["p"]), 4),
                                  "odds_ratio": round(float(fe["odds_ratio"]), 4)})
         _marcar(block, "fisher", f"{_p(fe['p'])}, "
-                                 f"OR={round(float(fe['odds_ratio']), 4)}")
+                                 f"OR={round(float(fe['odds_ratio']), 4)}",
+                valores={"a": a, "b": b, "c": c, "d": d, "OR": fe["odds_ratio"],
+                         "p": fe["p"]})
         _descartar(block, "chi2", f"{razon_esperada}: la aproximación chi-cuadrado no vale")
         _descartar(block, "chi2_montecarlo",
                    "la tabla es 2×2: Fisher da la probabilidad exacta, no hace falta simular")
@@ -881,8 +964,14 @@ def _contingency(c1, s1, c2, s2, cfg: OmniConfig, block: dict) -> dict:
         nombre = "Chi-cuadrado (con corrección de Yates)" if es_2x2 else "Chi-cuadrado"
         block["pruebas"].append({"prueba": nombre, "estadístico": round(float(chi["chi2"]), 4),
                                  "gl": int(chi["df"]), "p": round(float(chi["p"]), 4)})
+        _obs = np.asarray(ct.values, dtype=float)
+        _esp = np.outer(_obs.sum(axis=1), _obs.sum(axis=0)) / _obs.sum()
         _marcar(block, "chi2", f"χ²={round(float(chi['chi2']), 4)}, gl={int(chi['df'])}, "
-                               f"{_p(chi['p'])}")
+                               f"{_p(chi['p'])}",
+                valores={"chi2": chi["chi2"], "gl": int(chi["df"]), "p": chi["p"],
+                         "O": _obs.ravel().tolist(), "E": _esp.ravel().tolist(),
+                         "filas": _obs.shape[0], "cols": _obs.shape[1],
+                         "yates": bool(es_2x2)})
         _descartar(block, "fisher", f"{razon_esperada}: la aproximación vale")
         _descartar(block, "chi2_montecarlo", f"{razon_esperada}: no hace falta simular")
         _dejar_p(block, float(chi["p"]))
@@ -1242,7 +1331,11 @@ def concordance_analysis(c1: str, s1: pd.Series, c2: str, s2: pd.Series, cfg: Om
                               "(sesgo ± 1,96·DE).")
         _marcar(block, "ba_parametrico",
                 f"sesgo={round(float(ba['mean_difference']), 4)}{unidad}, "
-                f"LoA [{round(float(ba['loa_lower']), 4)}, {round(float(ba['loa_upper']), 4)}]")
+                f"LoA [{round(float(ba['loa_lower']), 4)}, {round(float(ba['loa_upper']), 4)}]",
+                valores={"sesgo": ba["mean_difference"], "loa_inf": ba["loa_lower"],
+                         "loa_sup": ba["loa_upper"],
+                         "sd": (float(ba["loa_upper"]) - float(ba["loa_lower"])) / (2 * 1.96),
+                         "n": ba.get("n"), "pct": unidad.strip() == "%"})
         _descartar(block, "ba_no_parametrico",
                    f"las diferencias pasaron la prueba de normalidad ({_p(norm_diff['p'])})")
     else:

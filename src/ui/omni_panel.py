@@ -31,7 +31,7 @@ from src.analysis.omni_plots import comparison_figures, serie_figure
 from src.ui.grafico_editable import GraficoEditable
 from src.analysis import omni_arbol
 from src.analysis.omni_caso import casos as construir_casos
-from src.ui.arbol_interactivo import ArbolInteractivoWidget
+from src.ui.arbol_interactivo import ArbolInteractivoWidget, ArbolGeneralWidget
 from src.analysis.omni_auditoria import (
     DESCARTADO, EJECUTADO, NO_APLICA, auditar, resumen_en_una_linea,
 )
@@ -454,21 +454,20 @@ class OmniPanel(QWidget):
         widgets.append(resumen)
 
         pista = QLabel(
-            "Para ver qué dio cada análisis y por qué se decidió así, elegí un "
-            "caso en el selector de arriba."
+            "Pasá el cursor por un ensayo para ver qué calculó, o por qué se "
+            "descartó. Para el camino completo de un análisis, elegí un caso en "
+            "el selector de arriba."
         )
         pista.setWordWrap(True)
         pista.setStyleSheet("font-size:11px; color:#64748b;")
         widgets.append(pista)
 
-        fig = omni_arbol.figura_resumen(self._auditoria)
-        widgets.append(self._lienzo(fig, alto=int(46 * 5 + 90)))
-
-        for _etapa, f in omni_arbol.figuras(self._auditoria):
-            # Sin QLabel de titulo: la figura ya lleva el nombre de la etapa
-            # dibujado, y el rotulo duplicado quedaba dos veces seguidas.
-            # El alto de la figura ya viene proporcionado al layout de la etapa.
-            widgets.append(self._lienzo(f, alto=int(f.get_size_inches()[1] * 96)))
+        # Árbol completo interactivo: todas las etapas en una sola escena, con
+        # zoom/arrastre y detalle al hover (reemplaza las figuras estáticas).
+        general = ArbolGeneralWidget()
+        general.mostrar_auditoria(self._auditoria)
+        general.setMinimumHeight(660)
+        widgets.append(general)
         self._poner_arbol(widgets)
 
     def _render_casos(self, casos_a_dibujar):
@@ -476,7 +475,7 @@ class OmniPanel(QWidget):
         widgets = []
         for c in casos_a_dibujar:
             arbol = ArbolInteractivoWidget()
-            arbol.mostrar_caso(c)
+            arbol.mostrar_caso(c, self._auditoria)
             # Alto segun la cantidad de pasos: la vista interna encuadra sola,
             # pero necesita espacio en el scroll externo para no quedar apretada.
             arbol.setMinimumHeight(min(620, 300 + 70 * max(1, c.n_pasos)))

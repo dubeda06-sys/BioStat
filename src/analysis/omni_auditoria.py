@@ -72,7 +72,8 @@ def auditar(report: dict) -> dict:
                 )
             else:
                 ejecuciones.setdefault(id_, []).append(
-                    {"ambito": ambito, "detalle": m.get("detalle", "")}
+                    {"ambito": ambito, "detalle": m.get("detalle", ""),
+                     "valores": m.get("valores")}
                 )
 
     filas = []
@@ -101,6 +102,9 @@ def auditar(report: dict) -> dict:
             "descartes": len(rechazos),
             "ambitos": [c["ambito"] for c in corridas],
             "detalles": [c["detalle"] for c in corridas if c["detalle"]],
+            # Una entrada por corrida, alineada: dónde, qué dio y con qué números.
+            "ejecuciones": [{"ambito": c["ambito"], "detalle": c["detalle"],
+                             "valores": c.get("valores")} for c in corridas],
             "motivos": motivos,
             "gatillo": e.gatillo,
             "porque": e.porque,
